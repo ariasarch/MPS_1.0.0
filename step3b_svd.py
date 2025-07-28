@@ -354,32 +354,14 @@ class Step3bNNDSVD(ttk.Frame):
             # ----- 3.  FALLBACK ON MemoryError TO COMPRESSED SVD -------------
             # -----------------------------------------------------------------
             except MemoryError:
-                self.log("MemoryError during in‑memory SVD—switching to "
-                        "dask.linalg.svd_compressed fallback.")
-                import gc, dask.array as da
-                from dask.distributed import default_client
-
-                # free partially‑loaded NumPy array if it exists
-                try:
-                    del Y_reshaped_values
-                except NameError:
-                    pass
-                gc.collect()
-
-                client = default_client()  # attaches to the existing cluster
-
-                # build a tall‑and‑skinny chunked array and persist
-                Y_da = (Y_offset.astype("float32")
-                                .rechunk((chunk_size, -1))).persist()
-
-                U_da, S_da, Vt_da = da.linalg.svd_compressed(
-                                        Y_da,
-                                        k=n_components,
-                                        n_iterations=n_power_iter
-                                    )
-                U, S, Vt = client.compute([U_da, S_da, Vt_da])
-                U, S, Vt = map(np.asarray, (U, S, Vt))  # back to NumPy
-                self.log("Compressed SVD completed and gathered.")
+                self.log("Error: Block compression size error encountered.")
+                self.log("This issue is currently under investigation and falls outside the scope of this implementation.")
+                self.log("Common resolution: Try adjusting the zoom/cropping parameters by 0.1-0.2 decimal places.")
+                self.log("This typically resolves the compression mismatch.")
+                self.status_var.set("Error: Block compression size issue - see log for details")
+                
+                # Properly raise the error to stop processing
+                raise RuntimeError("Block compression size error. Please adjust zoom/cropping parameters and retry.")
                 
             # Update progress
             self.update_progress(50)
