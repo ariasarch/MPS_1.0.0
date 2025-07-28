@@ -1,3 +1,5 @@
+cd _desired_location_
+
 git clone git@github.com:ariasarch/GUI_PSS_0.0.1.git
 
 cd GUI_PSS_0.0.1
