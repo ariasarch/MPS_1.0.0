@@ -71,11 +71,6 @@ class Step6dUpdateTemporal(ttk.Frame):
         # Parameter settings
         self.create_parameter_widgets()
         
-        # Status
-        self.status_var = tk.StringVar(value="Ready to update temporal components")
-        self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=7, column=0, columnspan=3, pady=10)
-        
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
         self.progress.grid(row=8, column=0, columnspan=3, pady=10, padx=10, sticky="ew")

@@ -34,7 +34,7 @@ class Step1Setup(ttk.Frame):
         # Input directory selection
         ttk.Label(self, text="Input Directory:").grid(row=3, column=0, padx=10, pady=10, sticky="w")
         self.input_var = tk.StringVar()
-        self.input_entry = ttk.Entry(self, textvariable=self.input_var, width=50)
+        self.input_entry = ttk.Entry(self, textvariable=self.input_var, width=50, state="readonly")
         self.input_entry.grid(row=3, column=1, padx=10, pady=10, sticky="w")
         self.input_button = ttk.Button(self, text="Browse...", command=self.select_input_dir)
         self.input_button.grid(row=3, column=2, padx=10, pady=10, sticky="w")
@@ -42,7 +42,7 @@ class Step1Setup(ttk.Frame):
         # Output directory selection
         ttk.Label(self, text="Output Directory:").grid(row=4, column=0, padx=10, pady=10, sticky="w")
         self.output_var = tk.StringVar()
-        self.output_entry = ttk.Entry(self, textvariable=self.output_var, width=50)
+        self.output_entry = ttk.Entry(self, textvariable=self.output_var, width=50, state="readonly")
         self.output_entry.grid(row=4, column=1, padx=10, pady=10, sticky="w")
         self.output_button = ttk.Button(self, text="Browse...", command=self.select_output_dir)
         self.output_button.grid(row=4, column=2, padx=10, pady=10, sticky="w")

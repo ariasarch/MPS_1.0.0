@@ -127,10 +127,11 @@ class Step3aCropping(ttk.Frame):
         self.run_button = ttk.Button(
             self.control_frame,
             text="Apply Crop",
-            command=self.run_cropping
+            command=self.run_cropping,
+            state="disabled"  # ADD THIS LINE
         )
         self.run_button.grid(row=2, column=1, columnspan=1, pady=20, padx=10)
-        
+
         # Status
         self.status_var = tk.StringVar(value="Ready to crop")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
@@ -413,6 +414,9 @@ class Step3aCropping(ttk.Frame):
                 'final_height': final_height, 
                 'final_width': final_width
             }
+
+            # Enable the Apply Crop button
+            self.run_button.config(state="normal")
             
         except Exception as e:
             self.log(f"Error creating full frame preview: {str(e)}")
@@ -774,6 +778,9 @@ class Step3aCropping(ttk.Frame):
                 'final_width': final_width,
                 'optimal_chunk_size': optimal_chunk_size
             }
+
+            # Enable the Apply Crop button
+            self.run_button.config(state="normal")  
             
         except Exception as e:
             self.log(f"Error creating crop preview: {str(e)}")

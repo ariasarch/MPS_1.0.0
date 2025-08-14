@@ -99,7 +99,7 @@ class Step6cParameterSuggestion(ttk.Frame):
         # Run button
         self.run_button = ttk.Button(
             self.control_frame,
-            text="Analyze and Suggest Parameters",
+            text="Suggest Parameters",
             command=self.run_parameter_suggestion
         )
         self.run_button.grid(row=5, column=0, columnspan=3, pady=20, padx=10)

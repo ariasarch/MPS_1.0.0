@@ -357,7 +357,7 @@ class Step8cFilterSave(ttk.Frame):
         colors = ["red", "yellow", "blue", "green", "purple", "cyan", "orange", "pink", "white"]
         
         # Close button
-        close_button = ttk.Button(animation_window, text="Close", command=animation_window.destroy)
+        close_button = ttk.Button(animation_window, text="Close", command=lambda: self.on_fireworks_close(animation_window))
         close_button.pack(pady=10)
         
         def create_firework(x, y):
@@ -418,6 +418,196 @@ class Step8cFilterSave(ttk.Frame):
         animation_window.lift()
         animation_window.focus_force()
         animation_window.grab_set()
+        
+        # Also bind the window close event
+        animation_window.protocol("WM_DELETE_WINDOW", lambda: self.on_fireworks_close(animation_window))
+
+    def on_fireworks_close(self, animation_window):
+        """Handle closing of the fireworks window"""
+        animation_window.destroy()
+        
+        # Show the transition popup
+        self.show_data_explorer_popup()
+
+    def show_data_explorer_popup(self):
+        """Show popup to transition to data explorer"""
+        popup = tk.Toplevel(self)
+        popup.title("Processing Complete")
+        popup.geometry("450x250")
+        popup.resizable(False, False)
+        
+        # Center on screen
+        screen_width = popup.winfo_screenwidth()
+        screen_height = popup.winfo_screenheight()
+        x = (screen_width - 450) // 2
+        y = (screen_height - 250) // 2
+        popup.geometry(f"450x250+{x}+{y}")
+        
+        # Make modal
+        popup.transient(self)
+        popup.grab_set()
+        
+        # Message
+        message_frame = ttk.Frame(popup)
+        message_frame.pack(expand=True, fill="both", padx=20, pady=20)
+        
+        ttk.Label(
+            message_frame, 
+            text="Processing Complete!", 
+            font=("Arial", 14, "bold")
+        ).pack(pady=(10, 5))
+        
+        ttk.Label(
+            message_frame,
+            text="What would you like to do next?",
+            font=("Arial", 12)
+        ).pack(pady=(5, 20))
+        
+        # Button frame
+        button_frame = ttk.Frame(popup)
+        button_frame.pack(pady=(0, 20))
+        
+        def open_explorer_and_close():
+            """Open data explorer and close all windows"""
+            popup.destroy()
+            # Launch data explorer
+            self.launch_data_explorer(close_main=True)
+        
+        def open_explorer_keep_open():
+            """Open data explorer but keep main windows open"""
+            popup.destroy()
+            # Launch data explorer without closing main window
+            self.launch_data_explorer(close_main=False)
+        
+        def cancel():
+            """Just close the popup"""
+            popup.destroy()
+        
+        # Create buttons with consistent width
+        button_width = 30
+        
+        ttk.Button(
+            button_frame,
+            text="Open Data Explorer and Close Windows",
+            command=open_explorer_and_close,
+            width=button_width
+        ).pack(pady=5)
+        
+        ttk.Button(
+            button_frame,
+            text="Open Data Explorer and Keep Windows Open",
+            command=open_explorer_keep_open,
+            width=button_width
+        ).pack(pady=5)
+        
+        ttk.Button(
+            button_frame,
+            text="Cancel",
+            command=cancel,
+            width=button_width
+        ).pack(pady=5)
+        
+        # Make sure popup is on top
+        popup.lift()
+        popup.focus_force()
+        
+        # Bind escape key to cancel
+        popup.bind("<Escape>", lambda e: cancel())
+
+    def launch_data_explorer(self, close_main=True):
+        """Launch the data explorer as a separate process"""
+        try:
+            import subprocess
+            import sys
+            import os
+            
+            # Get the directory where the main GUI script is located
+            # This looks for the controller's module file location
+            if hasattr(self.controller, '__module__'):
+                # Get the main application's module
+                main_module = sys.modules.get(self.controller.__module__)
+                if main_module and hasattr(main_module, '__file__'):
+                    gui_script_dir = os.path.dirname(os.path.abspath(main_module.__file__))
+                else:
+                    # Fallback: try to find GUI_PSS_0.0.1.py in parent directories
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    gui_script_dir = os.path.dirname(current_dir)
+            else:
+                # Another fallback
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                gui_script_dir = os.path.dirname(current_dir)
+            
+            # Path to data_explorer.py should be in the same directory as GUI_PSS_0.0.1.py
+            data_explorer_path = os.path.join(gui_script_dir, "data_explorer.py")
+            
+            self.log(f"Looking for data_explorer.py at: {data_explorer_path}")
+            
+            # Check if the file exists
+            if not os.path.exists(data_explorer_path):
+                # Try alternative locations
+                alternative_paths = [
+                    os.path.join(os.path.dirname(current_dir), "data_explorer.py"),
+                    os.path.join(os.path.dirname(os.path.dirname(current_dir)), "data_explorer.py"),
+                    os.path.join(os.getcwd(), "data_explorer.py")
+                ]
+                
+                for alt_path in alternative_paths:
+                    if os.path.exists(alt_path):
+                        data_explorer_path = alt_path
+                        self.log(f"Found data_explorer.py at alternative location: {alt_path}")
+                        break
+                else:
+                    messagebox.showwarning(
+                        "Data Explorer Not Found",
+                        f"Could not find data_explorer.py\n\nSearched in:\n{data_explorer_path}\n" + 
+                        "\n".join(alternative_paths) +
+                        f"\n\nPlease ensure data_explorer.py is in the same directory as GUI_PSS_0.0.1.py"
+                    )
+                    return
+            
+            # Get the current state data to pass to data explorer
+            cache_path = self.controller.state.get('cache_path', '')
+            animal = self.controller.state.get('animal', 0)
+            session = self.controller.state.get('session', 0)
+            export_path = self.export_path_var.get()  # Get the export path from the UI
+            
+            # Launch data explorer with arguments
+            self.log(f"Launching data explorer with cache_path: {cache_path}")
+            subprocess.Popen([
+                sys.executable, 
+                data_explorer_path,
+                "--cache_path", cache_path,
+                "--animal", str(animal),
+                "--session", str(session),
+                "--export_path", export_path
+            ])
+            
+            if close_main:
+                # Show a message that the data explorer is launching and main window will close
+                messagebox.showinfo(
+                    "Data Explorer Launching",
+                    "The Data Explorer is opening in a new window.\n\n" +
+                    "The main processing pipeline will close in a few seconds."
+                )
+                
+                # Close the main application after a short delay
+                self.controller.after(2000, self.controller.destroy)
+            else:
+                # Just show a message that the data explorer is launching
+                messagebox.showinfo(
+                    "Data Explorer Launched",
+                    "The Data Explorer has been opened in a new window.\n\n" +
+                    "You can continue using the main processing pipeline."
+                )
+            
+        except Exception as e:
+            messagebox.showerror(
+                "Error",
+                f"Failed to launch data explorer:\n{str(e)}"
+            )
+            self.log(f"Error launching data explorer: {str(e)}")
+            import traceback
+            self.log(traceback.format_exc())
 
     def update_export_path(self):
         """Update the export path based on current state"""
@@ -672,616 +862,810 @@ class Step8cFilterSave(ttk.Frame):
         thread.start()
     
     def _filtering_export_thread(self, export_path, params):
-        """Thread function for filtering and export process"""
-        try:
-            # Import required modules
-            self.log("Importing required modules...")
-            
-            # Add the utility directory to the path if needed
-            module_base_path = Path(__file__).parent.parent
-            if str(module_base_path) not in sys.path:
-                sys.path.append(str(module_base_path))
-            
-            # Create export directory
-            if not os.path.exists(export_path):
-                os.makedirs(export_path)
-                self.log(f"Created export directory: {export_path}")
-            
-            # Generate timestamped directory or use custom name
-            if params['export_name']:
-                export_name = params['export_name']
-            else:
-                # Generate timestamp
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                animal = self.controller.state.get('animal', 0)
-                session = self.controller.state.get('session', 0)
-                export_name = f"animal{animal}_session{session}_filtered_{timestamp}"
-            
-            # Create subfolder with the export name
-            result_dir = os.path.join(export_path, export_name)
-            os.makedirs(result_dir, exist_ok=True)
-            self.log(f"Created result directory: {result_dir}")
-            
-            # Load data
-            self.log("\nLoading data from previous steps...")
-            
+            """Thread function for filtering and export process"""
             try:
-                # Load spatial components (A)
-                A = self.controller.state['results'][params['spatial_source']]
-                self.log(f"Loaded spatial components (A) with shape {A.shape}")
+                # Import required modules
+                self.log("Importing required modules...")
                 
-                # Load temporal components (C)
-                C = self.controller.state['results'][params['temporal_source']]
-                self.log(f"Loaded temporal components (C) with shape {C.shape}")
+                # Add the utility directory to the path if needed
+                module_base_path = Path(__file__).parent.parent
+                if str(module_base_path) not in sys.path:
+                    sys.path.append(str(module_base_path))
                 
-                # Try to load spike components (S) if available
-                S = None
-                # Check for corresponding S based on temporal source
-                if params['temporal_source'] == 'step8b_C_final' and 'step8b_S_final' in self.controller.state['results']:
-                    S = self.controller.state['results']['step8b_S_final']
-                    self.log(f"Loaded spike components (S) with shape {S.shape}")
-                elif params['temporal_source'] == 'step6e_C_filtered' and 'step6e_S_filtered' in self.controller.state['results']:
-                    S = self.controller.state['results']['step6e_S_filtered']
-                    self.log(f"Loaded spike components (S) with shape {S.shape}")
-                elif params['temporal_source'] == 'step6d_C_new' and 'step6d_S_new' in self.controller.state['results']:
-                    S = self.controller.state['results']['step6d_S_new']
-                    self.log(f"Loaded spike components (S) with shape {S.shape}")
+                # Create export directory
+                if not os.path.exists(export_path):
+                    os.makedirs(export_path)
+                    self.log(f"Created export directory: {export_path}")
+                
+                # Generate timestamped directory or use custom name
+                if params['export_name']:
+                    export_name = params['export_name']
                 else:
-                    self.log("No corresponding spike components (S) found")
+                    # Generate timestamp
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    animal = self.controller.state.get('animal', 0)
+                    session = self.controller.state.get('session', 0)
+                    export_name = f"animal{animal}_session{session}_filtered_{timestamp}"
                 
-                # Try to load background components
+                # Create subfolder with the export name
+                result_dir = os.path.join(export_path, export_name)
+                os.makedirs(result_dir, exist_ok=True)
+                self.log(f"Created result directory: {result_dir}")
+                
+                # Load data
+                self.log("\nLoading data from previous steps...")
+                
                 try:
-                    b = self.controller.state['results'].get('step6d_b0_new')
-                    if b is None:
-                        b = self.controller.state['results'].get('step3b_b')
+                    # Load spatial components (A)
+                    A = self.controller.state['results'][params['spatial_source']]
+                    self.log(f"Loaded spatial components (A) with shape {A.shape}")
                     
-                    f = self.controller.state['results'].get('step6d_c0_new')
-                    if f is None:
-                        f = self.controller.state['results'].get('step3b_f')
+                    # Load temporal components (C)
+                    C = self.controller.state['results'][params['temporal_source']]
+                    self.log(f"Loaded temporal components (C) with shape {C.shape}")
                     
-                    if b is not None and f is not None:
-                        self.log(f"Loaded background components (b, f) with shapes {b.shape}, {f.shape}")
+                    # Try to load spike components (S) if available
+                    S = None
+                    # Check for corresponding S based on temporal source
+                    if params['temporal_source'] == 'step8b_C_final' and 'step8b_S_final' in self.controller.state['results']:
+                        S = self.controller.state['results']['step8b_S_final']
+                        self.log(f"Loaded spike components (S) with shape {S.shape}")
+                    elif params['temporal_source'] == 'step6e_C_filtered' and 'step6e_S_filtered' in self.controller.state['results']:
+                        S = self.controller.state['results']['step6e_S_filtered']
+                        self.log(f"Loaded spike components (S) with shape {S.shape}")
+                    elif params['temporal_source'] == 'step6d_C_new' and 'step6d_S_new' in self.controller.state['results']:
+                        S = self.controller.state['results']['step6d_S_new']
+                        self.log(f"Loaded spike components (S) with shape {S.shape}")
                     else:
-                        self.log("Background components (b, f) not found or incomplete")
-                except (KeyError, AttributeError):
-                    b = None
-                    f = None
-                    self.log("Background components (b, f) not available")
-            
-            except Exception as e:
-                self.log(f"Error loading data: {str(e)}")
-                self.log(traceback.format_exc())
-                self.status_var.set(f"Error: Failed to load required data")
-                return
-            
-            self.update_progress(20)
+                        self.log("No corresponding spike components (S) found")
+                    
+                    # Try to load background components
+                    try:
+                        b = self.controller.state['results'].get('step6d_b0_new')
+                        if b is None:
+                            b = self.controller.state['results'].get('step3b_b')
+                        
+                        step8c_f = self.controller.state['results'].get('step6d_c0_new')
+                        if step8c_f is None:
+                            step8c_f = self.controller.state['results'].get('step3b_f')
+                        
+                        if b is not None and step8c_f is not None:
+                            # Debug logging
+                            self.log(f"Raw b type: {type(b)}, Raw step8c_f type: {type(step8c_f)}")
+                            
+                            # Check if step8c_f is valid
+                            if hasattr(step8c_f, 'shape'):
+                                self.log(f"step8c_f shape: {step8c_f.shape}")
+                            if hasattr(step8c_f, 'size'):
+                                self.log(f"step8c_f size: {step8c_f.size}")
+                            
+                            # Convert to proper arrays if needed
+                            if hasattr(b, 'values'):
+                                b_array = b.values
+                            elif hasattr(b, 'compute'):
+                                b_array = b.compute()
+                            else:
+                                b_array = b
+                                
+                            if hasattr(step8c_f, 'values'):
+                                f_array = step8c_f.values
+                            elif hasattr(step8c_f, 'compute'):
+                                f_array = step8c_f.compute()
+                            else:
+                                f_array = step8c_f
+                            
+                            # Verify shapes
+                            self.log(f"Loaded background components (b, step8c_f) with shapes {b_array.shape}, {f_array.shape}")
+                            
+                            # Store the arrays back
+                            b = b_array
+                            step8c_f = f_array
+                        else:
+                            self.log("Background components (b, step8c_f) not found or incomplete")
+                    except (KeyError, AttributeError) as e:
+                        b = None
+                        step8c_f = None
+                        self.log(f"Background components (b, step8c_f) not available: {str(e)}")
+                
+                except Exception as e:
+                    self.log(f"Error loading data: {str(e)}")
+                    self.log(traceback.format_exc())
+                    self.status_var.set(f"Error: Failed to load required data")
+                    return
+                
+                self.update_progress(20)
 
-            self.log(f"A unit_ids: {A.unit_id.values}, C unit_ids: {C.unit_id.values}")
-            common_unit_ids = np.array([int(uid) for uid in A.unit_id.values if int(uid) in [int(cid) for cid in C.unit_id.values]])
-            self.log(f"Common unit_ids: {common_unit_ids}")
-            A = A.sel(unit_id=common_unit_ids)
-            C = C.sel(unit_id=common_unit_ids)
-            
-            # Apply quality filtering
-            self.log("\nApplying quality filtering...")
-            
-            try:
-                # Get original component count
-                original_count = len(A.unit_id)
-                self.log(f"Starting with {original_count} components")
+                self.log(f"A unit_ids: {A.unit_id.values}, C unit_ids: {C.unit_id.values}")
+                common_unit_ids = np.array([int(uid) for uid in A.unit_id.values if int(uid) in [int(cid) for cid in C.unit_id.values]])
+                self.log(f"Common unit_ids: {common_unit_ids}")
+                A = A.sel(unit_id=common_unit_ids)
+                C = C.sel(unit_id=common_unit_ids)
                 
-                # Create a mask for valid components
-                valid_mask = np.ones(original_count, dtype=bool)
+                # Apply quality filtering
+                self.log("\nApplying quality filtering...")
                 
-                # Apply size-based filtering
-                if params['min_size'] > 0:
-                    self.log(f"Filtering by size (minimum {params['min_size']} pixels)...")
+                try:
+                    # Get original component count
+                    original_count = len(A.unit_id)
+                    self.log(f"Starting with {original_count} components")
                     
-                    size_by_comp = np.zeros(original_count)
-                    for i, unit_id in enumerate(A.unit_id.values):
-                        comp = A.sel(unit_id=unit_id).compute().values
-                        size_by_comp[i] = np.sum(comp > 0)
+                    # Create a mask for valid components
+                    valid_mask = np.ones(original_count, dtype=bool)
                     
-                    # Update mask
-                    size_mask = size_by_comp >= params['min_size']
-                    valid_mask = valid_mask & size_mask
-                    
-                    self.log(f"Size filtering removed {np.sum(~size_mask)} components")
-                
-                # Apply SNR-based filtering (if SNR is available)
-                if params['min_snr'] > 0:
-                    self.log(f"Filtering by SNR (minimum {params['min_snr']})...")
-                    
-                    # Try to get SNR estimates from previous steps
-                    try:
-                        # Check multiple possible locations for SNR data
-                        snr_data = None
-                        possible_paths = [
-                            'step6e_component_quality',
-                            'component_quality',
-                            'step5a_component_quality'
-                        ]
+                    # Apply size-based filtering
+                    if params['min_size'] > 0:
+                        self.log(f"Filtering by size (minimum {params['min_size']} pixels)...")
                         
-                        for path in possible_paths:
-                            if path in self.controller.state.get('results', {}):
-                                quality_data = self.controller.state['results'][path]
-                                if isinstance(quality_data, dict) and 'snr' in quality_data:
-                                    snr_data = quality_data['snr']
-                                    self.log(f"Found SNR data in {path}")
-                                    break
+                        size_by_comp = np.zeros(original_count)
+                        for i, unit_id in enumerate(A.unit_id.values):
+                            comp = A.sel(unit_id=unit_id).compute().values
+                            size_by_comp[i] = np.sum(comp > 0)
                         
-                        if snr_data is not None:
-                            # Make sure the SNR data matches our components
-                            if len(snr_data) == original_count:
-                                snr_mask = np.array(snr_data) >= params['min_snr']
-                                valid_mask = valid_mask & snr_mask
-                                self.log(f"SNR filtering removed {np.sum(~snr_mask)} components")
-                            else:
-                                self.log(f"Warning: SNR data length ({len(snr_data)}) doesn't match component count ({original_count}).")
-                                self.log("Skipping SNR-based filtering")
-                        else:
-                            self.log("Warning: SNR data not found. Skipping SNR-based filtering")
-                    
-                    except Exception as e:
-                        self.log(f"Error applying SNR filtering: {str(e)}")
-                        self.log("Skipping SNR-based filtering")
-                
-                # Apply correlation-based filtering (if correlation data is available)
-                if params['min_corr'] > 0:
-                    self.log(f"Filtering by correlation (minimum {params['min_corr']})...")
-                    
-                    # Try to get correlation estimates from previous steps
-                    try:
-                        # Check multiple possible locations for correlation data
-                        corr_data = None
-                        possible_paths = [
-                            'step6e_component_quality',
-                            'component_quality',
-                            'step5a_component_quality'
-                        ]
+                        # Update mask
+                        size_mask = size_by_comp >= params['min_size']
+                        valid_mask = valid_mask & size_mask
                         
-                        for path in possible_paths:
-                            if path in self.controller.state.get('results', {}):
-                                quality_data = self.controller.state['results'][path]
-                                if isinstance(quality_data, dict) and 'correlation' in quality_data:
-                                    corr_data = quality_data['correlation']
-                                    self.log(f"Found correlation data in {path}")
-                                    break
+                        self.log(f"Size filtering removed {np.sum(~size_mask)} components")
+                    
+                    # Apply SNR-based filtering (if SNR is available)
+                    if params['min_snr'] > 0:
+                        self.log(f"Filtering by SNR (minimum {params['min_snr']})...")
                         
-                        if corr_data is not None:
-                            # Make sure the correlation data matches our components
-                            if len(corr_data) == original_count:
-                                corr_mask = np.array(corr_data) >= params['min_corr']
-                                valid_mask = valid_mask & corr_mask
-                                self.log(f"Correlation filtering removed {np.sum(~corr_mask)} components")
-                            else:
-                                self.log(f"Warning: Correlation data length ({len(corr_data)}) doesn't match component count ({original_count}).")
-                                self.log("Skipping correlation-based filtering")
-                        else:
-                            self.log("Warning: Correlation data not found. Skipping correlation-based filtering")
-                    
-                    except Exception as e:
-                        self.log(f"Error applying correlation filtering: {str(e)}")
-                        self.log("Skipping correlation-based filtering")
-                
-                # Get final component count
-                final_count = np.sum(valid_mask)
-                self.log(f"Filtering complete: {final_count} of {original_count} components retained ({final_count/original_count*100:.1f}%)")
-                
-                # Apply mask to get filtered components
-                A_filtered = A.isel(unit_id=valid_mask)
-                C_filtered = C.isel(unit_id=valid_mask)
-                
-                # Apply mask to S if available
-                if S is not None:
-                    S_filtered = S.isel(unit_id=valid_mask)
-                else:
-                    S_filtered = None
-                
-                # Store filtering results
-                filtering_stats = {
-                    'original_count': int(original_count),
-                    'final_count': int(final_count),
-                    'percent_retained': float(final_count/original_count*100),
-                    'filtering_criteria': {
-                        'min_size': int(params['min_size']),
-                        'min_snr': float(params['min_snr']),
-                        'min_corr': float(params['min_corr'])
-                    }
-                }
-                
-                # Save filtering results to state
-                self.controller.state['results']['step8c'] = {
-                    'step8c_A_final': A_filtered,
-                    'step8c_C_final': C_filtered,
-                    'step8c_filtering_stats': filtering_stats
-                }
-                
-                # Save S if available
-                if S_filtered is not None:
-                    self.controller.state['results']['step8c']['step8c_S_final'] = S_filtered
-                
-                # Also store at top level for easier access
-                self.controller.state['results']['step8c_A_final'] = A_filtered
-                self.controller.state['results']['step8c_C_final'] = C_filtered
-                if S_filtered is not None:
-                    self.controller.state['results']['step8c_S_final'] = S_filtered
-                
-            except Exception as e:
-                self.log(f"Error during filtering: {str(e)}")
-                self.log(traceback.format_exc())
-                self.status_var.set(f"Error during filtering: {str(e)}")
-                return
-            
-            self.update_progress(40)
-            
-            # Export results
-            self.log("\nExporting filtered results...")
-            
-            export_stats = {
-                'export_time': time.strftime('%Y-%m-%d %H:%M:%S'),
-                'export_path': result_dir,
-                'export_formats': [],
-                'component_count': final_count
-            }
-            
-            try:
-                # Zarr export
-                if params['export_zarr']:
-                    self.log("Exporting components as Zarr...")
-                    
-                    # Create zarr subdirectory
-                    zarr_dir = os.path.join(result_dir, "zarr_files")
-                    os.makedirs(zarr_dir, exist_ok=True)
-                    
-                    # Export spatial components (A)
-                    self.save_hw_chunks_direct(
-                        A_filtered, 
-                        zarr_dir, 
-                        "A_final", 
-                        height_chunk=64, 
-                        width_chunk=64
-                    )
-                    self.log(f"Exported A to {os.path.join(zarr_dir, 'A_final.zarr')}")
-                    
-                    # Export temporal components (C)
-                    self.save_hw_chunks_direct(
-                        C_filtered, 
-                        zarr_dir, 
-                        "C_final"
-                    )
-                    self.log(f"Exported C to {os.path.join(zarr_dir, 'C_final.zarr')}")
-                    
-                    # Export S if available
-                    if S_filtered is not None:
-                        self.save_hw_chunks_direct(
-                            S_filtered, 
-                            zarr_dir, 
-                            "S_final"
-                        )
-                        self.log(f"Exported S to {os.path.join(zarr_dir, 'S_final.zarr')}")
-                    
-                    # Export background components if available
-                    if b is not None and f is not None:
+                        # Try to get SNR estimates from previous steps
                         try:
-                            # Try to convert to xarray if not already
-                            if not isinstance(b, xr.DataArray):
-                                b_arr = xr.DataArray(
-                                    b, 
-                                    dims=['spatial'], 
-                                    coords={'spatial': np.arange(len(b))},
-                                    name="b_final"
-                                )
+                            # Check multiple possible locations for SNR data
+                            snr_data = None
+                            possible_paths = [
+                                'step6e_component_quality',
+                                'component_quality',
+                                'step5a_component_quality'
+                            ]
+                            
+                            for path in possible_paths:
+                                if path in self.controller.state.get('results', {}):
+                                    quality_data = self.controller.state['results'][path]
+                                    if isinstance(quality_data, dict) and 'snr' in quality_data:
+                                        snr_data = quality_data['snr']
+                                        self.log(f"Found SNR data in {path}")
+                                        break
+                            
+                            if snr_data is not None:
+                                # Make sure the SNR data matches our components
+                                if len(snr_data) == original_count:
+                                    snr_mask = np.array(snr_data) >= params['min_snr']
+                                    valid_mask = valid_mask & snr_mask
+                                    self.log(f"SNR filtering removed {np.sum(~snr_mask)} components")
+                                else:
+                                    self.log(f"Warning: SNR data length ({len(snr_data)}) doesn't match component count ({original_count}).")
+                                    self.log("Skipping SNR-based filtering")
                             else:
-                                b_arr = b.copy(deep=True)
-                                b_arr.name = "b_final"
-                            
-                            if not isinstance(f, xr.DataArray):
-                                f_arr = xr.DataArray(
-                                    f, 
-                                    dims=['frame'], 
-                                    coords={'frame': np.arange(len(f))},
-                                    name="f_final"
-                                )
-                            else:
-                                f_arr = f.copy(deep=True)
-                                f_arr.name = "f_final"
-                            
-                            # Save with custom function
-                            self.save_hw_chunks_direct(b_arr, zarr_dir, "b_final")
-                            self.save_hw_chunks_direct(f_arr, zarr_dir, "f_final")
-                            
-                            self.log(f"Exported background components to {os.path.join(zarr_dir, 'b_final.zarr')} and {os.path.join(zarr_dir, 'f_final.zarr')}")
+                                self.log("Warning: SNR data not found. Skipping SNR-based filtering")
+                        
                         except Exception as e:
-                            self.log(f"Error exporting background components: {str(e)}")
+                            self.log(f"Error applying SNR filtering: {str(e)}")
+                            self.log("Skipping SNR-based filtering")
                     
-                    export_stats['export_formats'].append('zarr')
-                
-                # NumPy export
-                if params['export_npy']:
-                    self.log("Exporting components as NumPy arrays...")
+                    # Apply correlation-based filtering (if correlation data is available)
+                    if params['min_corr'] > 0:
+                        self.log(f"Filtering by correlation (minimum {params['min_corr']})...")
+                        
+                        # Try to get correlation estimates from previous steps
+                        try:
+                            # Check multiple possible locations for correlation data
+                            corr_data = None
+                            possible_paths = [
+                                'step6e_component_quality',
+                                'component_quality',
+                                'step5a_component_quality'
+                            ]
+                            
+                            for path in possible_paths:
+                                if path in self.controller.state.get('results', {}):
+                                    quality_data = self.controller.state['results'][path]
+                                    if isinstance(quality_data, dict) and 'correlation' in quality_data:
+                                        corr_data = quality_data['correlation']
+                                        self.log(f"Found correlation data in {path}")
+                                        break
+                            
+                            if corr_data is not None:
+                                # Make sure the correlation data matches our components
+                                if len(corr_data) == original_count:
+                                    corr_mask = np.array(corr_data) >= params['min_corr']
+                                    valid_mask = valid_mask & corr_mask
+                                    self.log(f"Correlation filtering removed {np.sum(~corr_mask)} components")
+                                else:
+                                    self.log(f"Warning: Correlation data length ({len(corr_data)}) doesn't match component count ({original_count}).")
+                                    self.log("Skipping correlation-based filtering")
+                            else:
+                                self.log("Warning: Correlation data not found. Skipping correlation-based filtering")
+                        
+                        except Exception as e:
+                            self.log(f"Error applying correlation filtering: {str(e)}")
+                            self.log("Skipping correlation-based filtering")
                     
-                    # Create numpy subdirectory
-                    npy_dir = os.path.join(result_dir, "numpy_files")
-                    os.makedirs(npy_dir, exist_ok=True)
+                    # Get final component count
+                    final_count = np.sum(valid_mask)
+                    self.log(f"Filtering complete: {final_count} of {original_count} components retained ({final_count/original_count*100:.1f}%)")
                     
-                    # Export spatial components (A)
-                    A_path = os.path.join(npy_dir, "A_final.npy")
-                    np.save(A_path, A_filtered.values)
-                    self.log(f"Exported A to {A_path}")
+                    # Apply mask to get filtered components
+                    A_filtered = A.isel(unit_id=valid_mask)
+                    C_filtered = C.isel(unit_id=valid_mask)
                     
-                    # Export coordinate information
-                    A_coords_path = os.path.join(npy_dir, "A_final_coords.json")
-                    with open(A_coords_path, 'w') as f:
-                        json.dump({
-                            'dims': list(A_filtered.dims),
-                            'coords': {
-                                dim: list(A_filtered.coords[dim].values.tolist()) 
-                                if hasattr(A_filtered.coords[dim].values, 'tolist') 
-                                else list(A_filtered.coords[dim].values) 
-                                for dim in A_filtered.dims
-                            }
-                        }, f, indent=2, cls=NumpyEncoder)
-                    self.log(f"Exported A coordinates to {A_coords_path}")
+                    # Apply mask to S if available
+                    if S is not None:
+                        S_filtered = S.isel(unit_id=valid_mask)
+                    else:
+                        S_filtered = None
                     
-                    # Export temporal components (C)
-                    C_path = os.path.join(npy_dir, "C_final.npy")
-                    np.save(C_path, C_filtered.values)
-                    self.log(f"Exported C to {C_path}")
+                    # Store filtering results
+                    filtering_stats = {
+                        'original_count': int(original_count),
+                        'final_count': int(final_count),
+                        'percent_retained': float(final_count/original_count*100),
+                        'filtering_criteria': {
+                            'min_size': int(params['min_size']),
+                            'min_snr': float(params['min_snr']),
+                            'min_corr': float(params['min_corr'])
+                        }
+                    }
                     
-                    # Export coordinate information
-                    C_coords_path = os.path.join(npy_dir, "C_final_coords.json")
-                    with open(C_coords_path, 'w') as f:
-                        json.dump({
-                            'dims': list(C_filtered.dims),
-                            'coords': {
-                                dim: list(C_filtered.coords[dim].values.tolist()) 
-                                if hasattr(C_filtered.coords[dim].values, 'tolist') 
-                                else list(C_filtered.coords[dim].values) 
-                                for dim in C_filtered.dims
-                            }
-                        }, f, indent=2, cls=NumpyEncoder)
-                    self.log(f"Exported C coordinates to {C_coords_path}")
+                    # Save filtering results to state
+                    self.controller.state['results']['step8c'] = {
+                        'step8c_A_final': A_filtered,
+                        'step8c_C_final': C_filtered,
+                        'step8c_filtering_stats': filtering_stats
+                    }
                     
-                    # Export S if available
+                    # Save S if available
                     if S_filtered is not None:
-                        S_path = os.path.join(npy_dir, "S_final.npy")
-                        np.save(S_path, S_filtered.values)
-                        self.log(f"Exported S to {S_path}")
+                        self.controller.state['results']['step8c']['step8c_S_final'] = S_filtered
+                    
+                    # Also store at top level for easier access
+                    self.controller.state['results']['step8c_A_final'] = A_filtered
+                    self.controller.state['results']['step8c_C_final'] = C_filtered
+                    if S_filtered is not None:
+                        self.controller.state['results']['step8c_S_final'] = S_filtered
+                    
+                except Exception as e:
+                    self.log(f"Error during filtering: {str(e)}")
+                    self.log(traceback.format_exc())
+                    self.status_var.set(f"Error during filtering: {str(e)}")
+                    return
+                
+                self.update_progress(40)
+                
+                # Export results
+                self.log("\nExporting filtered results...")
+                
+                export_stats = {
+                    'export_time': time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'export_path': result_dir,
+                    'export_formats': [],
+                    'component_count': final_count
+                }
+                
+                try:
+                    # Zarr export
+                    if params['export_zarr']:
+                        self.log("Exporting components as Zarr...")
+                        
+                        # Create zarr subdirectory
+                        zarr_dir = os.path.join(result_dir, "zarr_files")
+                        os.makedirs(zarr_dir, exist_ok=True)
+                        
+                        # Export spatial components (A)
+                        self.save_hw_chunks_direct(
+                            A_filtered, 
+                            zarr_dir, 
+                            "A_final", 
+                            height_chunk=64, 
+                            width_chunk=64
+                        )
+                        self.log(f"Exported A to {os.path.join(zarr_dir, 'A_final.zarr')}")
+                        
+                        # Export temporal components (C)
+                        self.save_hw_chunks_direct(
+                            C_filtered, 
+                            zarr_dir, 
+                            "C_final"
+                        )
+                        self.log(f"Exported C to {os.path.join(zarr_dir, 'C_final.zarr')}")
+                        
+                        # Export S if available
+                        if S_filtered is not None:
+                            self.save_hw_chunks_direct(
+                                S_filtered, 
+                                zarr_dir, 
+                                "S_final"
+                            )
+                            self.log(f"Exported S to {os.path.join(zarr_dir, 'S_final.zarr')}")
+                                            
+                        export_stats['export_formats'].append('zarr')
+                    
+                    # NumPy export
+                    if params['export_npy']:
+                        self.log("Exporting components as NumPy arrays...")
+                        
+                        # Create numpy subdirectory
+                        npy_dir = os.path.join(result_dir, "numpy_files")
+                        os.makedirs(npy_dir, exist_ok=True)
+                        
+                        # Export spatial components (A)
+                        A_path = os.path.join(npy_dir, "A_final.npy")
+                        np.save(A_path, A_filtered.values)
+                        self.log(f"Exported A to {A_path}")
                         
                         # Export coordinate information
-                        S_coords_path = os.path.join(npy_dir, "S_final_coords.json")
-                        with open(S_coords_path, 'w') as f:
+                        A_coords_path = os.path.join(npy_dir, "A_final_coords.json")
+                        with open(A_coords_path, 'w') as f:
                             json.dump({
-                                'dims': list(S_filtered.dims),
+                                'dims': list(A_filtered.dims),
                                 'coords': {
-                                    dim: list(S_filtered.coords[dim].values.tolist()) 
-                                    if hasattr(S_filtered.coords[dim].values, 'tolist') 
-                                    else list(S_filtered.coords[dim].values) 
-                                    for dim in S_filtered.dims
+                                    dim: list(A_filtered.coords[dim].values.tolist()) 
+                                    if hasattr(A_filtered.coords[dim].values, 'tolist') 
+                                    else list(A_filtered.coords[dim].values) 
+                                    for dim in A_filtered.dims
                                 }
                             }, f, indent=2, cls=NumpyEncoder)
-                        self.log(f"Exported S coordinates to {S_coords_path}")
-                    
-                    # Export background components if available
-                    if b is not None and f is not None:
-                        try:
-                            b_path = os.path.join(npy_dir, "b_final.npy")
-                            f_path = os.path.join(npy_dir, "f_final.npy")
-                            
-                            # Create clean copies
-                            b_clean = np.array(b.values if hasattr(b, 'values') else b)
-                            f_clean = np.array(f.values if hasattr(f, 'values') else f)
-                            
-                            # Save as numpy arrays
-                            np.save(b_path, b_clean)
-                            np.save(f_path, f_clean)
-                            self.log(f"Exported background components to {b_path} and {f_path}")
-                        except Exception as e:
-                            self.log(f"Error exporting background components: {str(e)}")
-                    
-                    export_stats['export_formats'].append('npy')
-                
-                # JSON export
-                if params['export_json']:
-                    self.log("Exporting metadata and summary as JSON...")
-                    
-                    # Create json subdirectory
-                    json_dir = os.path.join(result_dir, "json_files")
-                    os.makedirs(json_dir, exist_ok=True)
-                    
-                    # Export filtered component IDs
-                    ids_path = os.path.join(json_dir, "component_ids.json")
-                    with open(ids_path, 'w') as f:
-                        json.dump({
-                            'component_ids': A_filtered.unit_id.values.tolist()
-                        }, f, indent=2, cls=NumpyEncoder)
-                    self.log(f"Exported component IDs to {ids_path}")
-                    
-                    # Export filtering stats
-                    stats_path = os.path.join(json_dir, "filtering_stats.json")
-                    with open(stats_path, 'w') as f:
-                        json.dump(filtering_stats, f, indent=2, cls=NumpyEncoder)
-                    self.log(f"Exported filtering stats to {stats_path}")
-                    
-                    # Export metadata if requested
-                    if params['include_metadata']:
-                        # Create combined metadata with processing parameters
-                        metadata = {
-                            'filtering_stats': filtering_stats,
-                            'export_stats': export_stats,
-                            'animal': self.controller.state.get('animal', 0),
-                            'session': self.controller.state.get('session', 0),
-                            'component_sources': {
-                                'spatial': params['spatial_source'],
-                                'temporal': params['temporal_source']
-                            }
-                        }
+                        self.log(f"Exported A coordinates to {A_coords_path}")
                         
-                        # Try to add processing parameters if available
-                        if 'processing_parameters' in self.controller.state:
-                            metadata['processing_parameters'] = self.controller.state['processing_parameters']
+                        # Export temporal components (C)
+                        C_path = os.path.join(npy_dir, "C_final.npy")
+                        np.save(C_path, C_filtered.values)
+                        self.log(f"Exported C to {C_path}")
                         
-                        # Save metadata
-                        metadata_path = os.path.join(json_dir, "metadata.json")
-                        with open(metadata_path, 'w') as f:
-                            json.dump(metadata, f, indent=2, cls=NumpyEncoder)
-                        self.log(f"Exported metadata to {metadata_path}")
-                    
-                    export_stats['export_formats'].append('json')
-                
-                # Pickle export
-                if params['export_pkl']:
-                    self.log("Exporting components as pickle files...")
-                    
-                    # Create pickle subdirectory
-                    pkl_dir = os.path.join(result_dir, "pickle_files")
-                    os.makedirs(pkl_dir, exist_ok=True)
-                    
-                    try:
-                        # Create a clean dictionary with only serializable objects
-                        final_results = {}
+                        # Export coordinate information
+                        C_coords_path = os.path.join(npy_dir, "C_final_coords.json")
+                        with open(C_coords_path, 'w') as f:
+                            json.dump({
+                                'dims': list(C_filtered.dims),
+                                'coords': {
+                                    dim: list(C_filtered.coords[dim].values.tolist()) 
+                                    if hasattr(C_filtered.coords[dim].values, 'tolist') 
+                                    else list(C_filtered.coords[dim].values) 
+                                    for dim in C_filtered.dims
+                                }
+                            }, f, indent=2, cls=NumpyEncoder)
+                        self.log(f"Exported C coordinates to {C_coords_path}")
                         
-                        # Add spatial components (A) - make a clean copy
-                        final_results['A'] = np.array(A_filtered.values)
-                        
-                        # Add temporal components (C) - make a clean copy
-                        final_results['C'] = np.array(C_filtered.values)
-                        
-                        # Add component IDs
-                        final_results['component_ids'] = A_filtered.unit_id.values.tolist()
-                        
-                        # Add dimensions info
-                        final_results['dims'] = {
-                            'A': list(A_filtered.dims),
-                            'C': list(C_filtered.dims)
-                        }
-                        
-                        # Add coordinates info
-                        final_results['coords'] = {
-                            'A': {dim: A_filtered.coords[dim].values.tolist() for dim in A_filtered.dims},
-                            'C': {dim: C_filtered.coords[dim].values.tolist() for dim in C_filtered.dims}
-                        }
-                        
-                        # Add filtering stats
-                        final_results['filtering_stats'] = {
-                            'original_count': int(filtering_stats['original_count']),
-                            'final_count': int(filtering_stats['final_count']),
-                            'percent_retained': float(filtering_stats['percent_retained']),
-                            'filtering_criteria': {
-                                'min_size': int(filtering_stats['filtering_criteria']['min_size']),
-                                'min_snr': float(filtering_stats['filtering_criteria']['min_snr']),
-                                'min_corr': float(filtering_stats['filtering_criteria']['min_corr'])
-                            }
-                        }
-                        
-                        # Add component sources
-                        final_results['component_sources'] = {
-                            'spatial': str(params['spatial_source']),
-                            'temporal': str(params['temporal_source'])
-                        }
-                        
-                        # Add S if available - as explicit copy
+                        # Export S if available
                         if S_filtered is not None:
-                            final_results['S'] = np.array(S_filtered.values)
-                            final_results['dims']['S'] = list(S_filtered.dims)
-                            final_results['coords']['S'] = {dim: S_filtered.coords[dim].values.tolist() for dim in S_filtered.dims}
+                            S_path = os.path.join(npy_dir, "S_final.npy")
+                            np.save(S_path, S_filtered.values)
+                            self.log(f"Exported S to {S_path}")
+                            
+                            # Export coordinate information
+                            S_coords_path = os.path.join(npy_dir, "S_final_coords.json")
+                            with open(S_coords_path, 'w') as f:
+                                json.dump({
+                                    'dims': list(S_filtered.dims),
+                                    'coords': {
+                                        dim: list(S_filtered.coords[dim].values.tolist()) 
+                                        if hasattr(S_filtered.coords[dim].values, 'tolist') 
+                                        else list(S_filtered.coords[dim].values) 
+                                        for dim in S_filtered.dims
+                                    }
+                                }, f, indent=2, cls=NumpyEncoder)
+                            self.log(f"Exported S coordinates to {S_coords_path}")
                         
-                        # Skip background components - they seem to be causing the issue
-                        # We can add them later if needed with extra careful cleaning
+                        # Export background components if available
+                        if b is not None and step8c_f is not None:
+                            try:
+                                b_path = os.path.join(npy_dir, "b_final.npy")
+                                f_path = os.path.join(npy_dir, "f_final.npy")
+                                
+                                # Make sure we're working with pure numpy arrays
+                                if hasattr(b, 'values'):
+                                    b_array = b.values
+                                elif hasattr(b, 'compute'):
+                                    b_array = b.compute().values if hasattr(b.compute(), 'values') else b.compute()
+                                elif isinstance(b, xr.DataArray):
+                                    b_array = b.values
+                                else:
+                                    b_array = np.array(b)
+                                    
+                                if hasattr(step8c_f, 'values'):
+                                    f_array = step8c_f.values
+                                elif hasattr(step8c_f, 'compute'):
+                                    f_array = step8c_f.compute().values if hasattr(step8c_f.compute(), 'values') else step8c_f.compute()
+                                elif isinstance(step8c_f, xr.DataArray):
+                                    f_array = step8c_f.values
+                                else:
+                                    f_array = np.array(step8c_f)
+                                
+                                # Force copy to ensure no references remain
+                                b_clean = np.array(b_array, copy=True)
+                                f_clean = np.array(f_array, copy=True)
+                                
+                                # Save as numpy arrays
+                                np.save(b_path, b_clean)
+                                np.save(f_path, f_clean)
+                                self.log(f"Exported background components to {b_path} and {f_path}")
+                            except Exception as e:
+                                self.log(f"Error exporting background components: {str(e)}")
                         
-                        # Add metadata if requested
+                        export_stats['export_formats'].append('npy')
+                    
+                    # JSON export
+                    if params['export_json']:
+                        self.log("Exporting metadata and summary as JSON...")
+                        
+                        # Create json subdirectory
+                        json_dir = os.path.join(result_dir, "json_files")
+                        os.makedirs(json_dir, exist_ok=True)
+                        
+                        # Export filtered component IDs
+                        ids_path = os.path.join(json_dir, "component_ids.json")
+                        with open(ids_path, 'w') as f:
+                            json.dump({
+                                'component_ids': A_filtered.unit_id.values.tolist()
+                            }, f, indent=2, cls=NumpyEncoder)
+                        self.log(f"Exported component IDs to {ids_path}")
+                        
+                        # Export filtering stats
+                        stats_path = os.path.join(json_dir, "filtering_stats.json")
+                        with open(stats_path, 'w') as f:
+                            json.dump(filtering_stats, f, indent=2, cls=NumpyEncoder)
+                        self.log(f"Exported filtering stats to {stats_path}")
+                        
+                        # Export metadata if requested
                         if params['include_metadata']:
-                            final_results['metadata'] = {
-                                'animal': int(self.controller.state.get('animal', 0)),
-                                'session': int(self.controller.state.get('session', 0)),
-                                'export_time': str(time.strftime('%Y-%m-%d %H:%M:%S'))
+                            # Create combined metadata with processing parameters
+                            metadata = {
+                                'filtering_stats': filtering_stats,
+                                'export_stats': export_stats,
+                                'animal': self.controller.state.get('animal', 0),
+                                'session': self.controller.state.get('session', 0),
+                                'component_sources': {
+                                    'spatial': params['spatial_source'],
+                                    'temporal': params['temporal_source']
+                                }
                             }
+                            
+                            # Try to add processing parameters if available
+                            if 'processing_parameters' in self.controller.state:
+                                metadata['processing_parameters'] = self.controller.state['processing_parameters']
+                            
+                            # Save metadata
+                            metadata_path = os.path.join(json_dir, "metadata.json")
+                            with open(metadata_path, 'w') as f:
+                                json.dump(metadata, f, indent=2, cls=NumpyEncoder)
+                            self.log(f"Exported metadata to {metadata_path}")
                         
-                        # Save pickle file - use protocol 4 for better compatibility
-                        results_path = os.path.join(pkl_dir, "final_results.pkl")
-                        with open(results_path, 'wb') as f:
-                            pickle.dump(final_results, f, protocol=4)
+                        export_stats['export_formats'].append('json')
+                    
+                    # Pickle export
+                    if params['export_pkl']:
+                        self.log("Exporting components as pickle files...")
                         
-                        self.log(f"Exported all components to {results_path}")
-                        export_stats['export_formats'].append('pkl')
+                        # Create pickle subdirectory
+                        pkl_dir = os.path.join(result_dir, "pickle_files")
+                        os.makedirs(pkl_dir, exist_ok=True)
                         
-                    except Exception as e:
-                        self.log(f"Error saving pickle file: {str(e)}")
-                        self.log(traceback.format_exc())
+                        try:
+                            # Helper function to extract clean numpy array
+                            def extract_clean_array(data):
+                                """Extract a clean numpy array from various data types"""
+                                if data is None:
+                                    return None
+                                
+                                try:
+                                    # If it's already a numpy array, make a copy
+                                    if isinstance(data, np.ndarray):
+                                        return np.array(data, copy=True)
+                                    
+                                    # If it's an xarray DataArray
+                                    if hasattr(data, 'values'):
+                                        # Check if values is a dask array
+                                        if hasattr(data.values, 'compute'):
+                                            return np.array(data.values.compute(), copy=True)
+                                        else:
+                                            return np.array(data.values, copy=True)
+                                    
+                                    # If it has a data attribute (some xarray versions)
+                                    if hasattr(data, 'data'):
+                                        if hasattr(data.data, 'compute'):
+                                            return np.array(data.data.compute(), copy=True)
+                                        else:
+                                            return np.array(data.data, copy=True)
+                                    
+                                    # If it's a dask array that needs computing
+                                    if hasattr(data, 'compute'):
+                                        computed = data.compute()
+                                        if hasattr(computed, 'values'):
+                                            return np.array(computed.values, copy=True)
+                                        elif hasattr(computed, 'data'):
+                                            return np.array(computed.data, copy=True)
+                                        else:
+                                            return np.array(computed, copy=True)
+                                    
+                                    # If it has a to_numpy method (pandas, some xarray versions)
+                                    if hasattr(data, 'to_numpy'):
+                                        return np.array(data.to_numpy(), copy=True)
+                                    
+                                    # If it has __array__ method
+                                    if hasattr(data, '__array__'):
+                                        return np.array(data.__array__(), copy=True)
+                                    
+                                    # If it's a list or other array-like
+                                    try:
+                                        return np.array(data, copy=True)
+                                    except:
+                                        # Last resort - try to iterate and build array
+                                        try:
+                                            return np.array(list(data), copy=True)
+                                        except:
+                                            return None
+                                
+                                except Exception as e:
+                                    print(f"extract_clean_array failed for type {type(data)}: {str(e)}")
+                                    return None
+                            
+                            # Create a clean dictionary with only serializable objects
+                            final_results = {}
+                            
+                            # Add spatial components (A) - make a clean copy
+                            self.log("Processing spatial components for pickle...")
+                            final_results['A'] = extract_clean_array(A_filtered.values)
+                            
+                            # Add temporal components (C) - make a clean copy
+                            self.log("Processing temporal components for pickle...")
+                            final_results['C'] = extract_clean_array(C_filtered.values)
+                            
+                            # Add component IDs - ensure it's a regular Python list
+                            self.log("Processing component IDs for pickle...")
+                            unit_ids = A_filtered.unit_id.values
+                            if hasattr(unit_ids, 'tolist'):
+                                final_results['component_ids'] = unit_ids.tolist()
+                            else:
+                                final_results['component_ids'] = list(unit_ids)
+                            
+                            # Add dimensions info - ensure they're regular Python lists
+                            self.log("Processing dimensions info for pickle...")
+                            final_results['dims'] = {
+                                'A': list(A_filtered.dims),
+                                'C': list(C_filtered.dims)
+                            }
+                            
+                            # Add coordinates info - convert to Python native types
+                            self.log("Processing coordinates info for pickle...")
+                            final_results['coords'] = {}
+                            
+                            # Process A coordinates
+                            final_results['coords']['A'] = {}
+                            for dim in A_filtered.dims:
+                                coord_vals = A_filtered.coords[dim].values
+                                if hasattr(coord_vals, 'tolist'):
+                                    final_results['coords']['A'][dim] = coord_vals.tolist()
+                                else:
+                                    final_results['coords']['A'][dim] = list(coord_vals)
+                            
+                            # Process C coordinates
+                            final_results['coords']['C'] = {}
+                            for dim in C_filtered.dims:
+                                coord_vals = C_filtered.coords[dim].values
+                                if hasattr(coord_vals, 'tolist'):
+                                    final_results['coords']['C'][dim] = coord_vals.tolist()
+                                else:
+                                    final_results['coords']['C'][dim] = list(coord_vals)
+                            
+                            # Add filtering stats - ensure all values are Python native types
+                            self.log("Processing filtering stats for pickle...")
+                            final_results['filtering_stats'] = {
+                                'original_count': int(filtering_stats['original_count']),
+                                'final_count': int(filtering_stats['final_count']),
+                                'percent_retained': float(filtering_stats['percent_retained']),
+                                'filtering_criteria': {
+                                    'min_size': int(filtering_stats['filtering_criteria']['min_size']),
+                                    'min_snr': float(filtering_stats['filtering_criteria']['min_snr']),
+                                    'min_corr': float(filtering_stats['filtering_criteria']['min_corr'])
+                                }
+                            }
+                            
+                            # Add component sources - ensure they're strings
+                            self.log("Processing component sources for pickle...")
+                            final_results['component_sources'] = {
+                                'spatial': str(params['spatial_source']),
+                                'temporal': str(params['temporal_source'])
+                            }
+                            
+                            # Add S if available - as explicit copy
+                            if S_filtered is not None:
+                                self.log("Processing spike components for pickle...")
+                                final_results['S'] = extract_clean_array(S_filtered.values)
+                                final_results['dims']['S'] = list(S_filtered.dims)
+                                
+                                # Process S coordinates
+                                final_results['coords']['S'] = {}
+                                for dim in S_filtered.dims:
+                                    coord_vals = S_filtered.coords[dim].values
+                                    if hasattr(coord_vals, 'tolist'):
+                                        final_results['coords']['S'][dim] = coord_vals.tolist()
+                                    else:
+                                        final_results['coords']['S'][dim] = list(coord_vals)
+                            
+                            # Add background components if available - with proper cleaning
+                            if b is not None and step8c_f is not None:
+                                try:
+                                    self.log("Processing background components for pickle...")
+                                    
+                                    # Extract b component
+                                    b_clean = extract_clean_array(b)
+                                    if b_clean is not None and b_clean.size > 0:
+                                        final_results['b'] = b_clean
+                                        self.log(f"  b component: shape {b_clean.shape}, type {type(b_clean)}")
+                                    else:
+                                        self.log("  WARNING: b component is invalid or empty")
+                                    
+                                    # Extract f component - using step8c_f variable
+                                    f_clean = extract_clean_array(step8c_f)
+                                    if f_clean is not None and f_clean.size > 0:
+                                        final_results['f'] = f_clean
+                                        self.log(f"  f component: shape {f_clean.shape}, type {type(f_clean)}")
+                                    else:
+                                        self.log("  WARNING: f component is invalid or empty")
+                                    
+                                    self.log("Successfully prepared background components for pickling")
+                                    
+                                except Exception as e:
+                                    self.log(f"Warning: Could not include background components in pickle: {str(e)}")
+                                    self.log(f"Error type: {type(e)}")
+                                    import traceback
+                                    self.log(traceback.format_exc())
+                            
+                            # Add metadata if requested - ensure all values are serializable
+                            if params['include_metadata']:
+                                self.log("Processing metadata for pickle...")
+                                
+                                # Clean metadata to ensure no file handles or non-serializable objects
+                                metadata = {
+                                    'animal': int(self.controller.state.get('animal', 0)),
+                                    'session': int(self.controller.state.get('session', 0)),
+                                    'export_time': str(time.strftime('%Y-%m-%d %H:%M:%S'))
+                                }
+                                
+                                # Add processing parameters if available, but clean them first
+                                if 'processing_parameters' in self.controller.state:
+                                    try:
+                                        # Create a deep copy and clean it
+                                        import copy
+                                        proc_params = copy.deepcopy(self.controller.state['processing_parameters'])
+                                        
+                                        # Remove any potential file handles or non-serializable objects
+                                        if isinstance(proc_params, dict):
+                                            metadata['processing_parameters'] = proc_params
+                                    except:
+                                        self.log("Warning: Could not include processing parameters in metadata")
+                                
+                                final_results['metadata'] = metadata
+                            
+                            # Debug: Check what we're about to pickle
+                            self.log(f"Final results dictionary keys: {list(final_results.keys())}")
+                            for key in final_results:
+                                if isinstance(final_results[key], np.ndarray):
+                                    self.log(f"  {key}: numpy array of shape {final_results[key].shape}")
+                                elif isinstance(final_results[key], dict):
+                                    self.log(f"  {key}: dictionary with keys {list(final_results[key].keys())}")
+                                else:
+                                    self.log(f"  {key}: {type(final_results[key])}")
+                            
+                            # Save pickle file - use protocol 4 for better compatibility
+                            results_path = os.path.join(pkl_dir, "final_results.pkl")
+                            
+                            # Write to a temporary file first
+                            import tempfile
+                            temp_fd, temp_path = tempfile.mkstemp(suffix='.pkl', dir=pkl_dir)
+                            try:
+                                with os.fdopen(temp_fd, 'wb') as f:
+                                    pickle.dump(final_results, f, protocol=4)
+                                
+                                # If successful, move to final location
+                                import shutil
+                                shutil.move(temp_path, results_path)
+                                
+                                self.log(f"Exported all components to {results_path}")
+                                export_stats['export_formats'].append('pkl')
+                                
+                            except Exception as e:
+                                # Clean up temp file if it exists
+                                if os.path.exists(temp_path):
+                                    os.unlink(temp_path)
+                                raise e
+                            
+                        except Exception as e:
+                            self.log(f"Error saving pickle file: {str(e)}")
+                            self.log(f"Error type: {type(e)}")
+                            self.log(traceback.format_exc())
+                            
+                            # Try to identify which object is causing the problem
+                            self.log("Attempting to identify problematic object...")
+                            for key, value in final_results.items():
+                                try:
+                                    test_pickle = pickle.dumps(value, protocol=4)
+                                    self.log(f"  {key}: OK")
+                                except Exception as sub_e:
+                                    self.log(f"  {key}: FAILED - {str(sub_e)}")
+                                    if isinstance(value, dict):
+                                        # Check sub-items
+                                        for sub_key, sub_value in value.items():
+                                            try:
+                                                test_pickle = pickle.dumps(sub_value, protocol=4)
+                                                self.log(f"    {sub_key}: OK")
+                                            except Exception as sub_sub_e:
+                                                self.log(f"    {sub_key}: FAILED - {str(sub_sub_e)}")
 
-            except Exception as e:
-                self.log(f"Error during export: {str(e)}")
-                self.log(traceback.format_exc())
-                self.status_var.set(f"Error during export: {str(e)}")
-                return
-            
-            self.update_progress(60)
-            
-            # Prepare data for summary plots
-            plot_data = None
-            if params['generate_maps'] or params['generate_traces'] or params['generate_metrics']:
-                self.log("\nPreparing data for summary plots...")
-                try:
-                    # Collect all data needed for plotting
-                    plot_data = {
-                        'A_filtered': A_filtered,
-                        'C_filtered': C_filtered,
-                        'S_filtered': S_filtered,
-                        'filtering_stats': filtering_stats,
-                        'generate_maps': params['generate_maps'],
-                        'generate_traces': params['generate_traces'],
-                        'generate_metrics': params['generate_metrics'],
-                        'result_dir': result_dir,
-                        'cmap': self.cmap
-                    }
-                    self.log("Data prepared for plotting")
                 except Exception as e:
-                    self.log(f"Error preparing plot data: {str(e)}")
+                    self.log(f"Error during export: {str(e)}")
                     self.log(traceback.format_exc())
-            
-            # Schedule all visualization in the main thread
-            self.after_idle(lambda: self.create_visualizations(
-                A_filtered,
-                C_filtered,
-                S_filtered,
-                filtering_stats
-            ))
-            
-            # Generate summary plots in main thread if needed
-            if plot_data is not None:
-                self.after_idle(lambda: self.generate_summary_plots(plot_data))
-            
-            # Update export info in main thread
-            self.after_idle(lambda: self.update_export_info(
-                result_dir,
-                export_stats,
-                filtering_stats
-            ))
-            
-            # Enable open folder button in main thread
-            self.after_idle(lambda: self.open_folder_button.config(state="normal"))
-            
-            # Update progress and status
-            self.update_progress(100)
-            self.status_var.set("Filtering and export complete")
-            self.log("\nFiltering and export process completed successfully")
-
-            # Mark as complete
-            self.processing_complete = True
-
-            # Notify controller for autorun
-            self.controller.after(0, lambda: self.controller.on_step_complete(self.__class__.__name__))
-            
-        except Exception as e:
-            self.status_var.set(f"Error: {str(e)}")
-            self.log(f"Error in filtering and export thread: {str(e)}")
-            self.log(traceback.format_exc())
+                    self.status_var.set(f"Error during export: {str(e)}")
+                    return
                 
-            # Stop autorun if configured
-            if self.controller.state.get('autorun_stop_on_error', True):
-                self.controller.autorun_enabled = False
-                self.controller.autorun_indicator.config(text="")
+                self.update_progress(60)
+                
+                # Prepare data for summary plots
+                plot_data = None
+                if params['generate_maps'] or params['generate_traces'] or params['generate_metrics']:
+                    self.log("\nPreparing data for summary plots...")
+                    try:
+                        # Collect all data needed for plotting
+                        plot_data = {
+                            'A_filtered': A_filtered,
+                            'C_filtered': C_filtered,
+                            'S_filtered': S_filtered,
+                            'filtering_stats': filtering_stats,
+                            'generate_maps': params['generate_maps'],
+                            'generate_traces': params['generate_traces'],
+                            'generate_metrics': params['generate_metrics'],
+                            'result_dir': result_dir,
+                            'cmap': self.cmap
+                        }
+                        self.log("Data prepared for plotting")
+                    except Exception as e:
+                        self.log(f"Error preparing plot data: {str(e)}")
+                        self.log(traceback.format_exc())
+                
+                # Schedule all visualization in the main thread
+                self.after_idle(lambda: self.create_visualizations(
+                    A_filtered,
+                    C_filtered,
+                    S_filtered,
+                    filtering_stats
+                ))
+                
+                # Generate summary plots in main thread if needed
+                if plot_data is not None:
+                    self.after_idle(lambda: self.generate_summary_plots(plot_data))
+                
+                # Update export info in main thread
+                self.after_idle(lambda: self.update_export_info(
+                    result_dir,
+                    export_stats,
+                    filtering_stats
+                ))
+                
+                # Enable open folder button in main thread
+                self.after_idle(lambda: self.open_folder_button.config(state="normal"))
+                
+                # Update progress and status
+                self.update_progress(100)
+                self.status_var.set("Filtering and export complete")
+                self.log("\nFiltering and export process completed successfully")
+
+                # Mark as complete
+                self.processing_complete = True
+
+                # Notify controller for autorun
+                self.controller.after(0, lambda: self.controller.on_step_complete(self.__class__.__name__))
+                
+            except Exception as e:
+                self.status_var.set(f"Error: {str(e)}")
+                self.log(f"Error in filtering and export thread: {str(e)}")
+                self.log(traceback.format_exc())
+                    
+                # Stop autorun if configured
+                if self.controller.state.get('autorun_stop_on_error', True):
+                    self.controller.autorun_enabled = False
+                    self.controller.autorun_indicator.config(text="")
 
     def generate_summary_plots(self, plot_data):
         """Generate summary plots in the main thread using non-interactive backend and queue"""

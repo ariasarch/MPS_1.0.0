@@ -8,6 +8,9 @@ import importlib
 import sys
 from pathlib import Path
 from PIL import Image, ImageTk  # For handling the large image
+import webbrowser
+import markdown  
+import tempfile
 
 # Import functionality
 from gui_functions import (
@@ -595,7 +598,7 @@ class MainApplication(tk.Tk):
         
         # File Menu
         file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Load Parameters File", command=self.load_parameters_file)  # NEW
+        file_menu.add_command(label="Load Parameters File", command=self.load_parameters_file)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.confirm_exit) 
         menubar.add_cascade(label="File", menu=file_menu)
@@ -609,14 +612,21 @@ class MainApplication(tk.Tk):
         data_menu = tk.Menu(menubar, tearoff=0)
         data_menu.add_command(label="Load Previous Data", command=self.load_previous_data)
         data_menu.add_separator()
-        menubar.add_cascade(label="Data", menu=data_menu)
+        menubar.add_cascade(label="Load Previous Data", menu=data_menu)
+        
+        # Data Explorer Menu - NEW
+        explorer_menu = tk.Menu(menubar, tearoff=0)
+        explorer_menu.add_command(label="Open Data Explorer", command=self.open_data_explorer)
+        explorer_menu.add_separator()
+        explorer_menu.add_command(label="Open in New Window", command=lambda: self.open_data_explorer(new_window=True))
+        menubar.add_cascade(label="Data Explorer", menu=explorer_menu)
         
         # Automation Menu 
         automation_menu = tk.Menu(menubar, tearoff=0)
         automation_menu.add_command(label="Toggle Autorun", command=self.toggle_autorun)
         automation_menu.add_command(label="Configure Autorun", command=self.configure_autorun)
         automation_menu.add_separator()
-        automation_menu.add_command(label="Toggle Notifications", command=self.toggle_notifications)  # NEW
+        automation_menu.add_command(label="Toggle Notifications", command=self.toggle_notifications)
         automation_menu.add_separator()
         automation_menu.add_command(label="Run All Steps", command=self.run_all_steps)
         automation_menu.add_command(label="Run From Current Step", command=self.run_from_current)
@@ -629,6 +639,95 @@ class MainApplication(tk.Tk):
         menubar.add_cascade(label="Help", menu=help_menu)
         
         self.config(menu=menubar)
+    
+    def open_data_explorer(self, new_window=False):
+        """Open the Data Explorer from the menu"""
+        try:
+            import subprocess
+            import sys
+            import os
+            
+            # Get the directory where this script is located
+            gui_script_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Path to data_explorer.py should be in the same directory
+            data_explorer_path = os.path.join(gui_script_dir, "data_explorer.py")
+            
+            # Check if the file exists
+            if not os.path.exists(data_explorer_path):
+                # Try current working directory as fallback
+                alt_path = os.path.join(os.getcwd(), "data_explorer.py")
+                if os.path.exists(alt_path):
+                    data_explorer_path = alt_path
+                else:
+                    messagebox.showwarning(
+                        "Data Explorer Not Found",
+                        f"Could not find data_explorer.py\n\nExpected at:\n{data_explorer_path}\n\n"
+                        "Please ensure data_explorer.py is in the same directory as this application."
+                    )
+                    return
+            
+            # Get current state data to pass to data explorer
+            cache_path = self.state.get('cache_path', '')
+            animal = self.state.get('animal', 0)
+            session = self.state.get('session', 0)
+            
+            # Determine export path if available
+            export_path = ""
+            if 'dataset_output_path' in self.state:
+                potential_export = os.path.join(self.state['dataset_output_path'], "exported_results")
+                if os.path.exists(potential_export):
+                    export_path = potential_export
+            
+            # Build command arguments
+            cmd_args = [sys.executable, data_explorer_path]
+            
+            # Add arguments only if they have values
+            if cache_path:
+                cmd_args.extend(["--cache_path", cache_path])
+            if animal:
+                cmd_args.extend(["--animal", str(animal)])
+            if session:
+                cmd_args.extend(["--session", str(session)])
+            if export_path:
+                cmd_args.extend(["--export_path", export_path])
+            
+            # Launch data explorer
+            subprocess.Popen(cmd_args)
+            
+            # Show message
+            if new_window:
+                self.status_var.set("Data Explorer opened in new window")
+            else:
+                # Ask if user wants to keep main window open
+                response = messagebox.askyesnocancel(
+                    "Data Explorer Launched",
+                    "The Data Explorer has been opened.\n\n"
+                    "Would you like to close the main processing pipeline?\n\n"
+                    "Yes = Close main window\n"
+                    "No = Keep both windows open\n"
+                    "Cancel = Close Data Explorer"
+                )
+                
+                if response is True:  # Yes - close main window
+                    messagebox.showinfo(
+                        "Closing Main Window",
+                        "The main processing pipeline will close in a few seconds."
+                    )
+                    self.after(2000, self.destroy)
+                elif response is False:  # No - keep both open
+                    self.status_var.set("Data Explorer opened - main window kept open")
+                else:  # Cancel or closed dialog
+                    # Would need to implement a way to close the data explorer
+                    # For now, just inform the user
+                    self.status_var.set("Data Explorer remains open")
+            
+        except Exception as e:
+            messagebox.showerror(
+                "Error",
+                f"Failed to launch Data Explorer:\n{str(e)}"
+            )
+            self.status_var.set(f"Error launching Data Explorer: {str(e)}")
 
     def auto_save_parameters(self):
         """
@@ -856,11 +955,172 @@ class MainApplication(tk.Tk):
             show_dask_dashboard_popup(self)
         else:
             self.status_var.set("Dask dashboard not available yet. Run Step 1 or load data first.")
-    
+
     def show_docs(self):
-        """Show documentation"""
-        # Implementation would go here
-        pass
+        """Show documentation from README.md"""
+        try:
+            # Get the directory where the script is located
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            readme_path = os.path.join(current_dir, "README.md")
+            
+            if os.path.exists(readme_path):
+
+                # Convert to HTML and open in browser (Recommended)
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    md_content = f.read()
+                
+                # Convert markdown to HTML
+                html_content = markdown.markdown(
+                    md_content, 
+                    extensions=['extra', 'toc', 'fenced_code', 'tables']
+                )
+                
+                # Create a complete HTML document with styling
+                full_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Miniscope Processing Pipeline Documentation</title>
+                    <style>
+                        body {{
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+                            line-height: 1.6;
+                            color: #333;
+                            max-width: 900px;
+                            margin: 0 auto;
+                            padding: 20px;
+                            background-color: #f5f5f5;
+                        }}
+                        .content {{
+                            background-color: white;
+                            padding: 30px;
+                            border-radius: 8px;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        }}
+                        h1, h2, h3, h4 {{
+                            color: #2c3e50;
+                            margin-top: 24px;
+                            margin-bottom: 16px;
+                        }}
+                        h1 {{
+                            border-bottom: 2px solid #3498db;
+                            padding-bottom: 10px;
+                        }}
+                        h2 {{
+                            border-bottom: 1px solid #ecf0f1;
+                            padding-bottom: 8px;
+                        }}
+                        code {{
+                            background-color: #f4f4f4;
+                            padding: 2px 4px;
+                            border-radius: 3px;
+                            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                        }}
+                        pre {{
+                            background-color: #f8f8f8;
+                            border: 1px solid #ddd;
+                            border-radius: 5px;
+                            padding: 10px;
+                            overflow-x: auto;
+                        }}
+                        pre code {{
+                            background-color: transparent;
+                            padding: 0;
+                        }}
+                        ul, ol {{
+                            padding-left: 30px;
+                        }}
+                        li {{
+                            margin-bottom: 5px;
+                        }}
+                        strong {{
+                            color: #2c3e50;
+                        }}
+                        a {{
+                            color: #3498db;
+                            text-decoration: none;
+                        }}
+                        a:hover {{
+                            text-decoration: underline;
+                        }}
+                        blockquote {{
+                            border-left: 4px solid #3498db;
+                            padding-left: 20px;
+                            margin-left: 0;
+                            color: #666;
+                        }}
+                        table {{
+                            border-collapse: collapse;
+                            width: 100%;
+                            margin-bottom: 20px;
+                        }}
+                        th, td {{
+                            border: 1px solid #ddd;
+                            padding: 8px;
+                            text-align: left;
+                        }}
+                        th {{
+                            background-color: #f4f4f4;
+                            font-weight: bold;
+                        }}
+                        .toc {{
+                            background-color: #f9f9f9;
+                            border: 1px solid #ddd;
+                            border-radius: 5px;
+                            padding: 15px;
+                            margin-bottom: 20px;
+                        }}
+                        .toc ul {{
+                            list-style-type: none;
+                            padding-left: 20px;
+                        }}
+                        .toc > ul {{
+                            padding-left: 0;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="content">
+                        {html_content}
+                    </div>
+                </body>
+                </html>
+                """
+                
+                # Create a temporary HTML file
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+                    f.write(full_html)
+                    temp_path = f.name
+                
+                # Open in web browser
+                webbrowser.open(f'file://{temp_path}')
+                
+                # Clean up temp file after a delay (give browser time to load it)
+                def cleanup():
+                    time.sleep(5)
+                    try:
+                        os.unlink(temp_path)
+                    except:
+                        pass
+                
+                threading.Thread(target=cleanup, daemon=True).start()
+                
+                self.status_var.set("Documentation opened in browser")
+                
+            else:
+                messagebox.showerror(
+                    "Documentation Not Found",
+                    f"README.md not found in:\n{current_dir}\n\n"
+                    "Please ensure README.md is in the same directory as the application."
+                )
+                
+        except Exception as e:
+            messagebox.showerror(
+                "Error",
+                f"Failed to open documentation:\n{str(e)}"
+            )
+            self.status_var.set("Error opening documentation")
     
     def show_about(self):
         """Show about dialog"""
@@ -1245,6 +1505,7 @@ class MainApplication(tk.Tk):
                 return self.loaded_parameters['steps'][param_key]
         
         return None
+
 
 if __name__ == "__main__":
     app = MainApplication()

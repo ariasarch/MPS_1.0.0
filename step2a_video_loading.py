@@ -220,6 +220,44 @@ class Step2aVideoLoading(ttk.Frame):
     
     def _load_videos_thread(self, input_dir, param_load_videos, video_percent, cache_path, detect_line_splitting):
         """Thread function to load videos"""
+        # Debug: Check Python environment
+        from pathlib import Path
+        import os, sys, shutil, subprocess
+
+        # --- FIX: use .parent, not .parent.parent ---
+        env_root = Path(sys.executable).parent  # ...\miniforge3\envs\minian_ari_2
+
+        # Prepend the env’s bin folders so PATH is correct for subprocess/Dask workers
+        candidates = [
+            env_root / "Library" / "bin",
+            env_root / "Library" / "usr" / "bin",
+            env_root / "Scripts",
+            env_root / "bin",  # (sometimes present)
+        ]
+        path_parts = os.environ.get("PATH", "").split(os.pathsep)
+        prepend = [str(p) for p in candidates if p.exists() and str(p) not in path_parts]
+        if prepend:
+            os.environ["PATH"] = os.pathsep.join(prepend + path_parts)
+
+        # Helpful for libs that look at these
+        os.environ["CONDA_PREFIX"] = str(env_root)
+        os.environ["CONDA_DEFAULT_ENV"] = env_root.name
+
+        # Resolve ffmpeg explicitly
+        ffmpeg_path = shutil.which("ffmpeg")
+        if not ffmpeg_path:
+            guess = env_root / "Library" / "bin" / "ffmpeg.exe"
+            if guess.exists():
+                ffmpeg_path = str(guess)
+
+        if ffmpeg_path:
+            os.environ["FFMPEG_BINARY"] = ffmpeg_path  # ffmpeg-python will use this
+            self.log(f"Using ffmpeg at: {ffmpeg_path}")
+        else:
+            self.log("ERROR: Could not resolve ffmpeg in current environment.")
+            self.status_var.set("Error: FFmpeg not found")
+            return
+
         # Import necessary modules outside of Dask tasks
         try:
             # Add the utility directory to the path if needed
@@ -303,7 +341,8 @@ class Step2aVideoLoading(ttk.Frame):
                             break
                     
                     if video_stream is None:
-                        return None
+                        # ADD THIS: Store error details
+                        return {"error": "No video stream found", "filename": fname}
                         
                     video_info = video_stream
                     
@@ -311,7 +350,8 @@ class Step2aVideoLoading(ttk.Frame):
                     required_props = ["width", "height", "nb_frames"]
                     for prop in required_props:
                         if prop not in video_info:
-                            return None
+                            # ADD THIS: Store what's missing
+                            return {"error": f"Missing property: {prop}", "filename": fname}
                             
                     w = int(video_info["width"])
                     h = int(video_info["height"]) 
@@ -319,14 +359,16 @@ class Step2aVideoLoading(ttk.Frame):
                     
                     # Basic validation
                     if f == 0 or w == 0 or h == 0:
-                        return None
+                        # ADD THIS: Store the invalid values
+                        return {"error": f"Invalid dimensions: w={w}, h={h}, f={f}", "filename": fname}
                         
                     # Create delayed object
                     delayed_load = delayed(load_avi_ffmpeg)(fname, h, w, f)
                     return da.from_delayed(delayed_load, shape=(f, h, w), dtype=np.uint8)
                     
                 except Exception as e:
-                    return None
+                    # ADD THIS: Return error details instead of None
+                    return {"error": str(e), "error_type": type(e).__name__, "filename": fname}
                     
             # Initialize Dask cluster
             self.log("Initializing Dask cluster...")
@@ -407,7 +449,44 @@ class Step2aVideoLoading(ttk.Frame):
             # Track corrupted files
             corrupted_files = []
             valid_arrays = []
-            
+
+            # After checking if vlist is not empty:
+            if vlist:
+                # First check if ffmpeg executable can be found
+                self.log("Checking if ffmpeg executable is available...")
+                try:
+                    # Try to run ffmpeg -version
+                    import subprocess
+                    result = subprocess.run([ffmpeg_path, '-version'], capture_output=True, text=True, check=True)
+                    self.log("FFmpeg found and working!")
+                except FileNotFoundError:
+                    self.log("ERROR: FFmpeg executable not found in PATH!")
+                    self.log("The 'ffmpeg' command cannot be found.")
+                    self.log("Please ensure:")
+                    self.log("1. You're running this script from the conda environment where ffmpeg is installed")
+                    self.log("2. Or add ffmpeg to your system PATH")
+                    self.status_var.set("Error: FFmpeg not found in PATH")
+                    return
+                except Exception as e:
+                    self.log(f"ERROR: Failed to run ffmpeg: {str(e)}")
+                    self.status_var.set("Error: FFmpeg check failed")
+                    return
+                
+                # Now test on first video file
+                self.log("\nTesting ffmpeg on first video file...")
+                test_file = vlist[0]
+                try:
+                    probe_result = ffmpeg.probe(test_file)
+                    self.log(f"FFmpeg probe successful. Found {len(probe_result.get('streams', []))} streams")
+                    for stream in probe_result.get('streams', []):
+                        if stream['codec_type'] == 'video':
+                            self.log(f"Video stream: codec={stream.get('codec_name')}, "
+                                    f"size={stream.get('width')}x{stream.get('height')}, "
+                                    f"frames={stream.get('nb_frames', 'unknown')}")
+                except Exception as e:
+                    self.log(f"FFmpeg probe failed: {str(e)}")
+                    self.log("This might indicate FFmpeg cannot read these AVI files")
+
             # Load each video file separately
             for i, video_file in enumerate(vlist):
                 self.log(f"\n{'='*60}")
@@ -418,14 +497,27 @@ class Step2aVideoLoading(ttk.Frame):
                 
                 result = load_avi_lazy(video_file)
                 
-                if result is not None:
-                    valid_arrays.append(result)
-                    self.log(f"SUCCESS: Video loaded successfully")
-                else:
-                    self.log(f"FAILED: Video marked as corrupted")
+                # ADD THIS: Check if result is an error dictionary
+                if isinstance(result, dict) and 'error' in result:
+                    self.log(f"FAILED: {result['error']}")
+                    if 'error_type' in result:
+                        self.log(f"Error type: {result['error_type']}")
                     corrupted_files.append({
                         'filename': os.path.basename(video_file),
                         'full_path': video_file,
+                        'error': result['error'],
+                        'error_type': result.get('error_type', 'unknown'),
+                        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+                    })
+                elif result is not None:
+                    valid_arrays.append(result)
+                    self.log(f"SUCCESS: Video loaded successfully")
+                else:
+                    self.log(f"FAILED: Video marked as corrupted (unknown error)")
+                    corrupted_files.append({
+                        'filename': os.path.basename(video_file),
+                        'full_path': video_file,
+                        'error': 'Unknown error - returned None',
                         'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
                     })
                 

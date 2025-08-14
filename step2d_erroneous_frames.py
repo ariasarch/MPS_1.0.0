@@ -382,10 +382,10 @@ class Step2dErroneousFrames(ttk.Frame):
                 step2d_varr_ref = step2d_varr_ref_filtered
                 step2d_motion = step2d_motion_filtered
                 
-                # Save list of dropped frames to output directory
-                output_dir = self.controller.state.get('dataset_output_path', '')
-                if output_dir:
-                    output_file = os.path.join(output_dir, 'dropped_frames.txt')
+                # Save list of dropped frames to cache directory
+                cache_data_path = self.controller.state.get('cache_path', '')  
+                if cache_data_path: 
+                    output_file = os.path.join(cache_data_path, 'dropped_frames.txt')
                     try:
                         with open(output_file, 'w') as f:
                             f.write(f"Total frames dropped: {len(all_step2d_erroneous_frames)}\n")
@@ -396,6 +396,45 @@ class Step2dErroneousFrames(ttk.Frame):
             else:
                 all_step2d_erroneous_frames = step2d_erroneous_frames
                 self.log("No frames were dropped (either none found or dropping disabled)")
+
+            # This accounts for frames removed by both line splitting (from Step2a) and erroneous frame detection
+            combined_removed_frames = []
+
+            # Get line splitting frames from Step2a if available
+            line_splitting_frames_original = []
+            if 'step2a' in self.controller.state.get('results', {}):
+                line_splitting_frames_original = self.controller.state['results']['step2a'].get('line_splitting_frames', [])
+
+            # Add line splitting frames (these are already in original indices)
+            combined_removed_frames.extend(line_splitting_frames_original)
+
+            # Add erroneous frames, but we need to adjust their indices to account for previously removed frames
+            if step2d_erroneous_frames:
+                # For each erroneous frame index, we need to calculate what its original index was
+                # before line splitting frames were removed
+                for err_frame in step2d_erroneous_frames:
+                    # Count how many line splitting frames were before this index
+                    num_removed_before = sum(1 for lsf in line_splitting_frames_original if lsf < err_frame)
+                    # The original index is the current index plus the number of removed frames before it
+                    original_index = err_frame + num_removed_before
+                    combined_removed_frames.append(original_index)
+
+            # Sort the combined list
+            combined_removed_frames = sorted(combined_removed_frames)
+
+            # Save the combined removed frames list to the output directory
+            output_dir = self.controller.state.get('dataset_output_path', '')
+            if output_dir:
+                combined_file = os.path.join(output_dir, 'all_removed_frames.txt')
+                try:
+                    with open(combined_file, 'w') as f:
+                        f.write(f"Total frames removed: {len(combined_removed_frames)}\n")
+                        f.write(f"Line splitting frames: {len(line_splitting_frames_original)}\n")
+                        f.write(f"Erroneous frames: {len(step2d_erroneous_frames)}\n")
+                        f.write(f"Original frame indices removed: {combined_removed_frames}")
+                    self.log(f"Saved combined removed frames list to {combined_file}")
+                except Exception as e:
+                    self.log(f"Error saving combined removed frames list: {str(e)}")
             
             self.update_progress(80)
             

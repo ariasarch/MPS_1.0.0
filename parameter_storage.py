@@ -30,41 +30,6 @@ class ParameterStorage:
         self.base_path = path
         # Create params file path
         self.params_file = os.path.join(self.base_path, 'processing_parameters.json')
-        
-    # def save_parameters(self):
-    #     """
-    #     Save the current processing parameters to a JSON file.
-    #     This captures all parameters from each completed step.
-    #     """
-    #     if self.base_path is None:
-    #         raise ValueError("Base path not set. Call set_base_path first.")
-        
-    #     # Create a new parameter object
-    #     params = {
-    #         "metadata": {
-    #             "version": "1.0",
-    #             "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
-    #             "animal": self.controller.state.get('animal', None),
-    #             "session": self.controller.state.get('session', None),
-    #             "input_dir": self.controller.state.get('input_dir', None),
-    #             "output_dir": self.controller.state.get('output_dir', None)
-    #         },
-    #         "steps": {}
-    #     }
-        
-    #     # Extract parameters from each step
-    #     step_params = self._extract_step_parameters()
-    #     params["steps"] = step_params
-        
-    #     # Debug info
-    #     print(f"[DEBUG] Saving parameters with steps: {list(step_params.keys())}")
-        
-    #     # Save to file
-    #     with open(self.params_file, 'w') as f:
-    #         json.dump(params, f, indent=4)
-        
-    #     print(f"[DEBUG] Parameters saved to: {self.params_file}")
-    #     return self.params_file
     
     def save_parameters(self):
         """
