@@ -63,12 +63,6 @@ class Step1Setup(ttk.Frame):
         self.memory_entry = ttk.Entry(self.advanced_frame, textvariable=self.memory_var, width=10)
         self.memory_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w")
         
-        # Video percentage
-        ttk.Label(self.advanced_frame, text="Video Percentage:").grid(row=2, column=0, padx=10, pady=10, sticky="w")
-        self.video_percent_var = tk.IntVar(value=100)
-        self.video_percent_entry = ttk.Entry(self.advanced_frame, textvariable=self.video_percent_var, width=5)
-        self.video_percent_entry.grid(row=2, column=1, padx=10, pady=10, sticky="w")
-        
         # Initialize button
         self.initialize_button = ttk.Button(
             self,
@@ -81,10 +75,17 @@ class Step1Setup(ttk.Frame):
         self.status_var = tk.StringVar(value="Ready to initialize")
         self.status_label = ttk.Label(self, textvariable=self.status_var)
         self.status_label.grid(row=7, column=0, columnspan=3, pady=10)
+        
+        # Completion message frame (initially hidden)
+        self.completion_frame = ttk.Frame(self)
+        self.completion_frame.grid(row=0, column=3, rowspan=8, padx=20, pady=20, sticky="ne")
+        
+        # Completion message (initially not created)
+        self.completion_label = None
 
         # Log output with scrollbars
         self.log_frame = ttk.LabelFrame(self, text="Log Output")
-        self.log_frame.grid(row=8, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
+        self.log_frame.grid(row=8, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
         
         # Add scrollbar
         log_scroll = ttk.Scrollbar(self.log_frame)
@@ -99,11 +100,29 @@ class Step1Setup(ttk.Frame):
         # Make grid row expandable for log
         self.grid_rowconfigure(8, weight=1)
         
-        # Make grid row expandable for log
-        self.grid_rowconfigure(8, weight=1)
+        # Make grid column expandable
+        self.grid_columnconfigure(1, weight=1)
 
         # Step1Setup
         self.controller.register_step_button('Step1Setup', self.initialize_button)
+
+    def show_completion_message(self):
+        """Show the completion message"""
+        if self.completion_label is None:
+            self.completion_label = ttk.Label(
+                self.completion_frame,
+                text="✓ Setup Complete\n\nPlease Continue to\nthe Next Step",
+                font=("Arial", 14, "bold"),
+                foreground="green",
+                justify="center"
+            )
+            self.completion_label.pack()
+
+    def hide_completion_message(self):
+        """Hide the completion message"""
+        if self.completion_label is not None:
+            self.completion_label.destroy()
+            self.completion_label = None
 
     def log(self, message):
         """Add a message to the log text widget"""
@@ -158,6 +177,9 @@ class Step1Setup(ttk.Frame):
         if not self.validate_inputs():
             return
         
+        # Hide completion message if showing
+        self.hide_completion_message()
+        
         # Update status
         self.status_var.set("Initializing...")
         self.log("Starting initialization...")
@@ -174,13 +196,13 @@ class Step1Setup(ttk.Frame):
             session = int(self.session_var.get())
             n_workers = self.workers_var.get()
             memory_limit = self.memory_var.get()
-            video_percent = self.video_percent_var.get()
             
             self.controller.state['animal'] = animal
             self.controller.state['session'] = session
             self.controller.state['n_workers'] = n_workers
             self.controller.state['memory_limit'] = memory_limit
-            self.controller.state['video_percent'] = video_percent
+            # Set default video_percent to 100 for compatibility
+            self.controller.state['video_percent'] = 100
             
             # Create output directory if needed
             output_dir = self.controller.state['output_dir']
@@ -222,6 +244,9 @@ class Step1Setup(ttk.Frame):
             self.controller.status_var.set("Initialization complete. Ready to proceed.")
             self.log("Initialization completed successfully")
             
+            # Show completion message
+            self.after(0, self.show_completion_message)
+            
             # Store initialization state
             self.controller.state['initialized'] = True
            
@@ -252,8 +277,6 @@ class Step1Setup(ttk.Frame):
                 self.workers_var.set(params['n_workers'])
             if 'memory_limit' in params:
                 self.memory_var.set(params['memory_limit'])
-            if 'video_percent' in params:
-                self.video_percent_var.set(params['video_percent'])
             
             self.log("Parameters loaded from file")
         
@@ -322,18 +345,6 @@ class Step1Setup(ttk.Frame):
         except ValueError:
             self.status_var.set("Error: Number of workers must be a valid integer")
             self.log("Error: Number of workers must be a valid integer")
-            return False
-        
-        # Check video percentage
-        try:
-            video_percent = int(self.video_percent_var.get())
-            if video_percent <= 0 or video_percent > 100:
-                self.status_var.set("Error: Video percentage must be between 1 and 100")
-                self.log("Error: Video percentage must be between 1 and 100")
-                return False
-        except ValueError:
-            self.status_var.set("Error: Video percentage must be a valid integer")
-            self.log("Error: Video percentage must be a valid integer")
             return False
         
         return True

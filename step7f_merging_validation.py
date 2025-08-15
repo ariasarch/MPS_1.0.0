@@ -77,20 +77,20 @@ class Step7fMergingValidation(ttk.Frame):
             text="Run Merging and Validation",
             command=self.run_merging
         )
-        self.run_button.grid(row=5, column=0, columnspan=3, pady=20, padx=10)
+        self.run_button.grid(row=6, column=0, columnspan=3, pady=20, padx=10)
         
         # Status
         self.status_var = tk.StringVar(value="Ready to merge and validate components")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=6, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=7, column=0, columnspan=3, pady=10)
         
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=7, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=8, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
         
         # Stats panel
         self.stats_frame = ttk.LabelFrame(self.control_frame, text="Merging Statistics")
-        self.stats_frame.grid(row=8, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.stats_frame.grid(row=9, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Stats text with scrollbar
         stats_scroll = ttk.Scrollbar(self.stats_frame)
@@ -191,6 +191,13 @@ class Step7fMergingValidation(ttk.Frame):
         min_size_entry.grid(row=3, column=1, padx=10, pady=10, sticky="w")
         ttk.Label(self.control_frame, text="Minimum size of components to keep (pixels)").grid(row=3, column=2, padx=10, pady=10, sticky="w")
         
+        # Maximum component size
+        ttk.Label(self.control_frame, text="Max Component Size:").grid(row=4, column=0, padx=10, pady=10, sticky="w")
+        self.max_size_var = tk.IntVar(value=5000)
+        max_size_entry = ttk.Entry(self.control_frame, textvariable=self.max_size_var, width=10)
+        max_size_entry.grid(row=4, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Maximum merged component size in pixels").grid(row=4, column=2, padx=10, pady=10, sticky="w")
+        
         # Save both versions checkbox
         self.save_both_var = tk.BooleanVar(value=True)
         save_both_check = ttk.Checkbutton(
@@ -198,7 +205,7 @@ class Step7fMergingValidation(ttk.Frame):
             text="Save both raw and smoothed versions",
             variable=self.save_both_var
         )
-        save_both_check.grid(row=4, column=0, columnspan=3, padx=10, pady=10, sticky="w")
+        save_both_check.grid(row=5, column=0, columnspan=3, padx=10, pady=10, sticky="w")
     
     def bind_mousewheel(self):
         """Bind mousewheel to scrolling"""
@@ -242,6 +249,7 @@ class Step7fMergingValidation(ttk.Frame):
         sigma = self.sigma_var.get()
         handle_overlaps = self.handle_overlaps_var.get()
         min_size = self.min_size_var.get()
+        max_size = self.max_size_var.get()
         save_both = self.save_both_var.get()
         
         # Validate parameters
@@ -253,6 +261,11 @@ class Step7fMergingValidation(ttk.Frame):
         if min_size <= 0:
             self.status_var.set("Error: Minimum component size must be positive")
             self.log("Error: Invalid minimum component size")
+            return
+        
+        if max_size <= min_size:
+            self.status_var.set("Error: Maximum size must be greater than minimum size")
+            self.log("Error: Maximum size must be greater than minimum size")
             return
         
         # Update status
@@ -267,17 +280,18 @@ class Step7fMergingValidation(ttk.Frame):
             self.log(f"  Smoothing sigma: {sigma}")
         self.log(f"  Handle overlaps: {handle_overlaps}")
         self.log(f"  Minimum component size: {min_size}")
+        self.log(f"  Maximum component size: {max_size}")
         self.log(f"  Save both versions: {save_both}")
         
         # Start merging in a separate thread
         thread = threading.Thread(
             target=self._merging_thread,
-            args=(apply_smoothing, sigma, handle_overlaps, min_size, save_both)
+            args=(apply_smoothing, sigma, handle_overlaps, min_size, max_size, save_both)
         )
         thread.daemon = True
         thread.start()
     
-    def _merging_thread(self, apply_smoothing, sigma, handle_overlaps, min_size, save_both):
+    def _merging_thread(self, apply_smoothing, sigma, handle_overlaps, min_size, max_size, save_both):
         """Thread function for component merging"""
         try:
             # Import required modules
@@ -571,17 +585,17 @@ class Step7fMergingValidation(ttk.Frame):
             self.update_progress(60)
             
             # Apply size filtering if needed
-            if min_size > 0:
-                self.log(f"\nFiltering components by size (minimum {min_size} pixels)...")
+            if min_size > 0 or max_size > 0:
+                self.log(f"\nFiltering components by size (minimum {min_size} pixels, maximum {max_size} pixels)...")
                 
                 try:
                     # Filter raw components
-                    raw_filtered, raw_stats = self.filter_components_by_size(merged_raw, min_size)
+                    raw_filtered, raw_stats = self.filter_components_by_size(merged_raw, min_size, max_size)
                     self.log(f"Raw components filtering: {raw_stats}")
                     
                     # Filter smoothed components if available
                     if merged_smooth is not None:
-                        smooth_filtered, smooth_stats = self.filter_components_by_size(merged_smooth, min_size)
+                        smooth_filtered, smooth_stats = self.filter_components_by_size(merged_smooth, min_size, max_size)
                         self.log(f"Smoothed components filtering: {smooth_stats}")
                     else:
                         smooth_filtered = None
@@ -626,7 +640,8 @@ class Step7fMergingValidation(ttk.Frame):
                     'apply_smoothing': apply_smoothing,
                     'sigma': sigma,
                     'handle_overlaps': handle_overlaps,
-                    'min_size': min_size
+                    'min_size': min_size,
+                    'max_size': max_size
                 },
                 'step7f_filtering_stats': {
                     'raw': raw_stats,
@@ -704,6 +719,8 @@ class Step7fMergingValidation(ttk.Frame):
                 self.handle_overlaps_var.set(params['handle_overlaps'])
             if 'min_size' in params:
                 self.min_size_var.set(params['min_size'])
+            if 'max_size' in params:
+                self.max_size_var.set(params.get('max_size', 5000))
             
             self.log("Parameters loaded from file")
 
@@ -901,9 +918,9 @@ class Step7fMergingValidation(ttk.Frame):
             self.log(traceback.format_exc())
             raise e
     
-    def filter_components_by_size(self, components, min_size):
+    def filter_components_by_size(self, components, min_size, max_size=float('inf')):
         """
-        Filter components by minimum size
+        Filter components by minimum and maximum size
         
         Parameters:
         -----------
@@ -911,6 +928,8 @@ class Step7fMergingValidation(ttk.Frame):
             Component array to filter
         min_size : int
             Minimum component size in pixels
+        max_size : int or float
+            Maximum component size in pixels
             
         Returns:
         --------
@@ -922,6 +941,8 @@ class Step7fMergingValidation(ttk.Frame):
             'total_components': len(components.unit_id),
             'filtered_components': 0,
             'retained_components': 0,
+            'filtered_too_small': 0,
+            'filtered_too_large': 0,
             'total_pixels_before': 0,
             'total_pixels_after': 0
         }
@@ -942,6 +963,11 @@ class Step7fMergingValidation(ttk.Frame):
             if active_pixels < min_size:
                 valid_mask[i] = False
                 stats['filtered_components'] += 1
+                stats['filtered_too_small'] += 1
+            elif active_pixels > max_size:
+                valid_mask[i] = False
+                stats['filtered_components'] += 1
+                stats['filtered_too_large'] += 1
             else:
                 stats['retained_components'] += 1
                 stats['total_pixels_after'] += active_pixels
@@ -956,6 +982,8 @@ class Step7fMergingValidation(ttk.Frame):
         self.log(f"Filtering results:")
         self.log(f"  Total components: {stats['total_components']}")
         self.log(f"  Retained components: {stats['retained_components']} ({stats['percent_filtered']:.1f}% filtered out)")
+        self.log(f"  Filtered too small: {stats['filtered_too_small']}")
+        self.log(f"  Filtered too large: {stats['filtered_too_large']}")
         self.log(f"  Total active pixels: {stats['total_pixels_before']} → {stats['total_pixels_after']} ({stats['percent_pixels_retained']:.1f}% retained)")
         
         return filtered, stats
@@ -1144,8 +1172,13 @@ class Step7fMergingValidation(ttk.Frame):
             # Clear the figure
             self.fig.clear()
             
-            # Create a 2x3 grid
-            fig, axes = plt.subplots(2, 3, figsize=(15, 10), num=self.fig.number)
+            # Create a 2x3 grid directly on the existing figure
+            axes = []
+            for i in range(2):
+                for j in range(3):
+                    ax = self.fig.add_subplot(2, 3, i*3 + j + 1)
+                    axes.append(ax)
+            axes = np.array(axes).reshape(2, 3)
             
             # Original max projection
             orig_max = step7a_dilated.max('unit_id').compute()
@@ -1192,7 +1225,7 @@ class Step7fMergingValidation(ttk.Frame):
             plt.colorbar(im6, ax=axes[1,2])
             
             # Set overall title
-            plt.suptitle('Component Merging Results', fontsize=16)
+            self.fig.suptitle('Component Merging Results', fontsize=16)
             
             # Update the figure
             plt.tight_layout()
@@ -1203,7 +1236,7 @@ class Step7fMergingValidation(ttk.Frame):
         except Exception as e:
             self.log(f"Error creating merge comparison visualization: {str(e)}")
             self.log(traceback.format_exc())
-    
+
     def update_stats_text(self, step7a_dilated, merged):
         """Update statistics text with component comparison"""
         try:
@@ -1256,13 +1289,17 @@ class Step7fMergingValidation(ttk.Frame):
                 self.stats_text.insert(tk.END, "\n")
             
             # Add filtering stats if available
-            if 'step7f' in self.controller.state['results'] and 'filtering_stats' in self.controller.state['results']['step7f']:
-                filtering_stats = self.controller.state['results']['step7f']['filtering_stats']
-                if filtering_stats and ('raw' in filtering_stats or 'smooth' in filtering_stats):
-                    stats = filtering_stats['smooth'] if 'smooth' in filtering_stats and filtering_stats['smooth'] else filtering_stats['raw']
-                    if stats:
+            if 'step7f' in self.controller.state['results'] and 'step7f_filtering_stats' in self.controller.state['results']['step7f']:
+                filtering_stats = self.controller.state['results']['step7f']['step7f_filtering_stats']
+                if filtering_stats and isinstance(filtering_stats, dict) and ('raw' in filtering_stats or 'smooth' in filtering_stats):
+                    stats = filtering_stats.get('smooth', {}) if 'smooth' in filtering_stats else filtering_stats.get('raw', {})
+                    if stats and isinstance(stats, dict):
                         self.stats_text.insert(tk.END, "\nSize filtering results:\n")
                         self.stats_text.insert(tk.END, f"  Components filtered: {stats.get('filtered_components', 0)} of {stats.get('total_components', 0)}\n")
+                        if 'filtered_too_small' in stats:
+                            self.stats_text.insert(tk.END, f"    Too small: {stats.get('filtered_too_small', 0)}\n")
+                        if 'filtered_too_large' in stats:
+                            self.stats_text.insert(tk.END, f"    Too large: {stats.get('filtered_too_large', 0)}\n")
                         self.stats_text.insert(tk.END, f"  % components retained: {100 - stats.get('percent_filtered', 0):.1f}%\n")
                         self.stats_text.insert(tk.END, f"  % pixels retained: {stats.get('percent_pixels_retained', 0):.1f}%\n")
             
@@ -1360,7 +1397,8 @@ class Step7fMergingValidation(ttk.Frame):
                             'apply_smoothing': self.apply_smoothing_var.get(),
                             'sigma': self.sigma_var.get(),
                             'handle_overlaps': self.handle_overlaps_var.get(),
-                            'min_size': self.min_size_var.get()
+                            'min_size': self.min_size_var.get(),
+                            'max_size': self.max_size_var.get()
                         }
                     }
                 }

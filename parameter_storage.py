@@ -320,6 +320,7 @@ class ParameterStorage:
                 "distance_threshold": merging_params.get('distance_threshold', 25.0),
                 "size_ratio_threshold": merging_params.get('size_ratio_threshold', 5.0),
                 "min_size": merging_params.get('min_size', 9),
+                "max_size": merging_params.get('max_size', 5000),  # ADD THIS LINE
                 "cross_merge": merging_params.get('cross_merge', False)
             }
         
@@ -389,6 +390,7 @@ class ParameterStorage:
             step_params['step4g_temporal_merging'] = {
                 'temporal_corr_threshold': merging_params.get('temporal_corr_threshold', 0.75),
                 'spatial_overlap_threshold': merging_params.get('spatial_overlap_threshold', 0.3),
+                'max_size': merging_params.get('max_size', 5000),  # ADD THIS LINE
                 'input_type': merging_params.get('input_type', 'clean'),
                 'max_components': merging_params.get('max_components', 0)
             }
@@ -716,6 +718,7 @@ class ParameterStorage:
                 'sigma': parameters.get('sigma', 1.5),
                 'handle_overlaps': parameters.get('handle_overlaps', True),
                 'min_size': parameters.get('min_size', 10),
+                'max_size': parameters.get('max_size', 5000),  # ADD THIS LINE
                 'raw_components_retained': raw_stats.get('retained_components', 0),
                 'smooth_components_retained': smooth_stats.get('retained_components', 0),
                 'raw_percent_filtered': raw_stats.get('percent_filtered', 0.0),

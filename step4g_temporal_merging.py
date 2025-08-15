@@ -71,17 +71,24 @@ class Step4gTemporalMerging(ttk.Frame):
         self.spatial_overlap_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w")
         ttk.Label(self.control_frame, text="Minimum spatial overlap fraction required for merging").grid(row=1, column=2, padx=10, pady=10, sticky="w")
         
+        # Maximum component size (NEW)
+        ttk.Label(self.control_frame, text="Maximum Component Size:").grid(row=2, column=0, padx=10, pady=10, sticky="w")
+        self.max_size_var = tk.IntVar(value=5000)
+        self.max_size_entry = ttk.Entry(self.control_frame, textvariable=self.max_size_var, width=10)
+        self.max_size_entry.grid(row=2, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Maximum merged component size in pixels").grid(row=2, column=2, padx=10, pady=10, sticky="w")
+        
         # Input selection
-        ttk.Label(self.control_frame, text="Input Selection:").grid(row=2, column=0, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Input Selection:").grid(row=3, column=0, padx=10, pady=10, sticky="w")
         self.input_var = tk.StringVar(value="clean")
         self.input_combo = ttk.Combobox(self.control_frame, textvariable=self.input_var, width=15)
         self.input_combo['values'] = ('clean')
-        self.input_combo.grid(row=2, column=1, padx=10, pady=10, sticky="w")
-        ttk.Label(self.control_frame, text="Use cleaned components from step 4f").grid(row=2, column=2, padx=10, pady=10, sticky="w")
+        self.input_combo.grid(row=3, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Use cleaned components from step 4f").grid(row=3, column=2, padx=10, pady=10, sticky="w")
         
         # Advanced options
         self.advanced_frame = ttk.LabelFrame(self.control_frame, text="Advanced Options")
-        self.advanced_frame.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.advanced_frame.grid(row=4, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Limit component number
         ttk.Label(self.advanced_frame, text="Maximum Number of Components:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
@@ -96,23 +103,23 @@ class Step4gTemporalMerging(ttk.Frame):
             text="Run Temporal Merging",
             command=self.run_merging
         )
-        self.run_button.grid(row=4, column=0, columnspan=3, pady=20, padx=10)
+        self.run_button.grid(row=5, column=0, columnspan=3, pady=20, padx=10)
         
         # Status
         self.status_var = tk.StringVar(value="Ready to run temporal merging")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=5, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=6, column=0, columnspan=3, pady=10)
         
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=6, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=7, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
         
         # Results display
         self.results_frame = ttk.LabelFrame(self.control_frame, text="Merging Results")
-        self.results_frame.grid(row=7, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.results_frame.grid(row=8, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Results text
-        self.results_text = tk.Text(self.results_frame, height=6, width=40)
+        self.results_text = tk.Text(self.results_frame, height=8, width=40)
         self.results_text.pack(padx=10, pady=10, fill="both", expand=True)
         
         # Right panel (log)
@@ -236,6 +243,7 @@ class Step4gTemporalMerging(ttk.Frame):
         # Get parameters from UI
         temporal_corr_threshold = self.temporal_corr_var.get()
         spatial_overlap_threshold = self.spatial_overlap_var.get()
+        max_size = self.max_size_var.get()
         input_type = self.input_var.get()
         max_components = self.max_components_var.get()
         
@@ -250,6 +258,11 @@ class Step4gTemporalMerging(ttk.Frame):
             self.log("Error: Invalid spatial overlap threshold")
             return
         
+        if max_size <= 0:
+            self.status_var.set("Error: Maximum component size must be positive")
+            self.log("Error: Maximum component size must be positive")
+            return
+        
         if max_components < 0:
             self.status_var.set("Error: Maximum components cannot be negative")
             self.log("Error: Invalid maximum components value")
@@ -259,18 +272,19 @@ class Step4gTemporalMerging(ttk.Frame):
         self.log(f"Merging parameters:")
         self.log(f"  Temporal correlation threshold: {temporal_corr_threshold}")
         self.log(f"  Spatial overlap threshold: {spatial_overlap_threshold}")
+        self.log(f"  Maximum component size: {max_size} pixels")
         self.log(f"  Input type: {input_type}")
         self.log(f"  Maximum components: {max_components if max_components > 0 else 'No limit'}")
         
         # Start merging in a separate thread
         thread = threading.Thread(
             target=self._merging_thread,
-            args=(temporal_corr_threshold, spatial_overlap_threshold, input_type, max_components)
+            args=(temporal_corr_threshold, spatial_overlap_threshold, max_size, input_type, max_components)
         )
         thread.daemon = True
         thread.start()
     
-    def _merging_thread(self, temporal_corr_threshold, spatial_overlap_threshold, input_type, max_components):
+    def _merging_thread(self, temporal_corr_threshold, spatial_overlap_threshold, max_size, input_type, max_components):
         """Thread function for component merging"""
         try:
             # Import required modules
@@ -352,11 +366,16 @@ class Step4gTemporalMerging(ttk.Frame):
                 min_size = min(mask1.sum(), mask2.sum())
                 return overlap / min_size if min_size > 0 else 0
             
-            self.log("Checking spatial overlap and forming merge groups...")
+            # Function to compute component size
+            def compute_component_size(spatial_comp):
+                return np.sum(spatial_comp > 0)
             
-            # Create merge groups based on both temporal and spatial criteria
+            self.log("Checking spatial overlap and size constraints, forming merge groups...")
+            
+            # Create merge groups based on temporal, spatial, and size criteria
             merge_groups = []
             processed = set()
+            skipped_due_to_size = 0
             
             for i, j in merge_candidates:
                 if i in processed or j in processed:
@@ -369,16 +388,42 @@ class Step4gTemporalMerging(ttk.Frame):
                 )
                 
                 if overlap >= spatial_overlap_threshold:
+                    # Check if merging would exceed max size
+                    size_i = compute_component_size(A_input.isel(unit_id=i).compute().values)
+                    size_j = compute_component_size(A_input.isel(unit_id=j).compute().values)
+                    
+                    # Estimate merged size (conservative estimate - union of masks)
+                    mask_i = A_input.isel(unit_id=i).compute().values > 0
+                    mask_j = A_input.isel(unit_id=j).compute().values > 0
+                    merged_size_estimate = np.logical_or(mask_i, mask_j).sum()
+                    
+                    if merged_size_estimate > max_size:
+                        skipped_due_to_size += 1
+                        continue
+                    
                     # Find all components correlated with either i or j
                     corr_i = set(np.where(corr_matrix[i] > temporal_corr_threshold)[0])
                     corr_j = set(np.where(corr_matrix[j] > temporal_corr_threshold)[0])
                     group = corr_i.union(corr_j)
                     
-                    # Verify spatial overlap for all pairs in group
+                    # Verify spatial overlap and size for all pairs in group
                     final_group = {i, j}
+                    group_mask = np.logical_or(mask_i, mask_j)
+                    
                     for k in group:
                         if k not in final_group and k not in processed:
                             all_overlap = True
+                            mask_k = A_input.isel(unit_id=k).compute().values > 0
+                            
+                            # Check if adding this component would exceed max size
+                            potential_merged_mask = np.logical_or(group_mask, mask_k)
+                            potential_size = potential_merged_mask.sum()
+                            
+                            if potential_size > max_size:
+                                skipped_due_to_size += 1
+                                continue
+                            
+                            # Check overlap with all existing members
                             for m in final_group:
                                 overlap = compute_spatial_overlap(
                                     A_input.isel(unit_id=k).compute().values,
@@ -387,8 +432,10 @@ class Step4gTemporalMerging(ttk.Frame):
                                 if overlap < spatial_overlap_threshold:
                                     all_overlap = False
                                     break
+                            
                             if all_overlap:
                                 final_group.add(k)
+                                group_mask = potential_merged_mask
                     
                     merge_groups.append(final_group)
                     processed.update(final_group)
@@ -402,6 +449,7 @@ class Step4gTemporalMerging(ttk.Frame):
             # Create merged components
             n_merged = len(merge_groups)
             self.log(f"Final number of components after merging: {n_merged}")
+            self.log(f"Merges skipped due to size constraint: {skipped_due_to_size}")
             
             # Initialize new arrays for merged components
             A_shapes = list(A_input.shape[1:])
@@ -411,6 +459,7 @@ class Step4gTemporalMerging(ttk.Frame):
             
             # Create mapping from original to merged components
             merge_map = {}
+            merged_sizes = []
             
             # Merge components
             self.log("Merging components...")
@@ -433,8 +482,18 @@ class Step4gTemporalMerging(ttk.Frame):
                     # Single component, just copy
                     step4g_A_merged_array[new_idx] = A_input.isel(unit_id=group[0]).compute().values
                     step4g_C_merged_array[:, new_idx] = C_array[group[0]]
+                
+                # Track merged component size
+                merged_size = compute_component_size(step4g_A_merged_array[new_idx])
+                merged_sizes.append(merged_size)
             
             self.update_progress(80)
+            
+            # Log size statistics
+            self.log(f"\nMerged component size statistics:")
+            self.log(f"Average size: {np.mean(merged_sizes):.1f}")
+            self.log(f"Largest component: {np.max(merged_sizes)}")
+            self.log(f"Components at max size limit: {sum(1 for s in merged_sizes if s >= max_size * 0.95)}")
             
             # Create new xarray DataArrays
             step4g_A_merged = xr.DataArray(
@@ -508,7 +567,7 @@ class Step4gTemporalMerging(ttk.Frame):
             
             # Create visualizations
             self.log("Creating visualizations...")
-            self.after_idle(lambda: self.create_merge_visualization(A_input, C_input, step4g_A_merged, step4g_C_merged, merge_groups))
+            self.after_idle(lambda: self.create_merge_visualization(A_input, C_input, step4g_A_merged, step4g_C_merged, merge_groups, merged_sizes))
             
             # Update results display
             results_text = (
@@ -517,10 +576,12 @@ class Step4gTemporalMerging(ttk.Frame):
                 f"Final components: {n_merged}\n"
                 f"Components merged: {len(C_array) - n_merged}\n"
                 f"Merge groups formed: {len([g for g in merge_groups if len(g) > 1])}\n"
-                f"Largest merge group: {max(len(g) for g in merge_groups)} components\n\n"
+                f"Largest merge group: {max(len(g) for g in merge_groups)} components\n"
+                f"Merges skipped (size limit): {skipped_due_to_size}\n\n"
                 f"Parameters used:\n"
                 f"Temporal correlation threshold: {temporal_corr_threshold}\n"
-                f"Spatial overlap threshold: {spatial_overlap_threshold}"
+                f"Spatial overlap threshold: {spatial_overlap_threshold}\n"
+                f"Maximum component size: {max_size} pixels"
             )
             
             self.after_idle(lambda: self.results_text.delete(1.0, tk.END))
@@ -531,6 +592,7 @@ class Step4gTemporalMerging(ttk.Frame):
                 'merging_params': {
                     'temporal_corr_threshold': temporal_corr_threshold,
                     'spatial_overlap_threshold': spatial_overlap_threshold,
+                    'max_size': max_size,
                     'input_type': input_type,
                     'max_components': max_components
                 },
@@ -538,6 +600,7 @@ class Step4gTemporalMerging(ttk.Frame):
                 'step4g_C_merged': step4g_C_merged,
                 'n_components_initial': len(C_array),
                 'n_components_final': n_merged,
+                'skipped_due_to_size': skipped_due_to_size,
                 'merge_map': merge_map  # Save map for reference
             }
             
@@ -591,24 +654,26 @@ class Step4gTemporalMerging(ttk.Frame):
         
         if params:
             if 'temporal_corr_threshold' in params:
-                self.temporal_corr_threshold_var.set(params['temporal_corr_threshold'])
+                self.temporal_corr_var.set(params['temporal_corr_threshold'])
             if 'spatial_overlap_threshold' in params:
-                self.spatial_overlap_threshold_var.set(params['spatial_overlap_threshold'])
+                self.spatial_overlap_var.set(params['spatial_overlap_threshold'])
+            if 'max_size' in params:
+                self.max_size_var.set(params.get('max_size', 5000))  # Default to 5000 if not in params
             if 'input_type' in params:
-                self.input_type_var.set(params['input_type'])
+                self.input_var.set(params['input_type'])
             if 'max_components' in params:
                 self.max_components_var.set(params['max_components'])
             
             self.log("Parameters loaded from file")
     
-    def create_merge_visualization(self, A_before, C_before, A_after, C_after, merge_groups):
-        """Create visualization of merging results"""
+    def create_merge_visualization(self, A_before, C_before, A_after, C_after, merge_groups, merged_sizes):
+        """Create visualization of merging results with size distribution"""
         try:
             # Clear figure
             self.fig.clear()
             
-            # Create a 2x2 grid
-            gs = GridSpec(2, 2, figure=self.fig, hspace=0.3, wspace=0.3)
+            # Create a 2x3 grid
+            gs = GridSpec(2, 3, figure=self.fig, hspace=0.3, wspace=0.3)
             
             # Plot spatial components before and after
             ax1 = self.fig.add_subplot(gs[0, 0])
@@ -623,6 +688,15 @@ class Step4gTemporalMerging(ttk.Frame):
             ax2.set_title(f'Spatial Components (After, n={A_after.sizes["unit_id"]})')
             self.fig.colorbar(im2, ax=ax2)
             
+            # Size distribution histogram (NEW)
+            ax3 = self.fig.add_subplot(gs[0, 2])
+            ax3.hist(merged_sizes, bins=30, alpha=0.7, color='blue', edgecolor='black')
+            ax3.axvline(x=self.max_size_var.get(), color='red', linestyle='--', alpha=0.7, label=f'Max size: {self.max_size_var.get()}')
+            ax3.set_title('Merged Component Size Distribution')
+            ax3.set_xlabel('Size (pixels)')
+            ax3.set_ylabel('Count')
+            ax3.legend()
+            
             # Find an example merged group
             merged_groups = [g for g in merge_groups if len(g) > 1]
             
@@ -632,33 +706,53 @@ class Step4gTemporalMerging(ttk.Frame):
                 group_list = sorted(list(example_group))
                 
                 # Plot example original traces
-                ax3 = self.fig.add_subplot(gs[1, 0])
+                ax4 = self.fig.add_subplot(gs[1, 0])
                 
                 for idx in group_list[:5]:  # Limit to first 5 to avoid clutter
                     trace = C_before.isel(unit_id=idx).compute()
-                    ax3.plot(trace, alpha=0.7, label=f'Orig {idx}')
-                ax3.set_title(f'Example Original Traces (Group size={len(example_group)})')
-                ax3.set_xlabel('Frame')
-                ax3.set_ylabel('Activity')
-                ax3.legend()
-                
-                # Plot merged trace
-                ax4 = self.fig.add_subplot(gs[1, 1])
-                merged_idx = group_list[0]  # Any index from the group will work due to merge_map
-                merged_trace = C_after.isel(unit_id=merged_idx).compute()
-                ax4.plot(merged_trace, 'r-', linewidth=2, label='Merged')
-                ax4.set_title('Merged Trace')
+                    ax4.plot(trace, alpha=0.7, label=f'Orig {idx}')
+                ax4.set_title(f'Example Original Traces (Group size={len(example_group)})')
                 ax4.set_xlabel('Frame')
                 ax4.set_ylabel('Activity')
                 ax4.legend()
+                
+                # Plot merged trace
+                ax5 = self.fig.add_subplot(gs[1, 1])
+                merged_idx = group_list[0]  # Any index from the group will work due to merge_map
+                merged_trace = C_after.isel(unit_id=merged_idx).compute()
+                ax5.plot(merged_trace, 'r-', linewidth=2, label='Merged')
+                ax5.set_title('Merged Trace')
+                ax5.set_xlabel('Frame')
+                ax5.set_ylabel('Activity')
+                ax5.legend()
+                
+                # Statistics text
+                ax6 = self.fig.add_subplot(gs[1, 2])
+                ax6.axis('off')
+
+                # Safely get skipped_due_to_size value
+                skipped_count = 0
+                if 'step4g' in self.controller.state.get('results', {}):
+                    skipped_count = self.controller.state['results']['step4g'].get('skipped_due_to_size', 0)
+
+                stats_text = (
+                    "Size Constraint Statistics:\n\n"
+                    f"Skipped merges: {skipped_count}\n"
+                    f"Largest component: {max(merged_sizes)} pixels\n"
+                    f"Components > 95% limit: {sum(1 for s in merged_sizes if s >= self.max_size_var.get() * 0.95)}\n"
+                    f"Average size: {np.mean(merged_sizes):.1f} pixels"
+                )
+                
+                ax6.text(0.05, 0.95, stats_text, transform=ax6.transAxes,
+                       verticalalignment='top', fontfamily='monospace', fontsize=10)
             else:
                 # No merges performed
-                ax3 = self.fig.add_subplot(gs[1, 0])
-                ax3.text(0.5, 0.5, "No components were merged", 
-                       ha='center', va='center', transform=ax3.transAxes)
+                ax4 = self.fig.add_subplot(gs[1, :2])
+                ax4.text(0.5, 0.5, "No components were merged", 
+                       ha='center', va='center', transform=ax4.transAxes)
                 
-                ax4 = self.fig.add_subplot(gs[1, 1])
-                ax4.axis('off')
+                ax5 = self.fig.add_subplot(gs[1, 2])
+                ax5.axis('off')
                 
                 # Show merge statistics
                 stats_text = (
@@ -669,7 +763,7 @@ class Step4gTemporalMerging(ttk.Frame):
                     "Try adjusting the correlation and overlap thresholds."
                 )
                 
-                ax4.text(0.05, 0.95, stats_text, transform=ax4.transAxes,
+                ax5.text(0.05, 0.95, stats_text, transform=ax5.transAxes,
                        verticalalignment='top', fontfamily='monospace')
             
             # Set main title

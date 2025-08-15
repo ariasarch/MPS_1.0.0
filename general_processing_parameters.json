@@ -60,6 +60,7 @@
             "min_distance": 10,
             "threshold_rel": 0.1,
             "sigma": 1.0,
+            "max_size": 5000,
             "min_size": 10
         },
         "step4c_merging_units": {
@@ -90,6 +91,7 @@
         "step4g_temporal_merging": {
             "temporal_corr_threshold": 0.75,
             "spatial_overlap_threshold": 0.3,
+            "max_size": 5000,
             "input_type": "clean",
             "max_components": 0
         },
@@ -203,6 +205,7 @@
             "sigma": 1.5,
             "handle_overlaps": true,
             "min_size": 10,
+            "max_size": 5000,
             "raw_components_retained": 0,
             "smooth_components_retained": 0,
             "raw_percent_filtered": 0.0,

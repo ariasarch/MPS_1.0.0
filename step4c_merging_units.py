@@ -78,9 +78,16 @@ class Step4cMergingUnits(ttk.Frame):
         self.min_size_entry.grid(row=2, column=1, padx=10, pady=10, sticky="w")
         ttk.Label(self.control_frame, text="Minimum component size in pixels").grid(row=2, column=2, padx=10, pady=10, sticky="w")
         
+        # Maximum component size (NEW)
+        ttk.Label(self.control_frame, text="Maximum Component Size:").grid(row=3, column=0, padx=10, pady=10, sticky="w")
+        self.max_size_var = tk.IntVar(value=5000)
+        self.max_size_entry = ttk.Entry(self.control_frame, textvariable=self.max_size_var, width=10)
+        self.max_size_entry.grid(row=3, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Maximum merged component size in pixels").grid(row=3, column=2, padx=10, pady=10, sticky="w")
+        
         # Advanced options
         self.advanced_frame = ttk.LabelFrame(self.control_frame, text="Advanced Options")
-        self.advanced_frame.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.advanced_frame.grid(row=4, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Parallel processing
         self.parallel_var = tk.BooleanVar(value=True)
@@ -97,23 +104,23 @@ class Step4cMergingUnits(ttk.Frame):
             text="Run Merging",
             command=self.run_merging
         )
-        self.run_button.grid(row=4, column=0, columnspan=3, pady=20, padx=10)
+        self.run_button.grid(row=5, column=0, columnspan=3, pady=20, padx=10)
         
         # Status
         self.status_var = tk.StringVar(value="Ready to run component merging")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=5, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=6, column=0, columnspan=3, pady=10)
         
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=6, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=7, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
         
         # Results display
         self.results_frame = ttk.LabelFrame(self.control_frame, text="Merging Results")
-        self.results_frame.grid(row=7, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.results_frame.grid(row=8, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Results text
-        self.results_text = tk.Text(self.results_frame, height=6, width=40)
+        self.results_text = tk.Text(self.results_frame, height=8, width=40)
         self.results_text.pack(padx=10, pady=10, fill="both", expand=True)
         
         # Right panel (log)
@@ -250,6 +257,7 @@ class Step4cMergingUnits(ttk.Frame):
         distance_threshold = self.distance_var.get()
         size_ratio_threshold = self.size_ratio_var.get()
         min_size = self.min_size_var.get()
+        max_size = self.max_size_var.get()
         use_parallel = self.parallel_var.get()
         
         # Validate parameters
@@ -268,23 +276,29 @@ class Step4cMergingUnits(ttk.Frame):
             self.log("Error: Minimum size cannot be negative")
             return
         
+        if max_size <= min_size:
+            self.status_var.set("Error: Maximum size must be greater than minimum size")
+            self.log("Error: Maximum size must be greater than minimum size")
+            return
+        
         # Log parameters
         self.log(f"Merging parameters:")
         self.log(f"  Distance Threshold: {distance_threshold}")
         self.log(f"  Size Ratio Threshold: {size_ratio_threshold}")
         self.log(f"  Minimum Component Size: {min_size}")
+        self.log(f"  Maximum Component Size: {max_size}")
         self.log(f"  Use Parallel Processing: {use_parallel}")
         self.log(f"  Merging Across Original Components: Always enabled")
         
         # Start merging in a separate thread
         thread = threading.Thread(
             target=self._merging_thread,
-            args=(distance_threshold, size_ratio_threshold, min_size, use_parallel)
+            args=(distance_threshold, size_ratio_threshold, min_size, max_size, use_parallel)
         )
         thread.daemon = True
         thread.start()
 
-    def _merging_thread(self, distance_threshold, size_ratio_threshold, min_size, use_parallel):
+    def _merging_thread(self, distance_threshold, size_ratio_threshold, min_size, max_size, use_parallel):
         """Thread function for component merging"""
         try:
             # Import required modules
@@ -428,10 +442,10 @@ class Step4cMergingUnits(ttk.Frame):
                 self.log(f"Filtered out components smaller than {min_size} pixels")
                 self.log(f"Remaining components: {len(step4b_separated_components)} (removed {orig_count - len(step4b_separated_components)})")
             
-            # Define merge function
-            def merge_spatial_components(components, distance_threshold, size_ratio_threshold):
+            # Define merge function with max size constraint
+            def merge_spatial_components(components, distance_threshold, size_ratio_threshold, max_size):
                 """
-                Merge components based on spatial properties
+                Merge components based on spatial properties with maximum size constraint
                 
                 Parameters:
                 -----------
@@ -441,15 +455,19 @@ class Step4cMergingUnits(ttk.Frame):
                     Maximum distance between centroids (pixels)
                 size_ratio_threshold : float
                     Maximum allowed ratio between sizes
+                max_size : int
+                    Maximum allowed size for merged components
                 """
                 self.log(f"Starting spatial-only merging...")
                 self.log(f"Initial components: {len(components)}")
                 self.log(f"Distance threshold: {distance_threshold}")
                 self.log(f"Size ratio threshold: {size_ratio_threshold}")
+                self.log(f"Maximum size threshold: {max_size}")
                 
                 # Initialize merge groups
                 merge_groups = []
                 processed = set()
+                skipped_due_to_size = 0
                 
                 for i, comp1 in enumerate(components):
                     if i in processed:
@@ -458,6 +476,7 @@ class Step4cMergingUnits(ttk.Frame):
                     current_group = {i}
                     centroid1 = comp1['centroid']
                     size1 = comp1['size']
+                    group_total_size = size1
                     
                     for j, comp2 in enumerate(components[i+1:], i+1):
                         if j in processed:
@@ -466,12 +485,19 @@ class Step4cMergingUnits(ttk.Frame):
                         centroid2 = comp2['centroid']
                         size2 = comp2['size']
                         
+                        # Check if adding this component would exceed max size
+                        potential_total_size = group_total_size + size2
+                        if potential_total_size > max_size:
+                            skipped_due_to_size += 1
+                            continue
+                        
                         # Check distance and size ratio
                         distance = np.sqrt(np.sum((np.array(centroid1) - np.array(centroid2))**2))
                         size_ratio = max(size1, size2) / min(size1, size2)
                         
                         if distance < distance_threshold and size_ratio < size_ratio_threshold:
                             current_group.add(j)
+                            group_total_size = potential_total_size
                             
                     # Only add groups with at least one component
                     if current_group:
@@ -487,24 +513,42 @@ class Step4cMergingUnits(ttk.Frame):
                 self.log(f"Average components per group: {avg_group_size:.1f}")
                 self.log(f"Max components in a group: {max_group_size}")
                 self.log(f"Number of groups: {len(merge_groups)}")
+                self.log(f"Merges skipped due to size constraint: {skipped_due_to_size}")
                 
                 # Perform merging
                 step4c_merged_components = []
+                sizes_before_merge = []
+                sizes_after_merge = []
+                
                 for group in merge_groups:
                     group_comps = [components[i] for i in group]
                     
+                    # Track sizes for statistics
+                    for comp in group_comps:
+                        sizes_before_merge.append(comp['size'])
+                    
                     # Merge spatial components
                     spatial = np.sum([c['spatial'] for c in group_comps], axis=0)
+                    merged_size = np.sum(spatial > 0)
+                    sizes_after_merge.append(merged_size)
                     
                     step4c_merged_components.append({
                         'spatial': spatial,
                         'mask': spatial > 0,
-                        'size': np.sum(spatial > 0),
+                        'size': merged_size,
                         'centroid': ndi.center_of_mass(spatial),
                         'merged_from': [c.get('original_id', -1) for c in group_comps],
                         'sub_ids': [c.get('sub_id', -1) for c in group_comps],
                         'n_merged': len(group_comps)
                     })
+                
+                # Log size statistics
+                if sizes_after_merge:
+                    self.log(f"\nSize statistics:")
+                    self.log(f"Average size before merge: {np.mean(sizes_before_merge):.1f}")
+                    self.log(f"Average size after merge: {np.mean(sizes_after_merge):.1f}")
+                    self.log(f"Largest merged component: {np.max(sizes_after_merge)}")
+                    self.log(f"Components at max size limit: {sum(1 for s in sizes_after_merge if s >= max_size * 0.95)}")
                 
                 self.log(f"\nFinal merge results:")
                 self.log(f"Final number of components: {len(step4c_merged_components)}")
@@ -512,14 +556,15 @@ class Step4cMergingUnits(ttk.Frame):
                     reduction_ratio = len(step4c_merged_components)/len(components)
                     self.log(f"Reduction ratio: {reduction_ratio:.2%}")
                 
-                return step4c_merged_components
+                return step4c_merged_components, skipped_due_to_size
             
-            # Run spatial merging
+            # Run spatial merging with max size constraint
             self.log("Running spatial component merging...")
-            step4c_merged_components = merge_spatial_components(
+            step4c_merged_components, skipped_count = merge_spatial_components(
                 step4b_separated_components, 
                 distance_threshold,
-                size_ratio_threshold
+                size_ratio_threshold,
+                max_size
             )
             
             # Update progress
@@ -537,11 +582,13 @@ class Step4cMergingUnits(ttk.Frame):
                 f"Initial components: {len(step4b_separated_components)}\n"
                 f"Final components: {len(step4c_merged_components)}\n"
                 f"Reduction: {len(step4b_separated_components) - len(step4c_merged_components)} components\n"
-                f"Reduction ratio: {len(step4c_merged_components)/len(step4b_separated_components):.2%}\n\n"
+                f"Reduction ratio: {len(step4c_merged_components)/len(step4b_separated_components):.2%}\n"
+                f"Merges skipped (size limit): {skipped_count}\n\n"
                 f"Parameters:\n"
                 f"Distance threshold: {distance_threshold} pixels\n"
                 f"Size ratio threshold: {size_ratio_threshold}\n"
-                f"Min component size: {min_size} pixels"
+                f"Min component size: {min_size} pixels\n"
+                f"Max component size: {max_size} pixels"
             )
             
             self.after_idle(lambda: self.results_text.delete(1.0, tk.END))
@@ -553,11 +600,13 @@ class Step4cMergingUnits(ttk.Frame):
                     'distance_threshold': distance_threshold,
                     'size_ratio_threshold': size_ratio_threshold,
                     'min_size': min_size,
+                    'max_size': max_size,
                     'cross_merge': True  # Always set to True now
                 },
                 'step4c_merged_components': step4c_merged_components,
                 'initial_component_count': len(step4b_separated_components),
-                'final_component_count': len(step4c_merged_components)
+                'final_component_count': len(step4c_merged_components),
+                'skipped_due_to_size': skipped_count
             }
             
             # Auto-save parameters
@@ -635,13 +684,13 @@ class Step4cMergingUnits(ttk.Frame):
         
         if params:
             if 'distance_threshold' in params:
-                self.distance_threshold_var.set(params['distance_threshold'])
+                self.distance_var.set(params['distance_threshold'])
             if 'size_ratio_threshold' in params:
-                self.size_ratio_threshold_var.set(params['size_ratio_threshold'])
+                self.size_ratio_var.set(params['size_ratio_threshold'])
             if 'min_size' in params:
                 self.min_size_var.set(params['min_size'])
-            if 'cross_merge' in params:
-                self.cross_merge_var.set(params['cross_merge'])
+            if 'max_size' in params:
+                self.max_size_var.set(params.get('max_size', 5000))  # Default to 5000 if not in params
             
             self.log("Parameters loaded from file")
 
@@ -673,6 +722,11 @@ class Step4cMergingUnits(ttk.Frame):
             ax1.set_xlabel('Size (pixels)')
             ax1.set_ylabel('Count')
             ax1.legend()
+            
+            # Add vertical line for max size if available
+            if hasattr(self, 'max_size_var'):
+                max_size = self.max_size_var.get()
+                ax1.axvline(x=max_size, color='red', linestyle='--', alpha=0.7, label=f'Max size: {max_size}')
             
             # 2. Merge group size histogram
             ax2 = self.fig.add_subplot(gs[0, 1])
