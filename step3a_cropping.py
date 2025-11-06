@@ -866,8 +866,20 @@ class Step3aCropping(ttk.Frame):
             
             self.update_progress(70)
             
-            # Save results
+            # Save resultsß
             self.log("Saving cropped arrays...")
+
+            step3a_Y_fm_cropped = step3a_Y_fm_cropped.fillna(0.0)
+            step3a_Y_fm_cropped = step3a_Y_fm_cropped.where(
+                ~np.isinf(step3a_Y_fm_cropped), 
+                other=0.0
+            )
+
+            step3a_Y_hw_cropped = step3a_Y_hw_cropped.fillna(0.0)
+            step3a_Y_hw_cropped = step3a_Y_hw_cropped.where(
+                ~np.isinf(step3a_Y_hw_cropped), 
+                other=0.0
+            )
             
             # Import required utilities
             module_base_path = Path(__file__).parent.parent
@@ -1036,6 +1048,7 @@ class Step3aCropping(ttk.Frame):
         except Exception as e:
             self.status_var.set(f"Error: {str(e)}")
             self.log(f"Error: {str(e)}")
+            import traceback
             self.log(f"Error details: {traceback.format_exc()}")
 
             if self.controller.state.get('autorun_stop_on_error', True):

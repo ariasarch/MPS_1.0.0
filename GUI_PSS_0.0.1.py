@@ -11,6 +11,8 @@ from PIL import Image, ImageTk  # For handling the large image
 import webbrowser
 import markdown  
 import tempfile
+import platform
+import threading
 
 # Import functionality
 from gui_functions import (
@@ -22,29 +24,6 @@ from gui_functions import (
 
 import requests
 import time
-
-class PushoverNotifier:
-    def __init__(self, api_token: str, user_key: str):
-        self.api_token = api_token
-        self.user_key = user_key
-        self.api_url = "https://api.pushover.net/1/messages.json"
-        
-    def send_notification(self, message: str, title: str) -> bool:
-        payload = {
-            "token": self.api_token,
-            "user": self.user_key,
-            "message": message,
-            "title": title
-        }
-        
-        try:
-            response = requests.post(self.api_url, data=payload)
-            response.raise_for_status()
-            print(f"Notification sent: {title}")
-            return True
-        except requests.exceptions.RequestException as e:
-            print(f"Failed to send notification: {str(e)}")
-            return False
 
 STEP_BUTTON_NAMES = {
     'Step1Setup': 'initialize_button',
@@ -242,17 +221,54 @@ class SplashScreen(tk.Toplevel):
 class MainApplication(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Calcium Imaging Analysis Pipeline")
+        self.title("Miniscope Processing Suite")
         self.geometry("1200x800")
         
         # Set custom icon
+        # --- Cross-platform app icon ---
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        icon_path = os.path.join(current_dir, "neumaierlabdesign.ico")
-        if os.path.exists(icon_path):
-            try:
-                self.iconbitmap(icon_path)
-            except Exception as e:
-                print(f"Error setting icon: {e}")
+
+        if sys.platform.startswith("win"):
+            # Windows: .ico via iconbitmap
+            ico_path = os.path.join(current_dir, "neumaierlabdesign.ico")
+            if os.path.exists(ico_path):
+                try:
+                    self.iconbitmap(ico_path)
+                except Exception as e:
+                    print(f"[icon] Windows .ico failed: {e}")
+
+        elif sys.platform == "darwin":
+            # macOS: try real .icns (Dock icon) via PyObjC, else PNG via Tk
+            icns_path = os.path.join(current_dir, "AppIcon.icns")
+            png_path  = os.path.join(current_dir, "AppIcon.png")  # optional fallback
+
+            used = False
+            if os.path.exists(icns_path):
+                try:
+                    # Requires: pip install pyobjc
+                    from Cocoa import NSImage, NSApp
+                    img = NSImage.alloc().initWithContentsOfFile_(icns_path)
+                    if img:
+                        NSApp().setApplicationIconImage_(img)
+                        used = True
+                except Exception as e:
+                    print(f"[icon] macOS .icns via PyObjC failed: {e}")
+
+            if not used and os.path.exists(png_path):
+                try:
+                    self.iconphoto(True, tk.PhotoImage(file=png_path))  # sets Dock icon in modern Tk
+                    used = True
+                except Exception as e:
+                    print(f"[icon] macOS PNG via Tk failed: {e}")
+
+        else:
+            # Linux/other: PNG via Tk
+            png_path = os.path.join(current_dir, "AppIcon.png")
+            if os.path.exists(png_path):
+                try:
+                    self.iconphoto(True, tk.PhotoImage(file=png_path))
+                except Exception as e:
+                    print(f"[icon] Linux PNG via Tk failed: {e}")
         
         # Hide main window during startup
         self.withdraw()
@@ -280,150 +296,43 @@ class MainApplication(tk.Tk):
         # Check exit
         self.protocol("WM_DELETE_WINDOW", self.confirm_exit)
 
-        # Pushover notification setup
-        self.pushover_enabled = False
-        self.pushover_notifier = None
-        
-        # Try to initialize Pushover if credentials are available
-        try:
-            API_TOKEN = "azmekrkex691b9supydjqcvdgqauuz"
-            USER_KEY = "ukfinnnn1jeg2gwjvwrchvbo2my9r4"
-            
-            if API_TOKEN and USER_KEY:
-                self.pushover_notifier = PushoverNotifier(API_TOKEN, USER_KEY)
-                self.pushover_enabled = True
-                print("Pushover notifications enabled")
-        except Exception as e:
-            print(f"Pushover notifications disabled: {str(e)}")
-    
-    def get_major_step_number(self, frame_name):
-        """Extract major step number from frame name (e.g., 'Step2a' -> 2)"""
-        import re
-        match = re.match(r'Step(\d+)', frame_name)
-        if match:
-            return int(match.group(1))
-        return None
-
-
-    # Add this method to MainApplication class:
-    def send_step_notification(self, old_step, new_step):
-        """Send notification when transitioning between major steps"""
-        if not self.pushover_enabled or not self.pushover_notifier:
-            return
-        
-        old_major = self.get_major_step_number(old_step) if old_step else None
-        new_major = self.get_major_step_number(new_step)
-        
-        # Only notify when moving to a different major step number
-        if new_major and old_major != new_major:
-            try:
-                # Get animal and session info
-                animal = self.state.get('animal', 'Unknown')
-                session = self.state.get('session', 'Unknown')
-                
-                message = (
-                    f"Pipeline moved to Step {new_major}\n"
-                    f"Animal: {animal}, Session: {session}\n"
-                    f"Current: {new_step}"
-                )
-                
-                title = f"🔄 Step {new_major} Started"
-                
-                # Add autorun status if enabled
-                if self.autorun_enabled:
-                    message += "\n(Autorun Active)"
-                
-                self.pushover_notifier.send_notification(message, title)
-                
-            except Exception as e:
-                print(f"Failed to send step notification: {str(e)}")
-
-
     # Modify the existing show_frame method:
     def show_frame(self, frame_name):
         """Show the specified frame and hide all others"""
         if frame_name not in self.frames:
             self.status_var.set(f"Error: Frame '{frame_name}' not found")
             return
-        
-        # Get the current frame name before switching
-        old_frame_name = step_classes[self.current_step] if self.current_step >= 0 else None
-        
-        # Call on_destroy for the current frame if it exists
-        current_frame = self.frames.get(old_frame_name)
+
+        # Identify the current (old) frame and let it clean up
+        current_frame_name = step_classes[self.current_step]
+        current_frame = self.frames.get(current_frame_name)
         if current_frame and hasattr(current_frame, 'on_destroy'):
             try:
                 current_frame.on_destroy()
             except Exception as e:
                 self.status_var.set(f"Error in on_destroy: {str(e)}")
                 print(f"Error in on_destroy: {str(e)}")
-        
-        # Send notification for major step transitions
-        self.send_step_notification(old_frame_name, frame_name)
-        
+
+        # Switch frames
         frame = self.frames[frame_name]
         frame.tkraise()
-        
-        # Update step indicator
+
+        # Update step indicator/state
         step_idx = step_classes.index(frame_name)
         self.current_step = step_idx
         self.step_indicator.config(text=f"Step {step_idx + 1} of {self.max_steps}")
-        
-        # Update button states
+
+        # Update nav buttons
         self.prev_button.config(state="normal" if step_idx > 0 else "disabled")
         self.next_button.config(state="normal" if step_idx < self.max_steps - 1 else "disabled")
-        
-        # Call on_show_frame if it exists in the frame
+
+        # Let the new frame do any setup
         if hasattr(frame, 'on_show_frame'):
             try:
                 frame.on_show_frame()
             except Exception as e:
                 self.status_var.set(f"Error in on_show_frame: {str(e)}")
                 print(f"Error in on_show_frame: {str(e)}")
-
-
-    # Optional: Add notifications for pipeline completion
-    def send_pipeline_completion_notification(self, success=True):
-        """Send notification when pipeline completes or fails"""
-        if not self.pushover_enabled or not self.pushover_notifier:
-            return
-        
-        try:
-            animal = self.state.get('animal', 'Unknown')
-            session = self.state.get('session', 'Unknown')
-            
-            if success:
-                message = (
-                    f"Pipeline completed successfully!\n"
-                    f"Animal: {animal}, Session: {session}\n"
-                    f"All steps processed."
-                )
-                title = "✅ Pipeline Complete"
-            else:
-                message = (
-                    f"Pipeline stopped with errors.\n"
-                    f"Animal: {animal}, Session: {session}\n"
-                    f"Check logs for details."
-                )
-                title = "❌ Pipeline Error"
-            
-            self.pushover_notifier.send_notification(message, title)
-            
-        except Exception as e:
-            print(f"Failed to send completion notification: {str(e)}")
-
-
-    # Optional: Add menu option to toggle notifications
-    def toggle_notifications(self):
-        """Toggle Pushover notifications on/off"""
-        if not self.pushover_notifier:
-            messagebox.showinfo("Info", "Pushover notifications not configured")
-            return
-        
-        self.pushover_enabled = not self.pushover_enabled
-        status = "enabled" if self.pushover_enabled else "disabled"
-        self.status_var.set(f"Pushover notifications {status}")
-        messagebox.showinfo("Notifications", f"Pushover notifications are now {status}")
 
     def close_dask_clients(self):
         """Close any active Dask clients to release resources"""
@@ -626,7 +535,6 @@ class MainApplication(tk.Tk):
         automation_menu.add_command(label="Toggle Autorun", command=self.toggle_autorun)
         automation_menu.add_command(label="Configure Autorun", command=self.configure_autorun)
         automation_menu.add_separator()
-        automation_menu.add_command(label="Toggle Notifications", command=self.toggle_notifications)
         automation_menu.add_separator()
         automation_menu.add_command(label="Run All Steps", command=self.run_all_steps)
         automation_menu.add_command(label="Run From Current Step", command=self.run_from_current)
@@ -794,42 +702,6 @@ class MainApplication(tk.Tk):
             self.status_var.set(f"Error auto-saving parameters: {str(e)}")
             return False
 
-    def show_frame(self, frame_name):
-        """Show the specified frame and hide all others"""
-        if frame_name not in self.frames:
-            self.status_var.set(f"Error: Frame '{frame_name}' not found")
-            return
-        
-        # Call on_destroy for the current frame if it exists
-        current_frame_name = step_classes[self.current_step]
-        current_frame = self.frames.get(current_frame_name)
-        if current_frame and hasattr(current_frame, 'on_destroy'):
-            try:
-                current_frame.on_destroy()
-            except Exception as e:
-                self.status_var.set(f"Error in on_destroy: {str(e)}")
-                print(f"Error in on_destroy: {str(e)}")
-                
-        frame = self.frames[frame_name]
-        frame.tkraise()
-        
-        # Update step indicator
-        step_idx = step_classes.index(frame_name)
-        self.current_step = step_idx
-        self.step_indicator.config(text=f"Step {step_idx + 1} of {self.max_steps}")
-        
-        # Update button states
-        self.prev_button.config(state="normal" if step_idx > 0 else "disabled")
-        self.next_button.config(state="normal" if step_idx < self.max_steps - 1 else "disabled")
-        
-        # Call on_show_frame if it exists in the frame
-        if hasattr(frame, 'on_show_frame'):
-            try:
-                frame.on_show_frame()
-            except Exception as e:
-                self.status_var.set(f"Error in on_show_frame: {str(e)}")
-                print(f"Error in on_show_frame: {str(e)}")
-        
     def go_to_next(self):
         """Navigate to the next step with autorun support"""
         # Existing safety check code...
@@ -860,7 +732,7 @@ class MainApplication(tk.Tk):
         """Navigate to the previous step with safety check"""
         # Simple check for active processing
         if self._is_processing():
-            response = messagebox.askyesno(
+            response = messagebox.askyesno( 
                 "Processing Active", 
                 "It appears that processing is still running. Navigating away may interrupt it.\n\nDo you still want to continue?"
             )
@@ -876,43 +748,156 @@ class MainApplication(tk.Tk):
             frame_name = step_classes[self.current_step]
             self.show_frame(frame_name)
 
+    def _background_patterns_for_os(self):
+        sysname = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
+        if sysname == 'Windows':
+            # Your original Windows list (unchanged)
+            return [
+                'AsyncProcess Dask Worker',  # Dask worker monitoring threads
+                'TCP-Executor',              # Dask TCP executors
+                'Dask-Offload',              # Dask offload threads
+                'IO loop',                   # AsyncIO loop
+                'Profile',                   # Profiling thread
+                'MainThread'                 # Main application thread
+            ]
+        elif sysname == 'Darwin':  # macOS
+            # Substrings matched against Python thread names.
+            # Keep this broad for helpers, narrow for app-specific workers.
+            return [
+                # Core / generic
+                'MainThread', 'Thread-', 'Dummy-', 'Worker-', 'Executor',
+
+                # concurrent.futures / threadpools
+                'ThreadPoolExecutor', 'concurrent.futures',
+
+                # Dask / distributed noise
+                'Dask', 'distributed', 'TCP-Executor', 'Dask-Offload', 'Comm',
+
+                # Tornado / Bokeh / asyncio event loops
+                'IOLoop', 'AsyncIOLoop', 'Tornado', 'Bokeh',
+                'asyncio', 'SelectorEventLoop', 'SelectorLoop', 'Proactor',
+
+                # multiprocessing helpers (spawn on macOS)
+                'multiprocessing', 'resource_tracker', 'ForkServer',
+                'SpawnPoolWorker', 'ForkPoolWorker', 'QueueFeeder', 'ProcessReader',
+
+                # macOS runloops
+                'RunLoop', 'CFRunLoop', 'NSRunLoop',
+
+                # BLAS / OpenMP math kernels that spin helper threads
+                'OpenBLAS', 'MKL', 'mkl', 'OpenMP',
+
+                # (optional) any daemon prefixes 
+                'MPS-daemon',
+            ]
+
+        else:
+            # Sensible default for Linux/other
+            return [
+                'MainThread', 'Dask', 'distributed', 'TCP-Executor', 'Dask-Offload',
+                'IOLoop', 'AsyncIOLoop', 'Tornado', 'Bokeh',
+                'ThreadPoolExecutor', 'Executor',
+                'multiprocessing', 'resource_tracker', 'ForkServer',
+                'QueueFeeder', 'ProcessReader', 'AsyncProcess'
+            ]
+
     def _is_processing(self):
         """
-        More sophisticated check for active processing threads.
-        Ignores known background threads from Dask and other services.
+        Check if any step is actively processing.
+
+        macOS (Darwin):
+        - Prints EXACTLY what it's keying on (frames/buttons/threads).
+        - Ignores noisy/known-false-positive targets (e.g., Step3aCropping) entirely,
+            both at frame-signal level and thread-name level.
+        - Keeps a breadcrumb of last hits and prints them once things clear.
+
+        Windows/Linux:
+        - Keeps original behavior (filter background thread name patterns),
+            but also prints the non-background threads it sees.
         """
-        # Known background thread patterns to ignore
-        background_patterns = [
-            'AsyncProcess Dask Worker',  # Dask worker monitoring threads
-            'TCP-Executor',              # Dask TCP executors
-            'Dask-Offload',              # Dask offload threads
-            'IO loop',                   # AsyncIO loop
-            'Profile',                   # Profiling thread
-            'MainThread'                 # Main application thread
-        ]
-        
-        # List actual processing threads
-        processing_threads = []
-        
-        for thread in threading.enumerate():
-            thread_name = thread.name
-            
-            # Skip known background threads
-            if any(pattern in thread_name for pattern in background_patterns):
-                continue
-                
-            # This is likely a processing thread
-            processing_threads.append(thread_name)
-        
-        # Log information about processing threads
-        if processing_threads:
-            print(f"\nDetected {len(processing_threads)} active processing threads:")
-            for thread_name in processing_threads:
-                print(f"  - {thread_name}")
+        sysname = platform.system()
+
+        # Make sure breadcrumbs exist (used for "previously active" printout on macOS)
+        if not hasattr(self, "_processing_last_hit"):
+            self._processing_last_hit = []
+
+        if sysname == 'Darwin':  # macOS
+            reasons = []
+
+            # Local ignore list (contained entirely in this function as requested)
+            # Any frame name placed here will be ignored, and any thread whose name contains
+            # that frame name will also be ignored.
+            ignore_frames = {'Step3aCropping'}
+
+            # 1) Frame-level signals: disabled run_button + processing_complete == False
+            for frame_name, frame in self.frames.items():
+                if frame_name in ignore_frames:
+                    print(f"[macOS processing detection] Ignoring frame: {frame_name}")
+                    continue
+
+                if hasattr(frame, 'processing_complete') and hasattr(frame, 'run_button'):
+                    btn_state = str(frame.run_button['state'])
+                    if btn_state == 'disabled' and not frame.processing_complete:
+                        reasons.append(f"frame:{frame_name} -> run_button=disabled, processing_complete=False")
+
+            # 2) Our known worker thread name patterns (specific to your pipeline)
+            our_thread_patterns = [
+                '_process_thread',      # Step processing threads
+                '_load_videos_thread',  # Video loading
+                '_processing_thread',   # Generic processing
+                '_initialize_thread',   # Initialization
+            ]
+
+            # If a thread name contains any ignored frame name, skip it
+            ignored_thread_hints = tuple(sorted(ignore_frames))
+
+            for t in threading.enumerate():
+                tname = t.name or ''
+                if any(hint in tname for hint in ignored_thread_hints):
+                    print(f"[macOS processing detection] Ignoring thread: {tname}")
+                    continue
+                if any(pat in tname for pat in our_thread_patterns):
+                    reasons.append(f"thread:{tname} (alive={t.is_alive()}, daemon={t.daemon})")
+
+            # 3) Report & decide
+            if reasons:
+                # De-dupe while preserving order
+                seen = set()
+                unique_reasons = [r for r in reasons if not (r in seen or seen.add(r))]
+                self._processing_last_hit = unique_reasons  # keep a breadcrumb trail
+                print("\n[macOS processing detection] Active indicators:")
+                for r in unique_reasons:
+                    print(f"  • {r}")
+                return True
+            else:
+                # Nothing active now — if we had a prior hit, print what it *was*
+                if self._processing_last_hit:
+                    print("\n[macOS processing detection] Previously active indicators (now clear):")
+                    for r in self._processing_last_hit:
+                        print(f"  ○ {r}")
+                self._processing_last_hit = []
+                print("\n[macOS processing detection] No active processing indicators.")
+                return False
+
         else:
-            print("\nNo active processing threads detected")
-        
-        return len(processing_threads) > 0
+            # Windows/Linux path: keep original approach (filter by background patterns)
+            background_patterns = self._background_patterns_for_os()
+
+            active = []
+            for t in threading.enumerate():
+                tname = t.name or ''
+                if any(pat in tname for pat in background_patterns):
+                    continue
+                active.append(f"{tname} (alive={t.is_alive()}, daemon={t.daemon})")
+
+            if active:
+                print("\n[processing detection] Active threads (non-background):")
+                for r in active:
+                    print(f"  • {r}")
+                return True
+
+            print("\n[processing detection] No active processing threads detected")
+            return False
 
     def load_config(self):
         """Load configuration from file"""

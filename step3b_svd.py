@@ -294,15 +294,36 @@ class Step3bNNDSVD(ttk.Frame):
             Y_reshaped = step3a_Y_fm_cropped.stack(spatial=['height', 'width'])
 
             self.log("Computing minimum value…")
-            Y_min = Y_reshaped.min()
-            Y_min = float(Y_min.compute()) if hasattr(Y_min, "compute") else float(Y_min)
+            # Use a more robust method to compute minimum that handles distributed arrays
+            try:
+                # Try direct computation first
+                Y_min_result = Y_reshaped.min()
+                if hasattr(Y_min_result, "compute"):
+                    # For dask arrays, compute directly on the underlying data to avoid parallel wrapper issues
+                    if hasattr(Y_min_result, 'data'):
+                        Y_min = float(Y_min_result.data.compute())
+                    else:
+                        # Fallback: try to compute and extract scalar
+                        computed = Y_min_result.compute()
+                        Y_min = float(computed.item() if hasattr(computed, 'item') else computed)
+                else:
+                    Y_min = float(Y_min_result)
+            except Exception as e:
+                self.log(f"Standard min() failed: {e}, trying alternative approach...")
+                # Fallback: compute on the underlying dask array directly
+                if hasattr(Y_reshaped, 'data'):
+                    Y_min = float(Y_reshaped.data.min().compute())
+                elif hasattr(Y_reshaped, 'values'):
+                    Y_min = float(np.min(Y_reshaped.values))
+                else:
+                    raise RuntimeError(f"Cannot compute minimum value: {e}")
+            
             self.log(f"Minimum value: {Y_min}")
 
             Y_offset = (Y_reshaped - Y_min + 1e-6).fillna(0)
             self.log(f"Current chunk sizes: "
                     f"{Y_offset.chunks if hasattr(Y_offset,'chunks') else 'Not chunked'}")
             self.update_progress(20)
-
             # -----------------------------------------------------------------
             # ----- 2.  TRY IN‑MEMORY RANDOMIZED SVD  --------------------------
             # -----------------------------------------------------------------

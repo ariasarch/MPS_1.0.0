@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """
 Data Explorer - Sleek, dark-themed Tkinter app for interactive miniscope data (A, C)
+OPTIMIZED VERSION with smooth playback
 
-• Left: interactive A view (click a neuron to select)
+• Left: interactive A view with neuron outlines (click a neuron to select)
 • Right: each neuron gets its OWN trace panel (stacked); window up to 10,000s; play/pause
 • Load A.npy and C.npy independently from the menu
 • Default FPS = 10 (modifiable from menu)
 • When a neuron is clicked: (1) show its area, (2) move its trace panel to the top,
   (3) during playback, the A view modulates with C[t] to show activity "live"
+• Trace colors match neuron outline colors
+
+PERFORMANCE OPTIMIZATIONS:
+- Persistent image artist for A view (no clearing/redrawing)
+- Frame pre-computation for smooth playback
+- Vectorized composite calculations
+- Optimized canvas drawing with direct draw() calls
 
 Accepted on-disk shapes (auto-detected and converted internally):
 - A.npy: (U, H, W)  OR (H, W, U)   → internal: (H, W, U)
@@ -17,8 +25,8 @@ from __future__ import annotations
 
 import argparse
 import os
-import time
 from typing import Optional, Tuple, List
+from collections import deque
 
 import numpy as np
 import tkinter as tk
@@ -28,6 +36,24 @@ import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgba
+
+# Import plotting utilities
+from plotting_utils import (
+    build_cmap,
+    gaussian_blur2d,
+    normalize_A_for_display,
+    composite_from_A_scaled,
+    estimate_area_px,
+    style_axes,
+    plot_neuron_outlines,
+    generate_trace_colors,
+    compute_layout_params,
+    prepare_trace_data
+)
+
+# Import playback controller
+from playback_controller import PlaybackController
 
 # -------------------------------
 # Theming (dark, sleek)
@@ -101,12 +127,6 @@ def apply_dark_theme(root: tk.Tk) -> None:
 # Utilities
 # -------------------------------
 
-def build_cmap():
-    from matplotlib.colors import LinearSegmentedColormap
-    colors = ["black", "navy", "blue", "cyan", "lime", "yellow", "red"]
-    return LinearSegmentedColormap.from_list("calcium", colors, N=256)
-
-
 def ensure_internal_shapes(A: np.ndarray | None, C: np.ndarray | None) -> Tuple[np.ndarray | None, np.ndarray | None]:
     """Return A, C with internal shapes (H,W,U) and (U,T). Handles:
        A: (U,H,W) or (H,W,U)
@@ -131,50 +151,9 @@ def ensure_internal_shapes(A: np.ndarray | None, C: np.ndarray | None) -> Tuple[
     return A_int, C_int
 
 
-def _gaussian1d(sigma: float = 1.0, ksize: int = 7) -> np.ndarray:
-    ksize = max(3, ksize | 1)  # odd
-    r = ksize // 2
-    x = np.arange(-r, r + 1)
-    g = np.exp(-(x**2) / (2.0 * sigma * sigma))
-    g /= g.sum()
-    return g.astype(np.float32)
-
-
-def _gaussian_blur2d(img: np.ndarray, sigma: float = 1.2, ksize: int = 7) -> np.ndarray:
-    """Separable Gaussian blur using numpy only (no scipy)."""
-    g = _gaussian1d(sigma, ksize)
-    pad = len(g) // 2
-    tmp = np.empty_like(img, dtype=np.float32)
-    out = np.empty_like(img, dtype=np.float32)
-    padded = np.pad(img, ((0, 0), (pad, pad)), mode='edge')
-    for y in range(img.shape[0]):
-        tmp[y] = np.convolve(padded[y], g, mode='valid')
-    padded = np.pad(tmp, ((pad, pad), (0, 0)), mode='edge')
-    for x in range(img.shape[1]):
-        out[:, x] = np.convolve(padded[:, x], g, mode='valid')
-    return out
-
-
-def normalize_A_for_display(A: np.ndarray, target_max: float = 0.8) -> Tuple[np.ndarray, np.ndarray]:
-    eps = 1e-12
-    unit_maxes = A.reshape(-1, A.shape[-1]).max(axis=0) + eps
-    scale = (target_max / unit_maxes)
-    A_scaled = A * scale[np.newaxis, np.newaxis, :]
-    return A_scaled, unit_maxes
-
-
-def composite_from_A_scaled(A_scaled: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    # Use a true MAX projection for the default A view, and keep argmax for picking
-    argmax_unit = np.argmax(A_scaled, axis=2)
-    composite = A_scaled.max(axis=2)
-    return composite, argmax_unit
-
-
-def estimate_area_px(A_unit: np.ndarray, thresh_frac: float = 0.2) -> int:
-    m = float(A_unit.max())
-    if m <= 0:
-        return 0
-    return int((A_unit > (thresh_frac * m)).sum())
+def _gaussian_blur2d(img: np.ndarray, sigma: float = 1.0, ksize: int = 7) -> np.ndarray:
+    """Wrapper for gaussian_blur2d to maintain compatibility"""
+    return gaussian_blur2d(img, sigma=sigma, ksize=ksize)
 
 
 # -------------------------------
@@ -212,35 +191,39 @@ class DataExplorerApp(tk.Tk):
         self.A_scaled: Optional[np.ndarray] = None
         self.unit_maxes: Optional[np.ndarray] = None
         self.argmax_unit: Optional[np.ndarray] = None
-        self._A_static_maxproj: Optional[np.ndarray] = None
         self.selected_units: List[int] = []
         self.max_traces = 10
         self.window_sec = 5000  # default 5000s (capped later by total duration and 10k)
         self.fps = fps
-        self.playing = False
-        self.play_speed = 1.0  # seconds per tick (requested default)
-        self.cursor_t = 0
         self.area_thresh_frac = 0.2
-        self._play_job = None
-        self._last_tick = None
         self._cbar = None  # single colorbar handle
         self.show_ids = False
-        self.show_max_projection = False
-        self._last_dynamic_A = None  # keep last dynamic A frame after pause
         self.unsaved_changes = False
-        # --- playback smoothing state ---
-        self._vis_weights = None  # EMA-blended activity weights (U,)
-        self._ema = 0.25          # per-tick EMA alpha for smoother A playback
         self.path_A: Optional[str] = None
         self.path_C: Optional[str] = None
-        self._undo_stack: List[dict] = []  # for undo delete
+        self.hidden_units: set = set()  # units hidden from view (to be deleted on save)
+        self.trace_smooth_window = 0  # 0 = no smoothing
+        self.trace_smooth_method = 'gaussian'  # 'gaussian', 'moving_avg', or 'exponential'
+        self.baseline_alpha = 0.15  # Faint outline visibility
+        self.max_brightness = 0.4  # Cap peak brightness
+        
+        # Track original indices to preserve neuron IDs after deletion
+        self.original_indices: Optional[np.ndarray] = None  # Maps current index -> original index
 
         # Artists / caches for fast redraw
         self.im_A = None
+        self.static_composite = None  # Cache for static A view
         self.trace_axes: List[plt.Axes] = []
         self.trace_lines: List[plt.Line2D] = []  # not animated currently
         self.cursor_lines: List[plt.Line2D] = []
         self._traces_ready = False
+
+        # Pre-computed color data for vectorized operations (OPTIMIZATION 3)
+        self.neuron_colors_rgb: Optional[np.ndarray] = None  # (U, 3) array of RGB values
+        self.normalized_footprints: Optional[np.ndarray] = None  # Pre-normalized footprints
+
+        # Initialize playback controller
+        self.playback = PlaybackController(self)
 
         if A_path and os.path.exists(A_path):
             self.load_A(A_path)
@@ -267,8 +250,9 @@ class DataExplorerApp(tk.Tk):
 
         # Edit
         self.edit_menu = tk.Menu(menubar, tearoff=0, bg="#15171c", fg="#e6e6e6")
-        self.edit_menu.add_command(label="Delete Cell…", command=self._menu_delete_cell)
-        self.edit_menu.add_command(label="Undo Delete", command=self._menu_undo_delete, state="disabled")
+        self.edit_menu.add_command(label="Hide Cell…", command=self._menu_hide_cell)
+        self.edit_menu.add_command(label="Unhide Last", command=self._menu_unhide_last, state="disabled")
+        self.edit_menu.add_command(label="Show Hidden Cells", command=self._menu_show_hidden)
         menubar.add_cascade(label="Edit", menu=self.edit_menu)
 
         # Settings
@@ -277,14 +261,15 @@ class DataExplorerApp(tk.Tk):
         settings.add_command(label="Set Area Threshold (fraction)", command=self._menu_set_area_thresh)
         settings.add_command(label="Set Window Length (sec)", command=self._menu_set_window_sec)
         settings.add_command(label="Set Play Step (seconds)", command=self._menu_set_speed)
+        settings.add_separator()
+        settings.add_command(label="Set Trace Smoothing", command=self._menu_set_smoothing)
+        settings.add_command(label="Set Baseline Visibility", command=self._menu_set_baseline)
+        settings.add_command(label="Set Max Brightness", command=self._menu_set_brightness)
         menubar.add_cascade(label="Settings", menu=settings)
 
         # View
         view = tk.Menu(menubar, tearoff=0, bg="#15171c", fg="#e6e6e6")
-        view.add_checkbutton(label="Overlay neuron IDs (red)", command=self._toggle_ids)
-        view.add_checkbutton(label="Show max projection", command=self._toggle_maxproj, onvalue=True, offvalue=False)
-        view.add_command(label="Set number of traces…", command=self._menu_set_max_traces)
-
+        view.add_checkbutton(label="Show Numbers", command=self._toggle_ids, variable=tk.BooleanVar(value=False))
         menubar.add_cascade(label="View", menu=view)
 
         self.config(menu=menubar)
@@ -298,39 +283,41 @@ class DataExplorerApp(tk.Tk):
         info.pack(side=tk.TOP, fill=tk.X)
         self.info_lbl = ttk.Label(info, text=self._session_text(), font=("Segoe UI", 10))
         self.info_lbl.pack(side=tk.LEFT, padx=8, pady=6)
-        self.status_lbl = ttk.Label(info, text="Load A and C to begin.")
+        self.status_lbl = ttk.Label(info, text="Load A first, then C to begin.")
         self.status_lbl.pack(side=tk.RIGHT, padx=8)
 
         # Main split
         main = ttk.Frame(root)
         main.pack(fill=tk.BOTH, expand=True)
 
-        # Exact 1:2 split using a uniform column group
-        main.columnconfigure(0, weight=1, uniform="cols", minsize=200)  # A ~ 1/3
-        main.columnconfigure(1, weight=2, uniform="cols", minsize=400)  # C ~ 2/3
+        # Exact 2:3 split using a uniform column group
+        main.columnconfigure(0, weight=2, uniform="cols", minsize=200)  # A ~ 2/5
+        main.columnconfigure(1, weight=3, uniform="cols", minsize=400)  # C ~ 3/5
         main.rowconfigure(0, weight=1)
 
         # Left: A view
-        left = ttk.Labelframe(main, text="A Map (click to select neuron)")
+        left = tk.LabelFrame(main, text="A Map (neuron outlines - click to select)", bg="#0e0f12", fg="#e6e6e6", 
+                            font=("Helvetica", 10), relief=tk.GROOVE, bd=2)
         left.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-        self.highlight_lbl = ttk.Label(left, text="Highlighted: —")
+        self.highlight_lbl = tk.Label(left, text="Highlighted: —", bg="#0e0f12", fg="#e6e6e6", font=("Helvetica", 9))
         self.highlight_lbl.pack(anchor=tk.W, padx=6, pady=(6, 0))
 
         # (Figure will expand to fill the left frame; size here is a starting hint only)
-        self.fig_A, self.ax_A = plt.subplots(figsize=(5.5, 5.5), dpi=100)
-        self._style_axes(self.ax_A)
+        self.fig_A, self.ax_A = plt.subplots(figsize=(6.5, 6.5), dpi=100)
+        style_axes(self.ax_A, self.fig_A)
         self.canvas_A = FigureCanvasTkAgg(self.fig_A, master=left)
         self.canvas_A.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         self.canvas_A.mpl_connect('button_press_event', self._on_A_click)
 
         # Right: traces & controls
-        right = ttk.Labelframe(main, text="C Traces (each neuron in its own panel)")
+        right = tk.LabelFrame(main, text="C Traces (each neuron in its own panel - colors match A)", bg="#0e0f12", fg="#e6e6e6",
+                             font=("Helvetica", 10), relief=tk.GROOVE, bd=2)
         right.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
-        right.columnconfigure(0, weight=1)   # <- configure AFTER 'right' exists
+        right.columnconfigure(0, weight=1)
         right.columnconfigure(1, weight=0)
         right.rowconfigure(0, weight=1)
 
-        # Scrollable area for unlimited traces (force dark bg)
+        # Scrollable area for traces with scrollbar
         self.trace_scroll = tk.Canvas(right, bg="#0e0f12", highlightthickness=0, borderwidth=0)
         self.trace_vsb = ttk.Scrollbar(right, orient="vertical", command=self.trace_scroll.yview)
         self.trace_scroll.configure(yscrollcommand=self.trace_vsb.set)
@@ -344,16 +331,17 @@ class DataExplorerApp(tk.Tk):
         )
 
         # Matplotlib figure inside the scrollable frame (dark facecolor)
-        self.fig_C = plt.figure(figsize=(7.5, 7.0), dpi=100, facecolor="#0e0f12")
+        self.fig_C = plt.figure(figsize=(7.5, 6.0), dpi=100, facecolor="#0e0f12")
         self.canvas_C = FigureCanvasTkAgg(self.fig_C, master=self.trace_scroll_frame)
         self.canvas_C_widget = self.canvas_C.get_tk_widget()
         self.canvas_C_widget.configure(background="#0e0f12", highlightthickness=0, borderwidth=0)
-        self.canvas_C_widget.pack(fill=tk.BOTH, expand=True)  # <- expands to fill width
+        self.canvas_C_widget.pack(fill=tk.BOTH, expand=True)
 
-        # Keep the embedded window as wide as the canvas so traces reach the right edge
+        # Keep the embedded window as wide as the canvas (leave space for scrollbar)
         def _resize_trace_window(evt):
             try:
-                self.trace_scroll.itemconfigure(self.trace_scroll_window, width=evt.width)
+                available_width = max(200, evt.width - 20)  # Leave space for scrollbar
+                self.trace_scroll.itemconfigure(self.trace_scroll_window, width=available_width)
             except Exception:
                 pass
         self.trace_scroll.bind("<Configure>", _resize_trace_window)
@@ -361,23 +349,23 @@ class DataExplorerApp(tk.Tk):
         # Keep scrollregion in sync
         def _update_scrollregion(event=None):
             try:
-                self.trace_scroll.configure(scrollregion=self.trace_scroll.bbox("all"))
-            except Exception:
-                pass
+                # Force update to get correct bbox
+                self.trace_scroll_frame.update_idletasks()
+                bbox = self.trace_scroll.bbox("all")
+                if bbox:
+                    self.trace_scroll.configure(scrollregion=bbox)
+            except Exception as e:
+                print(f"Error in _update_scrollregion: {e}")
         self.trace_scroll_frame.bind("<Configure>", _update_scrollregion)
-
+        
         # Mousewheel scrolling
         def _on_mousewheel(evt):
-            delta = int(-1*(evt.delta/120)) if getattr(evt, 'delta', 0) != 0 else 0
-            if delta != 0:
+            if evt.delta:
+                delta = -1 * int(evt.delta / 120)
                 self.trace_scroll.yview_scroll(delta, 'units')
-        def _on_mousewheel_linux_up(evt):
-            self.trace_scroll.yview_scroll(-1, 'units')
-        def _on_mousewheel_linux_down(evt):
-            self.trace_scroll.yview_scroll(1, 'units')
-        self.trace_scroll.bind_all("<MouseWheel>", _on_mousewheel)
-        self.trace_scroll.bind_all("<Button-4>", _on_mousewheel_linux_up)
-        self.trace_scroll.bind_all("<Button-5>", _on_mousewheel_linux_down)
+        self.trace_scroll.bind("<MouseWheel>", _on_mousewheel)
+        self.trace_scroll.bind("<Button-4>", lambda e: self.trace_scroll.yview_scroll(-1, 'units'))
+        self.trace_scroll.bind("<Button-5>", lambda e: self.trace_scroll.yview_scroll(1, 'units'))
 
         # Controls row
         ctrl = ttk.Frame(right)
@@ -400,17 +388,7 @@ class DataExplorerApp(tk.Tk):
         # Bottom hint bar
         hint = ttk.Frame(root)
         hint.pack(side=tk.BOTTOM, fill=tk.X)
-        ttk.Label(hint, text="Hints: File → Load A/C. Click a neuron in A. Settings → FPS/Window/Step.").pack(side=tk.LEFT, padx=8, pady=6)
-
-    def _style_axes(self, ax):
-        ax.set_facecolor("#0e0f12")
-        for spine in ax.spines.values():
-            spine.set_color("#444")
-        ax.tick_params(colors="#cfcfcf")
-        if hasattr(self, 'fig_A'):
-            self.fig_A.patch.set_facecolor("#0e0f12")
-        if hasattr(self, 'fig_C'):
-            self.fig_C.patch.set_facecolor("#0e0f12")
+        ttk.Label(hint, text="Hints: Load A first (for colors), then C. Click a neuron in A. Colors match between views!").pack(side=tk.LEFT, padx=8, pady=6)
 
     def _session_text(self) -> str:
         parts = []
@@ -424,6 +402,28 @@ class DataExplorerApp(tk.Tk):
             parts.append(f"Export: {self.export_path}")
         return "  •  ".join(parts) if parts else "Ready"
 
+    # Helper method to get original neuron ID
+    def _get_original_id(self, current_idx: int) -> int:
+        """Convert current array index to original neuron ID"""
+        if self.original_indices is None:
+            return current_idx
+        if current_idx < len(self.original_indices):
+            return int(self.original_indices[current_idx])
+        return current_idx
+
+    # Helper method to get current index from original ID
+    def _get_current_idx(self, original_id: int) -> Optional[int]:
+        """Convert original neuron ID to current array index, or None if hidden"""
+        if self.original_indices is None:
+            return original_id if original_id not in self.hidden_units else None
+        try:
+            idx = np.where(self.original_indices == original_id)[0]
+            if len(idx) > 0:
+                return int(idx[0])
+        except Exception:
+            pass
+        return None
+
     # ---------- Data loading ----------
     def _menu_load_A(self):
         path = filedialog.askopenfilename(title="Select A.npy", filetypes=[("NumPy", "*.npy")])
@@ -432,31 +432,91 @@ class DataExplorerApp(tk.Tk):
             self._refresh_all()
 
     def _menu_load_C(self):
+        # Validate that A is loaded first
+        if self.A is None:
+            messagebox.showwarning("Load A First", "Please load A.npy before loading C.npy.\n\nThis ensures trace colors match the neuron outline colors.")
+            return
         path = filedialog.askopenfilename(title="Select C.npy", filetypes=[("NumPy", "*.npy")])
         if path:
             self.load_C(path)
+            self._refresh_all()
+
+    def _menu_set_smoothing(self):
+        current = self.trace_smooth_window
+        val = simpledialog.askinteger("Trace Smoothing", 
+                                    "Smoothing window size (0=off, 5-15 recommended):", 
+                                    initialvalue=current, minvalue=0, maxvalue=50)
+        if val is not None:
+            self.trace_smooth_window = int(val)
+            if val > 0:
+                method = simpledialog.askstring("Smoothing Method", 
+                                            "Method:\n- gaussian (smooth bell curve)\n- moving_avg (simple average)\n- exponential (forward decay)\n- exp_decay (bidirectional decay)", 
+                                            initialvalue=self.trace_smooth_method)
+                if method in ['gaussian', 'moving_avg', 'exponential', 'exp_decay']:
+                    self.trace_smooth_method = method
+            self.status(f"Trace smoothing: window={self.trace_smooth_window}, method={self.trace_smooth_method}")
+            self._traces_ready = False
+            self._refresh_all()
+
+    def _menu_set_baseline(self):
+        val = simpledialog.askfloat("Baseline Visibility", 
+                                    "Faint outline alpha (0.0-0.5, recommend 0.15):", 
+                                    initialvalue=self.baseline_alpha, 
+                                    minvalue=0.0, maxvalue=0.5)
+        if val is not None:
+            self.baseline_alpha = float(val)
+            self.status(f"Baseline visibility set to {self.baseline_alpha}")
+            self._refresh_all()
+
+    def _menu_set_brightness(self):
+        val = simpledialog.askfloat("Max Brightness", 
+                                    "Peak brightness cap (0.2-1.0, recommend 0.4):", 
+                                    initialvalue=self.max_brightness, 
+                                    minvalue=0.2, maxvalue=1.0)
+        if val is not None:
+            self.max_brightness = float(val)
+            self.status(f"Max brightness set to {self.max_brightness}")
             self._refresh_all()
 
     def load_A(self, path: str) -> None:
         A_raw = np.load(path, allow_pickle=False)
         A_int, _ = ensure_internal_shapes(A_raw, None)
         H, W, U = A_int.shape
+        # Apply Gaussian blur for smoother visualization
         A_sm = np.empty_like(A_int, dtype=np.float32)
         for u in range(U):
             A_sm[..., u] = _gaussian_blur2d(A_int[..., u].astype(np.float32), sigma=1.0, ksize=7)
         self.A = A_sm
         self.path_A = path
+        
+        # Initialize original indices if not already set
+        if self.original_indices is None or len(self.original_indices) != U:
+            self.original_indices = np.arange(U)
+        
+        # Pre-compute color arrays and normalized footprints (OPTIMIZATION 3)
+        self._precompute_neuron_data()
+        
         self.status(f"Loaded A: {os.path.basename(path)}  shape={self.A.shape}")
         self._prepare_A_display()
         self._ensure_selection()
         # ensure A is redrawn freshly
         self.im_A = None
+        self.playback.clear_activity_image()
 
     def load_C(self, path: str) -> None:
         C_raw = np.load(path, allow_pickle=False)
         _, C_int = ensure_internal_shapes(None, C_raw)
         self.C = C_int
         self.path_C = path
+        
+        # Initialize original indices if not already set
+        U = self.C.shape[0]
+        if self.original_indices is None or len(self.original_indices) != U:
+            self.original_indices = np.arange(U)
+        
+        # Clear frame cache when new C is loaded
+        self.playback.clear_frame_cache()
+        
         self.status(f"Loaded C: {os.path.basename(path)}  shape={self.C.shape}")
         # Set default window to 5000s or full duration, whichever is smaller
         try:
@@ -464,50 +524,72 @@ class DataExplorerApp(tk.Tk):
             self.window_sec = min(5000, total_sec)
         except Exception:
             pass
-        # Seed visual weights at current cursor position
-        try:
-            self._vis_weights = self._norm_C_frame(max(0, min(self._T_total()-1, self.cursor_t)))
-        except Exception:
-            self._vis_weights = None
         self._ensure_selection()
-        self.cursor_t = 0
-        # Recompute static weighted max-projection once C is known
-        self._compute_static_maxproj()
-        # ensure A is redrawn freshly after C affects weighted projection
+        self.playback.cursor_t = 0
+        # ensure A is redrawn freshly
         self.im_A = None
-        self._ensure_selection()
-        self.cursor_t = 0
-        # Recompute static weighted max-projection once C is known
-        self._compute_static_maxproj()
-        # ensure A is redrawn freshly after C affects weighted projection
-        self.im_A = None
+        self.playback.clear_activity_image()
 
     def _prepare_A_display(self) -> None:
         if self.A is None:
             return
+        # Create A_scaled with hidden units zeroed out
         self.A_scaled, self.unit_maxes = normalize_A_for_display(self.A, target_max=0.8)
+        
+        # Zero out hidden units in A_scaled
+        for orig_id in self.hidden_units:
+            curr_idx = self._get_current_idx(orig_id)
+            if curr_idx is not None and curr_idx < self.A_scaled.shape[2]:
+                self.A_scaled[..., curr_idx] = 0.0
+        
+        # Compute argmax for click detection
         comp, argmax_u = composite_from_A_scaled(self.A_scaled)
         self.argmax_unit = argmax_u
-        self._A_base_composite = comp
-        # Refresh weighted max-projection if possible
-        self._compute_static_maxproj()
+        
+        # Re-precompute when A changes
+        self._precompute_neuron_data()
 
-    def _compute_static_maxproj(self):
-        # For "Show max projection", use the base 0.8-normalized MAX across neurons (no z-score weighting)
-        if self.A_scaled is None:
-            self._A_static_maxproj = None
+    def _precompute_neuron_data(self):
+        """Pre-compute color arrays and normalized footprints for vectorized operations (OPTIMIZATION 3)"""
+        if self.A is None:
             return
-        self._A_static_maxproj = self.A_scaled.max(axis=2)
+        
+        H, W, U = self.A.shape
+        color_names = ['red', 'orange', 'blue', 'purple', 'cyan', 'teal', 
+                       'brown', 'lime', 'magenta', 'salmon']
+        
+        # Pre-compute RGB values for all neurons
+        self.neuron_colors_rgb = np.zeros((U, 3), dtype=np.float32)
+        for i in range(U):
+            orig_id = self._get_original_id(i)
+            color_name = color_names[orig_id % len(color_names)]
+            self.neuron_colors_rgb[i] = np.array(to_rgba(color_name)[:3])
+        
+        # Pre-normalize footprints (0-1 range for each neuron)
+        self.normalized_footprints = np.zeros_like(self.A, dtype=np.float32)
+        for i in range(U):
+            fp_max = np.max(self.A[..., i])
+            if fp_max > 0:
+                self.normalized_footprints[..., i] = self.A[..., i] / fp_max
 
     def _ensure_selection(self):
         if self.A is None:
             return
         U = self.A.shape[-1]
+        # Get all visible units (using original IDs)
+        all_original_ids = [self._get_original_id(i) for i in range(U)]
+        visible_ids = [orig_id for orig_id in all_original_ids if orig_id not in self.hidden_units]
+        
+        if not visible_ids:
+            self.selected_units = []
+            return
+        
+        # Filter out hidden units from selection
+        self.selected_units = [orig_id for orig_id in self.selected_units if orig_id not in self.hidden_units]
+        
+        # If no units selected, select first visible ones
         if not self.selected_units:
-            self.selected_units = list(range(min(self.max_traces, U)))
-        self.selected_units = [u for u in self.selected_units if u < U]
-        if not self.selected_units and U > 0:
-            self.selected_units = [0]
+            self.selected_units = visible_ids[:min(self.max_traces, len(visible_ids))]
 
     # ---------- Settings dialogs ----------
     def _menu_set_fps(self):
@@ -530,85 +612,91 @@ class DataExplorerApp(tk.Tk):
             self._refresh_all()
 
     def _menu_set_speed(self):
-        val = simpledialog.askfloat("Play Step (seconds)", "How many seconds to advance per tick?", initialvalue=self.play_speed, minvalue=0.01, maxvalue=60.0)
+        val = simpledialog.askfloat("Play Step (seconds)", "How many seconds to advance per tick?", initialvalue=self.playback.play_speed, minvalue=0.01, maxvalue=60.0)
         if val:
-            self.play_speed = float(val)
-            self.status(f"Play step set to {self.play_speed}s")
-
-    def _menu_set_max_traces(self):
-        cap = 50
-        if self.A is not None:
-            cap = max(1, min(50, self.A.shape[-1]))
-        val = simpledialog.askinteger("Traces to show", "Number of neuron trace panels to display:", initialvalue=self.max_traces, minvalue=1, maxvalue=cap)
-        if val:
-            self.max_traces = int(val)
-            self._ensure_selection()
-            self._traces_ready = False
-            self.status(f"Showing up to {self.max_traces} traces")
-            self._refresh_all()
+            self.playback.play_speed = float(val)
+            self.status(f"Play step set to {self.playback.play_speed}s")
 
     # ---------- Edit actions ----------
-    def _menu_delete_cell(self):
+    def _menu_hide_cell(self):
         if self.A is None:
-            messagebox.showwarning("Delete Cell", "Load A first.")
+            messagebox.showwarning("Hide Cell", "Load A first.")
             return
         U = self.A.shape[-1]
-        default = self.selected_units[0] if self.selected_units else 0
-        u = simpledialog.askinteger("Delete Cell", f"Neuron ID to delete (0–{U-1}):", initialvalue=default, minvalue=0, maxvalue=U-1)
+        # Only show non-hidden units as options (using original IDs)
+        all_original_ids = [self._get_original_id(i) for i in range(U)]
+        visible_ids = [orig_id for orig_id in all_original_ids if orig_id not in self.hidden_units]
+        
+        if not visible_ids:
+            messagebox.showinfo("Hide Cell", "All cells are already hidden!")
+            return
+        
+        default = self.selected_units[0] if self.selected_units and self.selected_units[0] not in self.hidden_units else visible_ids[0]
+        max_id = max(all_original_ids)
+        u = simpledialog.askinteger("Hide Cell", f"Original Neuron ID to hide (visible: {', '.join(map(str, visible_ids[:10]))}{'...' if len(visible_ids) > 10 else ''}):", 
+                                    initialvalue=default, minvalue=0, maxvalue=max_id)
         if u is None:
             return
-        self._delete_unit(u)
-
-    def _menu_undo_delete(self):
-        if not self._undo_stack:
+        if u in self.hidden_units:
+            messagebox.showinfo("Hide Cell", f"Neuron {u} is already hidden.")
             return
-        op = self._undo_stack.pop()
-        # Reinsert at original index (clip to current U)
-        A_plane = op['A']
-        C_row = op['C']
-        idx = int(op['index'])
-        # Insert back
-        self.A = np.insert(self.A, idx, A_plane[..., None], axis=2)
-        if self.C is not None and C_row is not None:
-            self.C = np.insert(self.C, idx, C_row[None, :], axis=0)
-        # Update caches & selections
-        self._prepare_A_display()
-        # Keep the restored unit selected at top
-        self.selected_units = [idx] + [u + (1 if u >= idx else 0) for u in self.selected_units]
+        if u not in all_original_ids:
+            messagebox.showwarning("Hide Cell", f"Neuron ID {u} does not exist.")
+            return
+        self._hide_unit(u)
+
+    def _menu_unhide_last(self):
+        if not self.hidden_units:
+            return
+        # Get the last hidden unit (convert set to list to get last added)
+        last_hidden = max(self.hidden_units)
+        self._unhide_unit(last_hidden)
+
+    def _menu_show_hidden(self):
+        if not self.hidden_units:
+            messagebox.showinfo("Hidden Cells", "No cells are currently hidden.")
+            return
+        hidden_list = sorted(list(self.hidden_units))
+        msg = f"Hidden cells (original IDs): {', '.join(map(str, hidden_list))}\n\nTotal: {len(hidden_list)} cells"
+        messagebox.showinfo("Hidden Cells", msg)
+
+    def _hide_unit(self, orig_id: int):
+        """Hide a unit by its original ID"""
+        if orig_id in self.hidden_units:
+            return
+        self.hidden_units.add(orig_id)
+        # Remove from selection
+        self.selected_units = [x for x in self.selected_units if x != orig_id]
+        self._ensure_selection()
         self.unsaved_changes = True
-        self.status(f"Restored neuron {idx}.")
+        self.status(f"Hidden neuron {orig_id} (original ID). It will be deleted when saved.")
         self._update_edit_menu_state()
+        # Clear frame cache as hidden units changed
+        self.playback.clear_frame_cache()
+        # Refresh displays
+        self._prepare_A_display()
         self._refresh_all()
 
-    def _delete_unit(self, u: int):
-        H, W, U = self.A.shape
-        if not (0 <= u < U):
+    def _unhide_unit(self, orig_id: int):
+        """Unhide a unit by its original ID"""
+        if orig_id not in self.hidden_units:
             return
-        # Push undo snapshot
-        snap = {
-            'index': u,
-            'A': self.A[..., u].copy(),
-            'C': self.C[u, :].copy() if self.C is not None and self.C.shape[0] > u else None,
-        }
-        self._undo_stack.append(snap)
+        self.hidden_units.remove(orig_id)
+        # Add back to selection at the top
+        self.selected_units = [orig_id] + self.selected_units
+        self.selected_units = self.selected_units[:self.max_traces]
+        self.unsaved_changes = False if not self.hidden_units else True
+        self.status(f"Restored neuron {orig_id} (original ID).")
         self._update_edit_menu_state()
-        # Remove from A (axis 2) and C (axis 0)
-        self.A = np.delete(self.A, u, axis=2)
-        if self.C is not None and self.C.shape[0] > u:
-            self.C = np.delete(self.C, u, axis=0)
-        # Adjust selections
-        self.selected_units = [x for x in self.selected_units if x != u]
-        self.selected_units = [x-1 if x > u else x for x in self.selected_units]
-        self.unsaved_changes = True
-        # Rebuild display caches
+        # Clear frame cache as hidden units changed
+        self.playback.clear_frame_cache()
+        # Refresh displays
         self._prepare_A_display()
-        self._ensure_selection()
-        self.status(f"Deleted neuron {u}. Unsaved edits present.")
         self._refresh_all()
 
     def _update_edit_menu_state(self):
         try:
-            self.edit_menu.entryconfig("Undo Delete", state=("normal" if self._undo_stack else "disabled"))
+            self.edit_menu.entryconfig("Unhide Last", state=("normal" if self.hidden_units else "disabled"))
         except Exception:
             pass
 
@@ -616,6 +704,15 @@ class DataExplorerApp(tk.Tk):
         if self.A is None or self.C is None:
             messagebox.showwarning("Save", "Load both A and C first.")
             return
+        
+        # Warn about hidden cells that will be permanently deleted
+        if self.hidden_units:
+            hidden_list = sorted(list(self.hidden_units))
+            msg = f"The following cells (ORIGINAL IDs) will be PERMANENTLY DELETED when saved:\n{', '.join(map(str, hidden_list))}\n\n"
+            msg += "This cannot be undone after saving!\n\nContinue with save?"
+            if not messagebox.askyesno("Confirm Permanent Deletion", msg, icon="warning"):
+                return
+        
         default_dir = None
         for p in [self.path_A, self.path_C, self.cache_path, os.getcwd()]:
             if p:
@@ -623,10 +720,12 @@ class DataExplorerApp(tk.Tk):
                 break
         if default_dir is None:
             default_dir = os.getcwd()
+        
         # Choose directory
         dir_selected = filedialog.askdirectory(title="Choose save directory", initialdir=default_dir)
         if not dir_selected:
             return
+        
         # Default names
         a_name = simpledialog.askstring("Save A", "Filename for A:", initialvalue="A_edited.npy")
         if not a_name:
@@ -634,13 +733,66 @@ class DataExplorerApp(tk.Tk):
         c_name = simpledialog.askstring("Save C", "Filename for C:", initialvalue="C_edited.npy")
         if not c_name:
             return
+        
         a_path = os.path.join(dir_selected, a_name)
         c_path = os.path.join(dir_selected, c_name)
+        
         try:
-            np.save(a_path, self.A.astype(np.float32))
-            np.save(c_path, self.C.astype(np.float32))
+            # Create copies
+            A_save = self.A.copy()
+            C_save = self.C.copy() if self.C is not None else None
+            
+            # Get indices to delete (convert original IDs to current indices)
+            indices_to_delete = []
+            for orig_id in self.hidden_units:
+                curr_idx = self._get_current_idx(orig_id)
+                if curr_idx is not None:
+                    indices_to_delete.append(curr_idx)
+            
+            # Sort in descending order to avoid index shifting issues
+            indices_to_delete = sorted(indices_to_delete, reverse=True)
+            
+            # Delete the hidden units
+            for idx in indices_to_delete:
+                if idx < A_save.shape[2]:
+                    A_save = np.delete(A_save, idx, axis=2)
+                if C_save is not None and idx < C_save.shape[0]:
+                    C_save = np.delete(C_save, idx, axis=0)
+            
+            # Update original_indices to reflect the deletions
+            new_original_indices = self.original_indices.copy()
+            for idx in indices_to_delete:
+                if idx < len(new_original_indices):
+                    new_original_indices = np.delete(new_original_indices, idx)
+            
+            # Save the filtered arrays
+            np.save(a_path, A_save.astype(np.float32))
+            if C_save is not None:
+                np.save(c_path, C_save.astype(np.float32))
+            
+            num_deleted = len(self.hidden_units)
+            
+            # Update internal state AFTER successful save
+            self.A = A_save
+            self.C = C_save
+            self.original_indices = new_original_indices
+            self.hidden_units.clear()
             self.unsaved_changes = False
-            messagebox.showinfo("Saved", f"Saved:\n{a_path}\n{c_path}")
+            self._update_edit_menu_state()
+            
+            # Clear frame cache
+            self.playback.clear_frame_cache()
+            
+            # Refresh everything with the new data
+            self._prepare_A_display()
+            self._ensure_selection()
+            self._refresh_all()
+            
+            msg = f"Saved:\n{a_path}\n{c_path}"
+            if num_deleted > 0:
+                msg += f"\n\nPermanently deleted {num_deleted} cells."
+            messagebox.showinfo("Saved", msg)
+            
         except Exception as e:
             messagebox.showerror("Save Failed", str(e))
 
@@ -649,11 +801,7 @@ class DataExplorerApp(tk.Tk):
         self.show_ids = not self.show_ids
         # Recreate A artist as mode changes
         self.im_A = None
-        self._refresh_left()
-
-    def _toggle_maxproj(self):
-        self.show_max_projection = not self.show_max_projection
-        self.im_A = None
+        self.playback.clear_activity_image()
         self._refresh_left()
 
     # ---------- Interactions ----------
@@ -665,318 +813,176 @@ class DataExplorerApp(tk.Tk):
         H, W, U = self.A.shape
         if not (0 <= x < W and 0 <= y < H):
             return
-        u = int(self.argmax_unit[y, x]) if self.argmax_unit is not None else None
-        if u is None:
+        
+        # Get current index from argmax
+        curr_idx = int(self.argmax_unit[y, x]) if self.argmax_unit is not None else None
+        if curr_idx is None:
             return
-        if u in self.selected_units:
-            self.selected_units.remove(u)
-        self.selected_units.insert(0, u)
+        
+        # Convert to original ID
+        orig_id = self._get_original_id(curr_idx)
+        
+        # Skip if unit is hidden
+        if orig_id in self.hidden_units:
+            self.status(f"Neuron {orig_id} (original ID) is hidden. Use Edit → Unhide Last to restore.")
+            return
+        
+        if orig_id in self.selected_units:
+            self.selected_units.remove(orig_id)
+        self.selected_units.insert(0, orig_id)
         self.selected_units = self.selected_units[: self.max_traces]
-        area = estimate_area_px(self.A[..., u], thresh_frac=self.area_thresh_frac)
+        
+        # Use current index for area calculation
+        area = estimate_area_px(self.A[..., curr_idx], thresh_frac=self.area_thresh_frac)
         self.area_lbl.config(text=f"Area: {area} px")
-        self.highlight_lbl.config(text=f"Highlighted: Neuron {u}")
-        self.status(f"Selected neuron {u}  |  area≈{area} px")
+        self.highlight_lbl.config(text=f"Highlighted: Neuron {orig_id}")
+        self.status(f"Selected neuron {orig_id} (original ID)  |  area≈{area} px")
         # Rebuild traces to move that neuron to top
         self._traces_ready = False
         self._refresh_all()
 
+    # ---------- Playback controls (delegated to controller) ----------
     def toggle_play(self):
-        if self.playing:
-            self.pause()
-            return
-        # Seed smoothing weights to current frame so playback starts without a jump
-        if self.C is not None and self._T_total() > 0:
-            try:
-                self._vis_weights = self._norm_C_frame(max(0, min(self._T_total()-1, self.cursor_t)))
-            except Exception:
-                pass
-        self.playing = True
-        self._last_tick = time.perf_counter()
-        self._schedule_play_step()
+        self.playback.toggle_play()
 
     def pause(self):
-        self.playing = False
-        if self._play_job is not None:
-            self.after_cancel(self._play_job)
-            self._play_job = None
-        # keep the dynamic A frame displayed; do not revert
-        self._refresh_left()
+        self.playback.pause()
 
-    def _schedule_play_step(self):
-        if not self.playing:
-            return
-        start_tick = time.perf_counter()
-        # default play speed = N seconds → advance fps*N frames per tick
-        step_frames = max(1, int(round(self.play_speed * max(1, self.fps))))
-        self.cursor_t = (self.cursor_t + step_frames) % max(1, self._T_total())
-        # Fast path updates
-        self._fast_update_cursor_and_A()
-        # Keep slider in sync
-        self.cursor_scale.configure(to=max(1, self._T_window()-1))
-        self.cursor_scale.set(self.cursor_t_in_window())
-        # Try to keep real FPS cadence
-        period = 1.0 / max(1, self.fps)
-        spent = time.perf_counter() - start_tick
-        delay_ms = max(1, int(1000 * max(0.0, period - spent)))
-        self._play_job = self.after(delay_ms, self._schedule_play_step)
-    def _on_cursor_change(self, _):
-        if self.C is None:
-            return
-        self.cursor_t = self.window_start_t() + int(self.cursor_scale.get())
-        self.cursor_t = min(self._T_total()-1, max(0, self.cursor_t))
-        self._fast_update_cursor_and_A()
+    def _on_cursor_change(self, val):
+        self.playback.on_cursor_change(val)
 
     # ---------- Rendering ----------
-    def _update_vis_weights(self, target: np.ndarray, alpha: float = 0.25):
-        """EMA update for visualization weights (class-level method)."""
-        if target is None:
-            return
-        if self._vis_weights is None or self._vis_weights.shape != target.shape:
-            self._vis_weights = target.copy()
-        else:
-            self._vis_weights = (1.0 - alpha) * self._vis_weights + alpha * target
-
-
     def _refresh_all(self):
         self._refresh_left()
-        self._refresh_right(force_build=not self.playing)
-
-    def _overlay_ids(self, ax):
-        if self.A is None:
-            return
-        H, W, U = self.A.shape
-        for u in range(U):
-            au = self.A[..., u]
-            thr = 0.2 * float(au.max())
-            mask = au > thr
-            if not mask.any():
-                continue
-            ys, xs = np.nonzero(mask)
-            cy = int(np.mean(ys))
-            cx = int(np.mean(xs))
-            ax.text(cx, cy, str(u), color='red', fontsize=14, fontweight='bold', ha='center', va='center')
-
-    def _current_A_image(self):
-        """Return the image to display on the A pane.
-        Rules:
-        - If playing: show EMA-smoothed, activity-weighted composite (dynamic).
-        - If not playing and View→Show max projection is ON: show the base 0.8-normalized
-          max across neurons (_A_static_maxproj).
-        - Otherwise: show either the last dynamic frame (if available) or the base MAX.
-        """
-        if self.A_scaled is None:
-            return None
-        if self.show_ids:
-            return None  # numbers-only mode handled elsewhere
-        # Dynamic view while playing
-        if self.playing and self.C is not None and self._T_total() > 0:
-            t = max(0, min(self._T_total()-1, self.cursor_t))
-            c_t = self._norm_C_frame(t)
-            alpha = self._ema
-            self._update_vis_weights(c_t, alpha)
-            w = self._vis_weights if self._vis_weights is not None else c_t
-            mod = self.A_scaled * w[np.newaxis, np.newaxis, :]
-            img = mod.sum(axis=2)
-            img = _gaussian_blur2d(img.astype(np.float32), sigma=0.8, ksize=5)
-            m = float(img.max())
-            if m > 0:
-                img = np.clip(img / m, 0.0, 1.0)
-            self._last_dynamic_A = img.copy()
-            return img
-        # Static views
-        if self.show_max_projection and self._A_static_maxproj is not None:
-            return self._A_static_maxproj
-        if self._last_dynamic_A is not None:
-            return self._last_dynamic_A
-        return self._A_base_composite
+        self._refresh_right(force_build=not self.playback.playing)
 
     def _refresh_left(self):
-        # Force re-create image artist after any axes clear; otherwise a cleared Axes
-        # would drop the previous Image and A would seem to "disappear" on next draw.
-        self.im_A = None
-        self.ax_A.clear()
-        self._style_axes(self.ax_A)
-        if self._cbar is not None:
-            try:
-                self._cbar.remove()
-            except Exception:
-                pass
-            self._cbar = None
-        if self.A_scaled is None:
-            self.ax_A.text(0.5, 0.5, "Load A.npy", color="#cfcfcf", ha="center", va="center")
-        else:
-            if self.show_ids:
-                # numbers-only view
-                H, W, U = self.A.shape
-                self.ax_A.set_xlim(0, W)
-                self.ax_A.set_ylim(H, 0)
-                self.ax_A.set_aspect('equal')
-                self.ax_A.set_title("Neuron IDs")
-                self._overlay_ids(self.ax_A)
-                self.im_A = None
+        # Only clear if we're switching from activity view back to static
+        if not self.playback.playing:
+            # Clear activity image if it exists
+            self.playback.clear_activity_image()
+            
+            self.ax_A.clear()
+            style_axes(self.ax_A, self.fig_A)
+            
+            if self._cbar is not None:
+                try:
+                    self._cbar.remove()
+                except Exception:
+                    pass
+                self._cbar = None
+            
+            if self.A_scaled is None:
+                self.ax_A.text(0.5, 0.5, "Load A.npy", color="#cfcfcf", ha="center", va="center")
             else:
-                img = self._current_A_image()
-                cmap = build_cmap()
-                if self.im_A is None:
-                    self.im_A = self.ax_A.imshow(img, cmap=cmap, vmin=0.0, vmax=1.0, interpolation='nearest')
-                    self.ax_A.set_aspect('equal')
-                    self.ax_A.set_title("A View")
-                    self._cbar = self.fig_A.colorbar(self.im_A, ax=self.ax_A, fraction=0.046, pad=0.04)
+                # Cache static composite if not already done
+                if self.static_composite is None:
+                    plot_neuron_outlines(self.ax_A, self.A, self.hidden_units, self.original_indices, 
+                    show_numbers=self.show_ids,
+                    baseline_alpha=self.baseline_alpha,
+                    max_brightness=self.max_brightness)
+                    # Store the current image data for later restoration
+                    for artist in self.ax_A.get_children():
+                        if hasattr(artist, 'get_array'):
+                            self.static_composite = artist.get_array()
+                            break
                 else:
-                    self.im_A.set_data(img)
-        self.canvas_A.draw_idle()
-
-    def _trace_colors(self, n: int) -> List[tuple]:
-        base = list(plt.cm.tab10.colors) + list(plt.cm.Set3.colors) + list(plt.cm.Pastel1.colors)
-        # Remove reds (close to (1,0,0) or strong red components)
-        filtered = [c for c in base if not (c[0] > 0.8 and c[1] < 0.3 and c[2] < 0.3)]
-        if not filtered:
-            filtered = base
-        colors = [filtered[i % len(filtered)] for i in range(n)]
-        return colors
-
-    def _build_traces_static(self):
-        # Clear and enforce dark background on the figure after clear()
-        self.fig_C.clear()
-        try:
-            self.fig_C.patch.set_facecolor("#0e0f12")
-        except Exception:
-            pass
-
-        # Compute target figure width (inches) to exactly match visible canvas width
-        try:
-            self.update_idletasks()  # ensure geometry is current
-            canvas_px = max(400, int(self.trace_scroll.winfo_width()))  # fallback if early
-            dpi = float(self.fig_C.get_dpi())
-            fig_w_in = canvas_px / dpi
-        except Exception:
-            dpi = float(self.fig_C.get_dpi())
-            fig_w_in = 6.4  # conservative fallback
-
-        # If C isn't loaded, show placeholder and still size the figure to width
-        if self.C is None:
-            ax = self.fig_C.add_subplot(1, 1, 1)
-            self._style_axes(ax)
-            ax.text(0.5, 0.5, "Load C.npy", color="#cfcfcf", ha="center", va="center")
-            try:
-                self.fig_C.set_size_inches(fig_w_in, 3.5, forward=True)
-            except Exception:
-                pass
-            self.canvas_C.draw_idle()
-            self._traces_ready = False
-            return
-
-        # Ensure we have a selection list
-        if not self.selected_units:
-            self._ensure_selection()
-        n = min(len(self.selected_units), self.max_traces)
-        n = max(1, n)
-
-        # Layout parameters that scale with number of traces
-        if n <= 10:
-            hspace = 0.06; lw = 1.6; tfs = 10; tickfs = 9; per_in = 1.1
-        elif n <= 20:
-            hspace = 0.04; lw = 1.2; tfs = 9; tickfs = 8; per_in = 0.95
-        else:
-            hspace = 0.03; lw = 1.0; tfs = 8; tickfs = 7; per_in = 0.85
-        total_h_in = max(3.5, per_in * n + 0.6)
-
-        # Size the figure to the computed width and dynamic height
-        try:
-            self.fig_C.set_size_inches(fig_w_in, total_h_in, forward=True)
-        except Exception:
-            pass
-
-        # Grid + tight margins so the lines reach the right edge visually
-        gs = self.fig_C.add_gridspec(n, 1, hspace=hspace)
-        try:
-            left_margin = 0.12 if n <= 10 else (0.10 if n <= 20 else 0.09)
-            self.fig_C.subplots_adjust(left=left_margin, right=0.995, top=0.99, bottom=0.06)
-        except Exception:
-            pass
-
-        # Reset caches
-        self.trace_axes = []
-        self.cursor_lines = []
-        self.trace_lines = []
-
-        # Time window indices (thin to ~1 Hz visual density)
-        start = self.window_start_t()
-        end = min(self._T_total(), start + self._T_window())
-        step = max(1, int(self.fps))  # 1 sample per second on the x-axis
-        idx = np.arange(start, end, step)
-        t_axis = idx / float(self.fps)
-
-        colors = self._trace_colors(n)
-        labelpad = 28 if n <= 10 else (22 if n <= 20 else 18)
-
-        # Build one axes per selected neuron
-        for i in range(n):
-            ax = self.fig_C.add_subplot(gs[i, 0], sharex=self.trace_axes[0] if self.trace_axes else None)
-            self._style_axes(ax)
-
-            u = self.selected_units[i]
-            trace = self.C[u, idx]
-            mu = float(np.nanmean(trace))
-            sd = float(np.nanstd(trace)) or 1.0
-            y = (trace - mu) / sd
-
-            line, = ax.plot(t_axis, y, linewidth=lw, color=colors[i])
-            ax.set_ylabel(f"Neuron {u}", rotation=0, labelpad=labelpad, fontsize=tfs, color="#cfcfcf")
-            ax.tick_params(labelsize=tickfs, labelleft=False)
-            if i < n - 1:
-                ax.tick_params(labelbottom=False)
-
-            # Cursor line
-            t_cur = self.cursor_t / float(self.fps)
-            ymin = np.nanmin(y) if np.isfinite(y).any() else -1.0
-            ymax = np.nanmax(y) if np.isfinite(y).any() else 1.0
-            cur, = ax.plot([t_cur, t_cur], [ymin, ymax], linestyle='--', color='red', linewidth=1.2)
-
-            self.trace_axes.append(ax)
-            self.trace_lines.append(line)
-            self.cursor_lines.append(cur)
-
-        # Bottom x-label and top title
-        self.trace_axes[-1].set_xlabel("Time (s)")
-        self.trace_axes[0].set_title(f"(window={self.window_sec}s, fps={self.fps})", loc='left')
-
-        # Draw and sync scrollregion to new size
-        self.canvas_C.draw_idle()
-        try:
-            self.canvas_C_widget.update_idletasks()
-            self.trace_scroll_frame.update_idletasks()
-            self.trace_scroll.configure(scrollregion=self.trace_scroll.bbox("all"))
-        except Exception:
-            pass
-
-        self._traces_ready = True
-
-    def _fast_update_cursor_and_A(self):
-        """Update only cursor lines and A image (no full redraw)."""
-        # Cursor lines
-        if not self._traces_ready:
-            self._build_traces_static()
-        t_cur = self.cursor_t / float(self.fps)
-        for ax, cur in zip(self.trace_axes, self.cursor_lines):
-            ymin, ymax = ax.get_ylim()
-            cur.set_data([t_cur, t_cur], [ymin, ymax])
-        self.canvas_C.draw_idle()
-        # A image update
-        if not self.show_ids:
-            img = self._current_A_image()
-            if img is not None:
-                if self.im_A is None:
-                    self._refresh_left()
-                else:
-                    self.im_A.set_data(img)
-                    self.canvas_A.draw_idle()
+                    plot_neuron_outlines(self.ax_A, self.A, self.hidden_units, self.original_indices, 
+                    show_numbers=self.show_ids,
+                    baseline_alpha=self.baseline_alpha,
+                    max_brightness=self.max_brightness)
+            
+            # Use direct draw() for immediate update (OPTIMIZATION 6)
+            self.canvas_A.draw()
 
     def _refresh_right(self, force_build: bool = True):
         if force_build or not self._traces_ready:
             self._build_traces_static()
         else:
-            self._fast_update_cursor_and_A()
+            self.playback._fast_update_cursor_and_A()
+
+    def _build_traces_static(self):
+        """Build the trace panels using matching colors"""
+        if self.C is None or not self.selected_units:
+            self.fig_C.clear()
+            ax = self.fig_C.add_subplot(111)
+            style_axes(ax, self.fig_C)
+            ax.text(0.5, 0.5, "Load C.npy to view traces", color="#cfcfcf", ha="center", va="center", transform=ax.transAxes)
+            self.canvas_C.draw()
+            self._traces_ready = False
+            return
+        
+        n = len(self.selected_units)
+        params = compute_layout_params(n)
+        
+        # Clear and rebuild figure
+        self.fig_C.clear()
+        fig_h = max(7.0, params['per_in'] * n)
+        self.fig_C.set_size_inches(7.5, fig_h)
+        self.fig_C.subplots_adjust(
+            left=params['left_margin'], right=0.98,
+            top=0.98, bottom=0.04,
+            hspace=params['hspace']
+        )
+        
+        # Generate colors matching neuron IDs
+        all_colors = generate_trace_colors(max(self.selected_units) + 1 if self.selected_units else 1)
+        
+        self.trace_axes = []
+        self.trace_lines = []
+        self.cursor_lines = []
+        
+        start = self.window_start_t()
+        end = min(self._T_total(), start + self._T_window())
+        t_cur = self.playback.cursor_t / float(self.fps)
+        
+        for i, orig_id in enumerate(self.selected_units):
+            curr_idx = self._get_current_idx(orig_id)
+            if curr_idx is None:
+                continue
+            
+            ax = self.fig_C.add_subplot(n, 1, i + 1)
+            style_axes(ax, self.fig_C)
+            
+            # Get color for this neuron's original ID
+            color = all_colors[orig_id]
+            
+            # Prepare trace data
+            t_axis, y = prepare_trace_data(self.C, curr_idx, start, end, self.fps,
+                               smooth_window=self.trace_smooth_window,
+                               smooth_method=self.trace_smooth_method)
+            
+            # Plot trace with matching color
+            line, = ax.plot(t_axis, y, color=color, lw=params['lw'])
+            self.trace_lines.append(line)
+            
+            # Cursor line
+            ymin, ymax = ax.get_ylim()
+            cursor, = ax.plot([t_cur, t_cur], [ymin, ymax], color='white', lw=1.5, alpha=0.7)
+            self.cursor_lines.append(cursor)
+            
+            # Styling
+            ax.set_ylabel(f"{orig_id}", fontsize=params['tfs'], labelpad=params['labelpad'], color='white')
+            ax.tick_params(axis='both', labelsize=params['tickfs'])
+            if i == n - 1:
+                ax.set_xlabel("Time (s)", fontsize=params['tfs'])
+            else:
+                ax.set_xticklabels([])
+            
+            self.trace_axes.append(ax)
+        
+        # Use direct draw() (OPTIMIZATION 6)
+        self.canvas_C.draw()
+        self._traces_ready = True
+        
+        # Update scroll region
+        try:
+            self.trace_scroll_frame.update_idletasks()
+            bbox = self.trace_scroll.bbox("all")
+            if bbox:
+                self.trace_scroll.configure(scrollregion=bbox)
+        except Exception:
+            pass
 
     # ---------- Helpers ----------
     def status(self, msg: str):
@@ -995,13 +1001,18 @@ class DataExplorerApp(tk.Tk):
         if self.C is None:
             return 0
         half = self._T_window() // 2
-        return max(0, min(self._T_total() - self._T_window(), self.cursor_t - half))
+        return max(0, min(self._T_total() - self._T_window(), self.playback.cursor_t - half))
 
     def cursor_t_in_window(self) -> int:
-        return self.cursor_t - self.window_start_t()
+        return self.playback.cursor_t - self.window_start_t()
 
     def _norm_C_frame(self, t: int) -> np.ndarray:
         c = self.C[:, t].astype(float)
+        # Zero out hidden units using original IDs
+        for orig_id in self.hidden_units:
+            curr_idx = self._get_current_idx(orig_id)
+            if curr_idx is not None and curr_idx < len(c):
+                c[curr_idx] = 0.0
         c = c - c.min()
         if c.max() > 0:
             c /= c.max()
@@ -1010,8 +1021,16 @@ class DataExplorerApp(tk.Tk):
     # ---------- App lifecycle ----------
     def on_close(self):
         if self.unsaved_changes:
-            if not messagebox.askyesno("Unsaved changes", "You have unsaved edits (e.g., deleted cells). Quit without saving?"):
+            msg = "You have unsaved edits"
+            if self.hidden_units:
+                msg += f" ({len(self.hidden_units)} hidden cells)"
+            msg += ". Quit without saving?"
+            if not messagebox.askyesno("Unsaved changes", msg):
                 return
+        
+        # Shutdown frame computation executor
+        self.playback.shutdown()
+        
         self.destroy()
 
 

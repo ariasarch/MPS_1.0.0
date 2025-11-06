@@ -308,6 +308,24 @@ class Step8aYRAComputation(ttk.Frame):
                 else:
                     raise ValueError(f"Could not find {temporal_source} in results")
                 
+                # Filter C_matrix to only include neurons that exist in A_matrix
+                self.log("Filtering temporal components to match spatial components...")
+                A_unit_ids = A_matrix.coords['unit_id'].values
+                C_unit_ids = C_matrix.coords['unit_id'].values
+
+                # Find common unit IDs
+                common_unit_ids = np.intersect1d(A_unit_ids, C_unit_ids)
+                self.log(f"  A has {len(A_unit_ids)} units")
+                self.log(f"  C has {len(C_unit_ids)} units")
+                self.log(f"  Common units: {len(common_unit_ids)}")
+
+                # Filter C to only include common units and reorder to match A
+                C_matrix = C_matrix.sel(unit_id=common_unit_ids)
+
+                # Ensure C and A have same unit order
+                C_matrix = C_matrix.sel(unit_id=A_unit_ids)
+                self.log(f"  Filtered C shape: {C_matrix.shape}")
+
                 # Get background components if needed
                 if subtract_bg:
                     if 'step3b_b' in self.controller.state['results'] and 'step3b_f' in self.controller.state['results']:
@@ -392,8 +410,31 @@ class Step8aYRAComputation(ttk.Frame):
             self.update_progress(40)
             
             try:
-                # Use matrix multiplication instead of xarray dot (more reliable)
-                YrA_values = np.dot(Y_reshaped, A_reshaped.T)
+                # Compute A*C to reconstruct the signal
+                self.log("Computing A*C reconstruction...")
+                
+                # Ensure C has the right shape (frames x components)
+                if C_matrix.shape[0] != frame_count:
+                    # C is (components x frames), need to transpose
+                    C_transposed = C_matrix.T.values
+                else:
+                    C_transposed = C_matrix.values
+                
+                # A_reshaped is (components x pixels)
+                # C_transposed is (frames x components)
+                # AC should be (frames x pixels)
+                AC_reconstruction = np.dot(C_transposed, A_reshaped)
+                
+                self.log(f"AC reconstruction shape: {AC_reconstruction.shape}")
+                
+                # Compute residual: YrA = Y - AC
+                YrA_reshaped = Y_reshaped - AC_reconstruction
+                
+                self.log(f"YrA residual shape: {YrA_reshaped.shape}")
+                
+                # Now project onto components to get per-component residuals
+                # YrA_per_component = YrA * A^T
+                YrA_values = np.dot(YrA_reshaped, A_reshaped.T)
                 
                 self.log(f"Updated YrA shape: {YrA_values.shape}")
                 

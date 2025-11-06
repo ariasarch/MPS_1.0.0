@@ -1,0 +1,254 @@
+{
+    "metadata": {
+        "version": "1.0",
+        "timestamp": "2025-06-01 21:51:46",
+        "animal": 3138,
+        "session": 17,
+        "input_dir": "D:/2024.04.25 Ari Punished Fentanyl/Miniscope Data/PunishedFentanyl/3138/T17/Reorganized_Avis",
+        "output_dir": "D:/GUI_PSS"
+    },
+    "steps": {
+        "step1_setup": {
+            "n_workers": 8,
+            "memory_limit": "200GB",
+            "video_percent": 100,
+            "cache_path": "D:/GUI_PSS/3138_17_Processed\\cache_data",
+            "dataset_output_path": "D:/GUI_PSS\\3138_17_Processed"
+        },
+        "step2a_video_loading": {
+            "pattern": ".*\\.avi$",
+            "downsample": {
+                "frame": 1,
+                "height": 1,
+                "width": 1
+            },
+            "downsample_strategy": "subset",
+            "video_percent": 100
+        },
+        "step2b_processing": {
+            "denoise_method": "median",
+            "ksize": 7,
+            "bg_method": "tophat",
+            "wnd": 15
+        },
+        "step2c_motion_estimation": {
+            "dim": "frame"
+        },
+        "step2d_erroneous_frames": {
+            "threshold_factor": 5.0,
+            "drop_frames": true
+        },
+        "step2e_transformation": {
+            "fill_value": 0.0
+        },
+        "step3a_cropping": {
+            "center_radius_factor": 0.75,
+            "y_offset": 25,
+            "x_offset": 75
+        },
+        "step3b_svd": {
+            "n_components": 100,
+            "n_power_iter": 5,
+            "sparsity_threshold": 0.05
+        },
+        "step4a_watershed_search": {
+            "min_distance": 10,
+            "threshold_rel": 0.1,
+            "sigma": 1.0
+        },
+        "step4b_watershed_segmentation": {
+            "min_distance": 10,
+            "threshold_rel": 0.1,
+            "sigma": 1.0,
+            "max_size": 5000,
+            "min_size": 10
+        },
+        "step4c_merging_units": {
+            "distance_threshold": 25.0,
+            "size_ratio_threshold": 5.0,
+            "min_size": 9,
+            "cross_merge": true
+        },
+        "step4d_temporal_signals": {
+            "batch_size": 10,
+            "frame_chunk_size": 10000,
+            "component_limit": 0,
+            "clear_cache": true,
+            "memory_efficient": true
+        },
+        "step4e_ac_initialization": {
+            "spatial_norm": "max",
+            "min_size": 10,
+            "max_components": 0,
+            "skip_bg": true,
+            "check_nan": true
+        },
+        "step4f_dropping_nans": {
+            "n_units_initial": 0,
+            "n_units_final": 0,
+            "n_removed": 0
+        },
+        "step4g_temporal_merging": {
+            "temporal_corr_threshold": 0.75,
+            "spatial_overlap_threshold": 0.3,
+            "max_size": 5000,
+            "input_type": "clean",
+            "max_components": 0
+        },
+        "step5a_noise_estimation": {
+            "noise_scale": 1.5,
+            "smoothing_sigma": 1.0,
+            "bg_threshold": "mean",
+            "custom_threshold": 0.0
+        },
+        "step5b_validation_setup": {
+            "input_type": "merged",
+            "check_nan": true,
+            "compute_stats": true,
+            "min_size": 10,
+            "max_size": 1000,
+            "apply_filtering": false
+        },
+        "step6a_yra_computation": {
+            "component_source": "merged",
+            "subtract_bg": true,
+            "use_float32": true,
+            "fix_nans": true,
+            "computation_time": 0.0
+        },
+        "step6c_parameter_suggestion": {
+            "n_components": 20,
+            "n_frames": 5000,
+            "component_source": "merged",
+            "optimize_memory": true,
+            "selection_method": "random"
+        },
+        "step6d_temporal_update": {
+            "p": 2,
+            "sparse_penal": 2.29e-2,
+            "max_iters": 500,
+            "zero_thres": 6.64e-04,
+            "normalize": true,
+            "component_source": "merged",
+            "processing_time": 0.0
+        },
+        "step6e_filter_validate": {
+            "min_spike_sum": 1e-06,
+            "min_c_var": 1e-06,
+            "min_spatial_sum": 1e-06,
+            "component_source": "merged",
+            "n_initial": 21,
+            "n_filtered": 2,
+            "variables_saved": [
+                "step6e_C_filtered",
+                "step6e_S_filtered",
+                "step6e_A_filtered",
+                "step6e_C_new",
+                "step6e_S_new"
+            ],
+            "saving_timestamp": "2025-05-30 11:37:16"
+        },
+        "step7a_dilate": {
+            "window_size": 3,
+            "threshold": 0.1,
+            "expansion_ratio": 0.0,
+            "active_pixels_before": 0,
+            "active_pixels_after": 0,
+            "variables_saved": [],
+            "saving_timestamp": ""
+        },
+        "step7b_cluster": {
+            "max_cluster_size": 10,
+            "min_area": 20,
+            "min_intensity": 0.1,
+            "overlap_threshold": 0.2,
+            "data_source": "dilated",
+            "num_clusters": 0,
+            "variables_saved": [],
+            "saving_timestamp": ""
+        },
+        "step7c_bounds": {
+            "dilation_radius": 10,
+            "padding": 20,
+            "min_size": 40,
+            "intensity_threshold": 0.05,
+            "n_clusters": 0,
+            "variables_saved": [],
+            "saving_timestamp": ""
+        },
+        "step7d_parameter_suggestions": {
+            "n_frames": 1000,
+            "component_source": "dilated",
+            "sample_size": 0,
+            "min_std_conservative": 0.0,
+            "min_std_balanced": 0.0,
+            "min_std_aggressive": 0.0,
+            "penalty_scale_conservative": 0.0,
+            "penalty_scale_balanced": 0.0,
+            "penalty_scale_aggressive": 0.0,
+            "spatial_score_mean": 0.0,
+            "spatial_score_std": 0.0,
+            "bg_std_median": 0.0,
+            "comp_std_median": 0.0
+        },
+        "step7e_spatial_update": {
+            "n_frames": 1000,
+            "min_penalty": 1e-06,
+            "max_penalty": 0.01,
+            "num_penalties": 10,
+            "min_std": 1.85e-01,
+            "variables_saved": [],
+            "saving_timestamp": ""
+        },
+        "step7f_merging_validation": {
+            "apply_smoothing": true,
+            "sigma": 1.5,
+            "handle_overlaps": true,
+            "min_size": 10,
+            "max_size": 5000,
+            "raw_components_retained": 0,
+            "smooth_components_retained": 0,
+            "raw_percent_filtered": 0.0,
+            "smooth_percent_filtered": 0.0,
+            "variables_saved": [],
+            "saving_timestamp": ""
+        },
+        "step8a_yra_computation": {
+            "spatial_source": "step7f_A_merged",
+            "temporal_source": "step6e_C_filtered",
+            "subtract_bg": true,
+            "use_float32": true,
+            "fix_nans": true,
+            "computation_time": 0.0,
+            "variables_saved": [],
+            "saving_timestamp": ""
+        },
+        "step8b_final_temporal_update": {
+            "p": 2,
+            "sparse_penal": 0.01,
+            "max_iters": 500,
+            "zero_thres": 0.0005,
+            "normalize": true,
+            "spatial_source": "step7f_A_merged",
+            "total_time": 0.0,
+            "successful_components": 0,
+            "success_rate": 0.0,
+            "avg_time_per_component": 0.0,
+            "variables_saved": [],
+            "saving_timestamp": ""
+        },
+        "step8b_filter_export": {
+            "min_size": 10,
+            "min_snr": 2.0,
+            "min_corr": 0.8,
+            "original_count": 0,
+            "final_count": 0,
+            "percent_retained": 0.0,
+            "export_path": "",
+            "export_formats": [],
+            "include_metadata": true,
+            "compression_level": 4,
+            "export_time": ""
+        }
+    }
+}

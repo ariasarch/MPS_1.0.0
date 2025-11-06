@@ -1,0 +1,23 @@
+# Ignore local builds and packaging
+build/
+dist/
+*.app
+*.dmg
+*.zip
+*.iconset
+*.spec
+notary-log.json
+rw.*
+MPS_Launcher_macOS_v*
+mnt-dmg/
+dmg-root/
+
+# Ignore envs, caches, and logs
+env/
+__pycache__/
+logs/
+
+# Ignore signing helper files
+--apple-id
+--password
+--team-id

@@ -119,6 +119,10 @@ class Step6dUpdateTemporal(ttk.Frame):
         # Check for required dependencies
         self.check_dependencies()
 
+        # Set status_var specific to 6d
+        self.status_var = tk.StringVar(value="Ready")
+
+
     def create_parameter_widgets(self):
         """Create widgets for parameter settings"""
         # Get default parameters
@@ -1073,8 +1077,6 @@ class Step6dUpdateTemporal(ttk.Frame):
                 self.zero_thres_var.set(params['zero_thres'])
             if 'normalize' in params:
                 self.normalize_var.set(params['normalize'])
-            if 'component_source' in params:
-                self.component_source_var.set(params['component_source'])
             
             self.log("Parameters loaded from file")
         else:

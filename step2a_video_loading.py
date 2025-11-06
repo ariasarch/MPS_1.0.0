@@ -60,7 +60,15 @@ class Step2aVideoLoading(ttk.Frame):
         self.pattern_var = tk.StringVar(value=r".*\.avi$")
         self.pattern_entry = ttk.Entry(self.control_frame, textvariable=self.pattern_var, width=30)
         self.pattern_entry.grid(row=0, column=1, padx=10, pady=10, sticky="w")
-        
+        # Add help link for regex
+        def open_regex101():
+            import webbrowser
+            webbrowser.open_new("https://regex101.com/")
+
+        regex_help = ttk.Label(self.control_frame, text="?", foreground="blue", cursor="hand2")
+        regex_help.grid(row=0, column=2, padx=5, pady=10, sticky="w")
+        regex_help.bind("<Button-1>", lambda e: open_regex101())
+
         # Downsampling
         ttk.Label(self.control_frame, text="Downsampling:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         

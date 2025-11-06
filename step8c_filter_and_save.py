@@ -433,15 +433,15 @@ class Step8cFilterSave(ttk.Frame):
         """Show popup to transition to data explorer"""
         popup = tk.Toplevel(self)
         popup.title("Processing Complete")
-        popup.geometry("450x250")
+        popup.geometry("600x350")
         popup.resizable(False, False)
         
         # Center on screen
         screen_width = popup.winfo_screenwidth()
         screen_height = popup.winfo_screenheight()
-        x = (screen_width - 450) // 2
-        y = (screen_height - 250) // 2
-        popup.geometry(f"450x250+{x}+{y}")
+        x = (screen_width - 600) // 2
+        y = (screen_height - 350) // 2
+        popup.geometry(f"600x350+{x}+{y}")
         
         # Make modal
         popup.transient(self)
@@ -495,7 +495,7 @@ class Step8cFilterSave(ttk.Frame):
         
         ttk.Button(
             button_frame,
-            text="Open Data Explorer and Keep Windows Open",
+            text="Open Data Explorer and Keep Open",
             command=open_explorer_keep_open,
             width=button_width
         ).pack(pady=5)
@@ -898,10 +898,12 @@ class Step8cFilterSave(ttk.Frame):
                 try:
                     # Load spatial components (A)
                     A = self.controller.state['results'][params['spatial_source']]
+                    A = A.where(np.isfinite(A), 0)
                     self.log(f"Loaded spatial components (A) with shape {A.shape}")
                     
                     # Load temporal components (C)
                     C = self.controller.state['results'][params['temporal_source']]
+                    C = C.where(np.isfinite(C), 0)
                     self.log(f"Loaded temporal components (C) with shape {C.shape}")
                     
                     # Try to load spike components (S) if available
@@ -980,6 +982,8 @@ class Step8cFilterSave(ttk.Frame):
                 self.log(f"Common unit_ids: {common_unit_ids}")
                 A = A.sel(unit_id=common_unit_ids)
                 C = C.sel(unit_id=common_unit_ids)
+                if S is not None:
+                    S = S.where(np.isfinite(S), 0)
                 
                 # Apply quality filtering
                 self.log("\nApplying quality filtering...")
