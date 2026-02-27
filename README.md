@@ -27,6 +27,7 @@ This guide walks through the complete miniscope calcium imaging processing pipel
   - [Step 6: CNMF Processing](#step-6-cnmf-processing)
   - [Step 7: Spatial Refinement](#step-7-spatial-refinement)
   - [Step 8: Final Processing and Export](#step-8-final-processing-and-export)
+- [Parameter Tuning Philosophy](#parameter-tuning-philosophy)
 - [Tips and Best Practices](#tips-and-best-practices)
 - [Common Issues and Solutions](#common-issues-and-solutions)
 - [Interpreting Your Results](#interpreting-your-results)
@@ -58,6 +59,8 @@ Run: `GUI_PSS_0.0.1.py`
 - 200 GB memory limit
 - 100% video percentage (decrease for testing)
 
+> **Note:** Animal ID currently only accepts numeric values due to how naming conventions propagate through the pipeline. This is a known limitation and may be addressed in a future update.
+
 ### Step 2: Data Preprocessing
 
 #### Step 2a: File Pattern Recognition
@@ -83,7 +86,7 @@ This step cleans up your raw video data.
 
 #### Step 2c: Motion Correction
 - Keep motion estimation on "frame" (default)
-- This is the longest step - expect 3x your video size in RAM usage
+- This is one of the longer steps — expect 3x your video size in RAM usage. For very large datasets, Step 7e (spatial update) may take comparable or longer time.
 - The algorithm uses recursive estimation with phase correlation
 
 #### Step 2d: Quality Control
@@ -108,18 +111,26 @@ This step cleans up your raw video data.
 - Use circular crop centered on your imaging field
 - Adjust offset if field is not centered
 
+> **Tip:** After cropping, MPS saves the data as a Zarr file. The image displayed during cropping is roughly the mean pixel brightness across frames — useful as a reference for what you're working with. If you need a static 2D image of the cropped field of view for presentations or quick checks, you can export one from the Zarr output using a short Python snippet (e.g., load the array and save the mean frame as a JPEG).
+
 #### Step 3b: NNDSVD Initialization
 Think of NNDSVD like a conductor listening to a recording of an orchestra warming up. Instead of trying to pick out each instrument one by one, the conductor listens to the whole cacophony and instantly recognizes "that's the violin section over there, the brass in the back, the woodwinds on the right." NNDSVD does the same - it listens to all your neural "instruments" playing at once and quickly identifies the major sections before fine-tuning each individual player.
 
+**What NNDSVD is actually doing:** It performs a Non-Negative Double Singular Value Decomposition — a fast matrix factorization that decomposes your entire video into a compact set of spatial components. Unlike PCA, which can take a very long time on large datasets, SVD reaches a near-equivalent answer much faster by expressing the data as a product of three simpler matrices. The NN ("non-negative") constraint adds the biological prior that fluorescence signals can't be negative, and encourages spatially compact, blob-like components rather than diffuse scatter.
+
 **Parameters:**
-- **Number of components**: Increases data granularity with diminishing returns. Component zero is background noise
+- **Number of components**: How many components to extract. Component zero typically captures background variation — as the first singular vector, it reflects the dominant source of variance in the data, which in miniscope recordings is usually neuropil and background fluorescence rather than individual neurons. Components 1 onward correspond to candidate neural signals, roughly ordered by how much variance they explain. You don't need hundreds; even 20–50 components will typically capture 99%+ of the variance in a sparse brain region.
 - **Power iterations**: Refines the singular value decomposition (5 is usually plenty)
-- **Sparsity threshold**: Controls signal vs noise pickiness (0.05 = keep things 5% above noise floor)
-- **Spatial regularization**: Helps components be "blob-like" instead of scattered pixels
+- **Sparsity threshold**: Controls signal vs noise pickiness (0.05 = keep things 5% above noise floor). In regions with fewer neurons and lower overall activity, you may want a *lower* threshold to avoid discarding dim but genuine signals. In denser regions with stronger average activity, a higher threshold helps exclude noise.
+- **Spatial regularization**: Helps components be "blob-like" instead of scattered pixels. Increase for larger, more spread-out neurons; decrease for very small, compact ones.
 - **Chunk size**: Speeds processing - decrease for less memory but slower processing
+
+> **Important context for interpreting this step:** The goal here is not perfection — it is a fast, good-enough initialization for the CNMF algorithm that follows. NNDSVD is seeding the solution space so CNMF doesn't have to search from scratch, which would be computationally prohibitive. Because of this, spending significant time tuning parameters here provides diminishing returns. If your final CNMF results look reasonable, your NNDSVD initialization was good enough.
 
 #### Step 3c: Early Analysis Option
 Some miniscope and neural signal papers stop here if you want preliminary results.
+
+> **How to interpret the variance-explained plot in Step 3c:** This plot shows the cumulative percentage of total data variance captured as you add more components. For most miniscope datasets, especially in sparse brain regions, 99% or more of the variance is typically accounted for within the first few components. You don't need to hit 100% — in fact, that final fraction of a percent often contains noise rather than signal. If you're at 95–99% explained variance, your initialization is in good shape.
 
 ### Step 4: Component Detection
 
@@ -128,11 +139,16 @@ Watershed segmentation figures out how many neurons there are. Since it's better
 
 **Parameters:**
 - **Min distances**: Minimum pixel distance between neuron centers (10, 20, 30 tries different spacings)
-- **Threshold relativity**: How much brighter than surroundings a peak needs to be (0.1 = 10% brighter)
+- **Threshold relativity**: How much brighter than surroundings a peak needs to be (0.1 = 10% brighter). Think of this like setting the elevation cutoff on a topographic map to decide what counts as a mountain peak. Lowering this threshold will detect more candidate neurons, but some may be noise or transient signals rather than true cells. Including extra candidates here has a modest cost — the CNMF will ultimately prune false positives — but it does mean longer processing time.
 - **Sigma values**: Smoothing before finding peaks - like trying different glasses prescriptions (1.0 = sharp, 2.0 = slightly blurry)
 - **Sample size**: How many components to test (20 is usually enough)
 
+> **On tuning threshold relativity:** Lowering this parameter will yield more detected candidate components. Whether those additional components are genuine neurons or noise depends heavily on your brain region and data quality. The CNMF steps downstream will filter out spurious detections, so over-seeding at this stage is not catastrophic — it just increases computation time. If you are getting consistently fewer components than you expect, experimenting with a lower threshold is reasonable. However, if you then see components with overlapping footprints or unclear signals in your final output, that is a sign you may have over-seeded.
+
 #### Step 4b: Apply Best Parameters
+
+> **Known bug:** After Step 4a suggests optimal parameters, you must **deselect and then reselect** the "Apply Filter / Apply Search" option before running Step 4b. If you skip this, the step will default to the cache from a previous run (typically min_distance=20) rather than applying the new suggestions. If loading parameters from a JSON file, this issue does not apply — the JSON values are used directly.
+
 - Uses the best parameters from 4a
 - **Minimum region size**: Smallest neuron size you'll accept (better to overestimate, so really small is okay)
 
@@ -229,7 +245,7 @@ Sanity check on YrA computation - ensures nothing went wrong and gives quality m
 - **Correlation Analysis**: Check if units are correlated (they shouldn't be after all our processing)
 - **Detailed Statistics**: Compute skewness, kurtosis, temporal stability - fancy stats that can reveal issues
 
-**What YrA actually means**: YrA is essentially asking "for each neuron, how well does its spatial footprint explain the activity at each time point?" High YrA values mean that neuron's shape matches the activity pattern well at that time. This is used by CNMF to refine both the spatial footprints and temporal traces iteratively.
+**What YrA actually means**: YrA is the raw projection of the video data onto the spatial footprints of each component — essentially asking "given this neuron's spatial mask, what is the corresponding signal at each timepoint?" It is not a measure of how much variance is explained. This projection is then passed into the AR/sparsity optimization in Step 6d, which denoises and infers spikes from it. High YrA values at a given time simply mean there was strong fluorescence in that neuron's spatial footprint at that moment.
 
 #### Step 6c: Parameter Suggestion for Temporal Update
 Analyzes your data to suggest optimal parameters for CNMF temporal update
@@ -255,14 +271,21 @@ Based on this, it suggests:
 - **Max iterations**: How long to run the optimizer
 - **Zero threshold**: When to consider a spike "real"
 
+> **Note on suggested parameter variability:** You may notice that running Step 6c multiple times with the same data produces slightly different suggested values (e.g., different decimal precision in the sparse penalty). This is expected behavior due to rounding differences between how the suggestion is displayed versus how it is stored internally. It does not indicate a problem with the data or the algorithm. If you load parameters from a JSON file, values are applied directly and consistently.
+
 #### Step 6d: Update Temporal Components
 The heavy lifting step - runs the actual CNMF temporal update using the suggested parameters.
 
 **Parameters:**
-- **AR Order**: Order of the autoregressive model (1-2 typical)
-- **Sparse Penalty**: L1 penalty for spike sparsity (smaller = more spikes detected)
+- **AR Order**: Order of the autoregressive model (1-2 typical). This controls how complex the modeled calcium dynamics can be.
+  - **AR=1** assumes a simple linear decay — if two spikes fire in rapid succession before the signal has returned to baseline, they will be counted as one event. This produces cleaner, sparser traces.
+  - **AR=2** allows for more nonlinear dynamics and can resolve closely spaced events, but results in noisier traces. AR order is conventionally an integer — stick to 1 or 2.
+- **Sparse Penalty**: L1 penalty for spike sparsity. This is the sum of the absolute values of the inferred spike train — increasing it pushes the algorithm toward fewer detected events.
+  - Higher sparse penalty → fewer detected spikes, but those detected are more confident
+  - Lower sparse penalty → more detected spikes, but more likely to include noise
+  - If you are concerned about noise after lowering the sparse penalty, you can compensate by raising the zero threshold (see below)
 - **Max Iterations**: Solver iterations (500 usually enough)
-- **Zero Threshold**: Values below this are set to zero
+- **Zero Threshold**: Values below this are set to zero. Raising this threshold is a useful complement to lowering the sparse penalty — it allows you to detect more events while still suppressing low-amplitude noise.
 - **Normalize**: Whether to normalize traces (usually yes)
 - **Chunk Size**: How many frames to process at once (5000 is good)
 - **Overlap**: Frames shared between chunks to avoid edge artifacts (100 works well)
@@ -337,6 +360,8 @@ The output is a set of rectangular regions, one for each cluster of neurons. The
 - Define regions for background estimation
 - Create local coordinate systems for optimization
 
+> **What's actually happening in Steps 7a–7d:** These steps are preparing and organizing the computation for the spatial update in Step 7e — they are not themselves changing what neurons look like. The dilation in 7a expands each neuron's mask slightly so the spatial update has enough context. Clustering in 7b and bounding boxes in 7c divide the field of view into manageable local regions so the update doesn't need to process the whole image at once, which would be extremely slow. Think of it as drawing a bounding rectangle around each neighborhood of neurons so the algorithm only has to "look at" the relevant patch of pixels when refining each cell's footprint.
+
 #### Step 7d: Parameter Suggestions for Spatial Update
 Analyzes your data and suggests optimal parameters.
 
@@ -389,7 +414,7 @@ Updates spatial components using multi-penalty LASSO regression on local video r
 - **Progress Interval**: How often to report progress (pixels)
 - **Show incremental updates**: Display component updates as they're processed
 
-This step ensures spatial footprints accurately represent the neurons after all the temporal processing.
+> **Effect of penalty and STD on spatial maps:** Using higher minimum/maximum penalty values and a higher minimum STD will produce more compact, tightly defined spatial components. Lower values will produce more expansive footprints. Keep in mind that the spatial map itself is a reference — it tells you which pixels the signal is coming from, not necessarily the exact shape of the full neuron. Neurons may be larger than their detected footprint depending on optical configuration, GCaMP expression level, and the camera angle. As long as you are not making morphological claims based on spatial footprint shape, either setting is defensible. The temporal signals are what carry the scientific information.
 
 #### Step 7f: Merging and Validation
 Final spatial processing step - merges the updated spatial components from Step 7e, handles component overlaps, and validates the final results.
@@ -397,9 +422,11 @@ Final spatial processing step - merges the updated spatial components from Step 
 **Parameters:**
 - **Apply smoothing**: Whether to apply Gaussian smoothing to merged components
 - **Smoothing Sigma**: Gaussian filter sigma for smoothing
-- **Handle overlaps**: Whether to normalize overlapping components
+- **Handle overlaps**: Whether to normalize overlapping components. Keep this on in almost all cases — turning it off can produce inconsistent boundaries at the edges of spatial windows where clusters overlap.
 - **Min Component Size**: Minimum size of components to keep (pixels)
 - **Save both versions**: Save both raw and smoothed versions
+
+> **On smoothing:** Be cautious about over-smoothing. Applying too high a sigma will cause component footprints to bleed outward into large, diffuse blobs that may overlap neighboring neurons. Blocky or rectangular-looking components are more likely caused by the bounding box geometry from the clustering step rather than smoothing itself — if you see that artifact, it won't be fixed by reducing sigma. If components look unnaturally spread out or merged after smoothing, reduce the sigma or turn smoothing off. Step 7f is quick to re-run relative to 7e, so it is easy to experiment with different smoothing settings without redoing the full spatial update.
 
 This produces the final spatial components ready for use in subsequent analysis.
 
@@ -422,8 +449,8 @@ This step computes the residual activity (YrA) using the updated spatial compone
 Updates temporal components (C) and spike estimates (S) using the YrA computed in Step 8a, with CVXPY optimization using AR modeling and sparsity constraints.
 
 **Parameters:**
-- **AR Order (p)**: Order of autoregressive model (2 for complex dynamics, 1 for smoother)
-- **Sparse Penalty**: L1 penalty for spike sparsity (lower = more spikes detected)
+- **AR Order (p)**: Order of autoregressive model. See Step 6d for a full explanation of AR1 vs AR2 tradeoffs.
+- **Sparse Penalty**: L1 penalty for spike sparsity (lower = more spikes detected). See Step 6d for discussion of how sparse penalty and zero threshold interact.
 - **Max Iterations**: Maximum solver iterations (500 usually sufficient)
 - **Zero Threshold**: Values below this are set to zero
 - **Normalize**: Whether to normalize traces (usually yes)
@@ -434,6 +461,10 @@ Updates temporal components (C) and spike estimates (S) using the YrA computed i
 **Processing approach**: The algorithm uses temporal chunking for better memory efficiency and parallel processing. Each chunk is processed independently then merged, like editing a movie in segments then stitching them together.
 
 This ensures consistency between spatial and temporal representations while maintaining biologically plausible calcium dynamics.
+
+> **Why Step 8 matters:** Step 6 produces the first full CNMF solution. Step 8 re-runs the temporal update using the improved spatial footprints from Step 7 — which is the key reason it matters. Because the spatial components are more accurate after Step 7's refinement, the temporal traces estimated in Step 8 are cleaner than what Step 6 could produce. Note that because the solution is already close to converged by this point, parameter choices in Step 8 tend to have subtler effects than the same changes would have in Step 6. Both steps deserve careful attention; Step 8 is simply the last opportunity to refine your final traces before export.
+
+> **Parameter consistency and cross-session comparisons:** If you use identical Step 8 parameters across all animals and sessions in your dataset, the resulting calcium traces are mathematically comparable on an absolute scale — meaning you do not need to Z-score signals before comparing them across recordings. This holds assuming stable GCaMP expression levels and consistent optical conditions across sessions; if indicator expression or imaging conditions vary substantially, raw trace amplitudes may not be directly comparable regardless of parameter consistency. Z-scoring before comparison remains appropriate if you tune Step 8 parameters per session, or if you have reason to believe imaging conditions differed. Either approach is valid; the key is consistency within your analysis.
 
 #### Step 8c: Final Filtering and Data Export
 The culmination of the entire pipeline - this step performs final quality filtering, exports the data in multiple formats, and generates summary statistics and validation plots.
@@ -462,6 +493,24 @@ The culmination of the entire pipeline - this step performs final quality filter
 
 The export includes a timestamp and all processing parameters, ensuring full reproducibility.
 
+---
+
+## Parameter Tuning Philosophy
+
+One of the most common questions when using MPS is: how do I know which parameters to adjust, and when? Understanding the overall architecture of the pipeline helps answer this.
+
+**Steps 1–5 are initialization.** Their job is to give the CNMF algorithm a well-structured starting point. In principle, a CNMF could be run from random initialization, but it would take far longer to converge and might settle into a suboptimal local minimum — analogous to searching for a mountain peak when you've only been shown a small window of the landscape. The preprocessing, denoising, motion correction, NNDSVD, and watershed steps all serve to place the algorithm close to the right answer before the expensive optimization begins. Because of this, over-tuning parameters in Steps 1–5 is generally not the best use of time. The CNMF will correct modest errors in initialization. **Focus your tuning energy on Steps 6, 7, and 8.**
+
+**Steps 6 and 8 are the most scientifically important.** These are where the actual temporal signals are estimated. Step 6 produces the first full CNMF solution; Step 8 refines it using the improved spatial footprints from Step 7. Both steps warrant careful parameter attention. Step 6 parameters have more leverage — changes there can produce substantially different results because the algorithm has more room to move. Step 8 is where you get the final, cleanest traces, but parameter sensitivity is subtler since the solution is already near convergence.
+
+**Step 7 governs spatial appearance.** If you care about how the spatial footprints look — for figures, presentations, or ROI definition — tune Step 7 parameters. But recognize that for most scientific conclusions drawn from miniscope data, the spatial map is a reference, not the result. Neurons in miniscope data may not fully illuminate even if GCaMP is expressed there, depending on lens position, focal plane, expression level, and vasculature. The shape you see is where reliable signal is coming from, not necessarily the full anatomical extent of the cell.
+
+**On neuron counts and sparse brain regions:** If you are recording from a region with relatively few neurons (e.g., 20–30 per session), this is likely a true reflection of your data rather than a failure of the pipeline. Adding more components to capture a marginal signal is a genuine tradeoff: every additional component you include must be "paid for" by subtracting from the noise and background estimates in the CNMF model. In a recording with 20 bright neurons, forcing detection of 2–3 additional dim candidates risks introducing noise into the traces of all 20 existing neurons. High-quality signals from 20 neurons can be more scientifically valuable than noisy signals from 25.
+
+**On parameter generalizability:** Default and suggested parameters are good starting points, but they were developed with specific data in mind. Your optimal parameters will depend on your brain region, calcium indicator (e.g., GCaMP6f vs GCaMP8f have different kinetics), lens numerical aperture, recording duration, and expected neuronal density. Treat the parameter suggestions as an informed first guess, and interpret the diagnostic plots at each stage as your evidence for whether to adjust.
+
+---
+
 ## Tips and Best Practices
 
 1. **Start small**: Test parameters on 10% of your data before running the full pipeline
@@ -470,10 +519,12 @@ The export includes a timestamp and all processing parameters, ensuring full rep
 4. **Check intermediate results**: Use the visualization steps (2f, 6b) to verify processing quality
 5. **Adjust for your data**: Default parameters work for most data, but your specific recording might need tweaks
 6. **When in doubt, oversegment**: It's easier to merge components later than to split them
-7. **Trust the parameter suggestions**: Steps 4a and 7d analyze your specific data to recommend settings
+7. **Use parameter suggestions as a starting point**: Steps 4a and 7d analyze your specific data to recommend settings — treat these as an informed hypothesis, not a prescription. Validate by inspecting the diagnostic plots at each stage.
 8. **Use temporal chunking in Step 8**: This dramatically reduces memory usage for long recordings
 9. **Export multiple formats**: Different downstream analyses may prefer different formats
 10. **Document your parameters**: The pipeline saves all parameters automatically for reproducibility
+11. **Inspect temporal signals, not just spatial maps**: The calcium traces are where the scientific signal lives. Spatial footprints are reference maps; don't over-interpret their exact shape.
+12. **Use a consistent parameter set across sessions**: If you use the same Step 8 parameters for all recordings in an experiment, you can compare raw traces directly without Z-scoring.
 
 ## Common Issues and Solutions
 
@@ -516,6 +567,14 @@ The export includes a timestamp and all processing parameters, ensuring full rep
 - Close other applications to free RAM
 - Consider using a machine with more memory
 
+### Step 4b not applying suggested parameters:
+- Deselect and reselect the "Apply Filter / Apply Search" option before running
+- Alternatively, load parameters from a JSON file to bypass this issue entirely
+
+### Spatial components look blocky or rectangular after Step 7f:
+- Reduce smoothing sigma or disable smoothing entirely
+- Step 7f can be re-run quickly without redoing the full Step 7e spatial update
+
 ## Interpreting Your Results
 
 After completing the pipeline, you'll have several key outputs:
@@ -524,11 +583,13 @@ After completing the pipeline, you'll have several key outputs:
 - **What they show**: The spatial footprint of each neuron
 - **What to look for**: Clear, contiguous regions roughly matching expected neuron size
 - **Red flags**: Highly fragmented components, components much larger than expected neurons
+- **Important caveat**: The spatial footprint shows where reliable fluorescence signal was detected, not the full anatomical extent of the neuron. Shape and size can be influenced by lens focal plane, expression heterogeneity, and local vasculature. Do not make morphological conclusions from these footprints.
 
 ### Temporal Components (C)
 - **What they show**: Denoised calcium traces for each neuron
 - **What to look for**: Clear calcium transients with good signal-to-noise ratio
 - **Red flags**: Flat traces, excessive noise, unrealistic dynamics
+- **This is the primary scientific output.** Spend more time evaluating trace quality than spatial map appearance.
 
 ### Spike Estimates (S)
 - **What they show**: Inferred spike times and amplitudes
@@ -594,6 +655,8 @@ def detect_line_splitting_frames(xarray_data):
 ```
 
 **When to use**: Enable this in Step 2a if you notice vertical lines or artifacts on the left edge of your videos.
+
+> **Note on output file behavior:** If no erroneous frames are detected, the `all_removed_frames.txt` log file will not be created. This is expected behavior — the absence of the file indicates no frames were removed, not that something went wrong.
 
 ### Batch Processing with Parameters
 The pipeline supports saving and loading parameter files for batch processing:
