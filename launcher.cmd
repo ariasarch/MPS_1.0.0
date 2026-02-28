@@ -184,11 +184,26 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo ==========================================
+echo Installing opencv
+echo Press any key to continue...
+echo ==========================================
+pause
+echo.
+
 echo Installing opencv-python-headless (no deps)...
 "%ENV_DIR%\python.exe" -m pip install --no-deps opencv-python-headless==4.2.0.34
 if errorlevel 1 (
-  echo [WARN] opencv install failed (continuing).
+  echo [ERROR] opencv install failed.
+  pause
+  exit /b 1
 )
+
+echo ==========================================
+echo opencv install complete. Next step: launching the GUI.
+echo Press any key to continue...
+echo ==========================================
+pause
 echo.
 
 rem ==========================================
