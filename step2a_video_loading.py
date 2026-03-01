@@ -547,6 +547,25 @@ class Step2aVideoLoading(ttk.Frame):
                     self.log(f"Saved corrupted files list to {corrupted_log_path}")
                 except Exception as e:
                     self.log(f"Failed to save corrupted files list: {str(e)}")
+
+                # Save corrupted files as txt to output directory (alongside all_removed_frames.txt)
+                output_dir = self.controller.state.get('dataset_output_path', '')
+                if output_dir and corrupted_files:
+                    corrupted_txt_path = os.path.join(output_dir, 'corrupted_files.txt')
+                    try:
+                        with open(corrupted_txt_path, 'w') as f:
+                            f.write(f"Total corrupted/unreadable files: {len(corrupted_files)}\n")
+                            f.write(f"NOTE: Frame counts for these files are unknown and must be determined manually.\n")
+                            f.write(f"{'='*60}\n\n")
+                            for cf in corrupted_files:
+                                f.write(f"File: {cf['filename']}\n")
+                                f.write(f"Path: {cf['full_path']}\n")
+                                f.write(f"Error: {cf['error']}\n")
+                                f.write(f"Timestamp: {cf['timestamp']}\n")
+                                f.write(f"\n")
+                        self.log(f"Saved corrupted files list to {corrupted_txt_path}")
+                    except Exception as e:
+                        self.log(f"Error saving corrupted files txt: {str(e)}")
             
             if not valid_arrays:
                 self.log("No valid videos found to process!")
@@ -632,7 +651,20 @@ class Step2aVideoLoading(ttk.Frame):
                         
                         # Update frame coordinates
                         step2a_varr = step2a_varr.assign_coords(frame=np.arange(step2a_varr.shape[0]))
-                        
+                        frame_index_map = np.setdiff1d(np.arange(total_frames), line_splitting_frames)
+                        frame_map_path = os.path.join(cache_path, 'frame_index_map.txt')
+                        try:
+                            with open(frame_map_path, 'w') as f:
+                                f.write(f"# Maps post-linesplit frame index -> original video frame index\n")
+                                f.write(f"Total original frames: {total_frames}\n")
+                                f.write(f"Frames after line splitting removal: {len(frame_index_map)}\n")
+                                f.write(f"Original indices kept: {frame_index_map.tolist()}")
+                            self.log(f"Saved frame index map to {frame_map_path}")
+                        except Exception as e:
+                            self.log(f"Error saving frame index map: {str(e)}")
+
+                        # Store in state for Step 2d to use directly
+                        self.controller.state['results']['step2a']['frame_index_map'] = frame_index_map
                         self.log(f"Removed line splitting frames. Shape changed from {original_shape} to {step2a_varr.shape}")
                     else:
                         self.log("No line splitting frames detected")
