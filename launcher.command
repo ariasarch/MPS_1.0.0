@@ -2,10 +2,10 @@
 # ==========================================
 # MPS Launcher (macOS .command)
 # - Creates/repairs a local conda env at ./env
-# - Prefers an explicit frozen spec (env_explicit_osx-64.txt / env_explicit_osx-arm64.txt) if present
+# - Prefers an explicit frozen spec from ./env_creation/
 # - Skips work if env already has required packages (import test + cv2 test)
 # - Logs to ./logs/launcher_YYYY-MM-DD_HH-MM-SS.log
-# - Launches newest GUI_PSS*.py via conda run, fallback to direct python
+# - Launches main.py via conda run, fallback to direct python
 # ==========================================
 
 set -euo pipefail
@@ -13,6 +13,7 @@ set -euo pipefail
 # --- paths & logging ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_DIR="${SCRIPT_DIR}/env"
+ENV_CREATION_DIR="${SCRIPT_DIR}/env_creation"
 LOGDIR="${SCRIPT_DIR}/logs"
 mkdir -p "${LOGDIR}"
 TS="$(date "+%Y-%m-%d_%H-%M-%S")"
@@ -22,16 +23,22 @@ log() { echo "$*"; printf "%s\n" "$*" >> "${LOGFILE}"; }
 err() { echo "[ERROR] $*" 1>&2; printf "%s\n" "[ERROR] $*" >> "${LOGFILE}"; }
 
 log "=== MPS Launcher (macOS) starting ==="
-log "Script dir: ${SCRIPT_DIR}"
-log "Env dir   : ${ENV_DIR}"
-log "Log file  : ${LOGFILE}"
+log "Script dir      : ${SCRIPT_DIR}"
+log "Env dir         : ${ENV_DIR}"
+log "Env creation dir: ${ENV_CREATION_DIR}"
+log "Log file        : ${LOGFILE}"
 
-# --- find newest GUI_PSS*.py ---
-GUI_FILE=""
-if ls "${SCRIPT_DIR}"/GUI_PSS*.py >/dev/null 2>&1; then
-  GUI_FILE="$(ls -t "${SCRIPT_DIR}"/GUI_PSS*.py | head -n 1)"
-else
-  err "No GUI file matching GUI_PSS*.py found in ${SCRIPT_DIR}"
+# --- check env_creation folder exists ---
+if [[ ! -d "${ENV_CREATION_DIR}" ]]; then
+  err "Missing env_creation folder: ${ENV_CREATION_DIR}"
+  read -r -p "Press Enter to exit..." _
+  exit 1
+fi
+
+# --- find main.py ---
+GUI_FILE="${SCRIPT_DIR}/main.py"
+if [[ ! -f "${GUI_FILE}" ]]; then
+  err "main.py not found in ${SCRIPT_DIR}"
   read -r -p "Press Enter to exit..." _
   exit 1
 fi
@@ -69,10 +76,10 @@ fi
 log "Conda exe : ${CONDA}"
 "${CONDA}" --version >> "${LOGFILE}" 2>&1 || true
 
-# --- prefer explicit frozen spec if present ---
-EXPLICIT_SPEC="${SCRIPT_DIR}/env_explicit_osx-64.txt"
-if [[ "$(uname -m)" == "arm64" && -f "${SCRIPT_DIR}/env_explicit_osx-arm64.txt" ]]; then
-  EXPLICIT_SPEC="${SCRIPT_DIR}/env_explicit_osx-arm64.txt"
+# --- prefer explicit frozen spec from env_creation folder ---
+EXPLICIT_SPEC="${ENV_CREATION_DIR}/env_explicit_osx-64.txt"
+if [[ "$(uname -m)" == "arm64" && -f "${ENV_CREATION_DIR}/env_explicit_osx-arm64.txt" ]]; then
+  EXPLICIT_SPEC="${ENV_CREATION_DIR}/env_explicit_osx-arm64.txt"
 fi
 log "Explicit spec: ${EXPLICIT_SPEC}"
 
@@ -159,7 +166,7 @@ else
       }
   fi
 
-  # ensure opencv wheel if we had to rebuild
+  # ensure opencv wheel if rebuilding
   log "Installing opencv-python-headless (no deps) via pip..."
   "${ENV_DIR}/bin/python" -m pip install --no-deps opencv-python-headless==4.2.0.34 >> "${LOGFILE}" 2>&1 || \
     log "[WARN] opencv-python-headless install failed (continuing)."

@@ -1,0 +1,32 @@
+Session log started: C:\Users\ariAccount\Desktop\MPS_1.0.0\logs\session_20260301_123434.log
+Registered button for Step1Setup
+Loaded Step1Setup
+Registered button for Step2aVideoLoading
+Loaded Step2aVideoLoading
+Registered button for Step2bProcessing
+Loaded Step2bProcessing
+Registered button for Step2cMotionEstimation
+Loaded Step2cMotionEstimation
+Registered button for Step2dErroneousFrames
+Loaded Step2dErroneousFrames
+Registered button for Step2eTransformation
+Loaded Step2eTransformation
+Registered button for Step2fValidation
+Loaded Step2fValidation
+Using placeholder for Step3aCropping: No module named 'utilities'
+Error loading application: name 'PlaceholderFrame' is not defined
+Unable to close Dask clients: module 'dask.distributed' has no attribute 'get_client_sync'
+
+=== AUTO-SAVING PARAMETERS ===
+Created cache directory: cache_data
+Parameter file path: cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results']
+Results keys: []
+Final parameter keys: []
+[DEBUG] Saving parameters with steps: []
+[DEBUG] Parameters saved to: cache_data\processing_parameters.json
+Parameters saved successfully: True
+Session log closed.

@@ -39,12 +39,21 @@ set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 
 set "ENV_DIR=%SCRIPT_DIR%env"
-set "SPEC_FILE=%SCRIPT_DIR%env_explicit_win-64.txt"
+set "ENV_CREATION_DIR=%SCRIPT_DIR%env_creation"
+set "SPEC_FILE=%ENV_CREATION_DIR%\env_explicit_win-64.txt"
 
-echo Script dir: %SCRIPT_DIR%
-echo Env dir   : %ENV_DIR%
-echo Spec file : %SPEC_FILE%
+echo Script dir      : %SCRIPT_DIR%
+echo Env dir         : %ENV_DIR%
+echo Env creation dir: %ENV_CREATION_DIR%
+echo Spec file       : %SPEC_FILE%
 echo.
+
+if not exist "%ENV_CREATION_DIR%" (
+  echo [ERROR] Missing env_creation folder:
+  echo         %ENV_CREATION_DIR%
+  pause
+  exit /b 1
+)
 
 if not exist "%SPEC_FILE%" (
   echo [ERROR] Missing explicit spec file:
@@ -54,16 +63,15 @@ if not exist "%SPEC_FILE%" (
 )
 
 rem -------------------------------
-rem Find newest GUI_PSS*.py
+rem Find main.py
 rem -------------------------------
 set "GUI_FILE="
-for /f "delims=" %%F in ('dir /b /a:-d /o:-d "%SCRIPT_DIR%GUI_PSS*.py" 2^>nul') do (
-  set "GUI_FILE=%SCRIPT_DIR%%%F"
-  goto :found_gui
+if exist "%SCRIPT_DIR%main.py" (
+  set "GUI_FILE=%SCRIPT_DIR%main.py"
 )
-:found_gui
+
 if not defined GUI_FILE (
-  echo [ERROR] No GUI file matching GUI_PSS*.py found in:
+  echo [ERROR] main.py not found in:
   echo         %SCRIPT_DIR%
   pause
   exit /b 1

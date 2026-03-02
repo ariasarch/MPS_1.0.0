@@ -1,0 +1,694 @@
+Session log started: C:\Users\ariAccount\Desktop\MPS_1.0.0\logs\session_20260301_131931.log
+Registered button for Step1Setup
+Loaded Step1Setup
+Registered button for Step2aVideoLoading
+Loaded Step2aVideoLoading
+Registered button for Step2bProcessing
+Loaded Step2bProcessing
+Registered button for Step2cMotionEstimation
+Loaded Step2cMotionEstimation
+Registered button for Step2dErroneousFrames
+Loaded Step2dErroneousFrames
+Registered button for Step2eTransformation
+Loaded Step2eTransformation
+Registered button for Step2fValidation
+Loaded Step2fValidation
+Registered button for Step3aCropping
+Loaded Step3aCropping
+Registered button for Step3bNNDSVD
+Loaded Step3bNNDSVD
+Registered button for Step3cSVDAnalysis
+Loaded Step3cSVDAnalysis
+Registered button for Step4aWatershedSearch
+Loaded Step4aWatershedSearch
+Registered button for Step4bWatershedSegmentation
+Loaded Step4bWatershedSegmentation
+Registered button for Step4cMergingUnits
+Loaded Step4cMergingUnits
+Registered button for Step4dTemporalSignals
+Loaded Step4dTemporalSignals
+Registered button for Step4eACInitialization
+Loaded Step4eACInitialization
+Registered button for Step4fDroppingNans
+Loaded Step4fDroppingNans
+Registered button for Step4gTemporalMerging
+Loaded Step4gTemporalMerging
+Registered button for Step5aNoiseEstimation
+Loaded Step5aNoiseEstimation
+Registered button for Step5bValidationSetup
+Loaded Step5bValidationSetup
+Registered button for Step6aYRAComputation
+Loaded Step6aYRAComputation
+Registered button for Step6bValidateYRA
+Loaded Step6bValidateYRA
+Registered button for Step6cParameterSuggestion
+Loaded Step6cParameterSuggestion
+Registered button for Step6dUpdateTemporal
+Loaded Step6dUpdateTemporal
+Registered button for Step6eFilterValidate
+Loaded Step6eFilterValidate
+Registered button for Step7aDilation
+Loaded Step7aDilation
+Registered button for Step7bKDTree
+Loaded Step7bKDTree
+Registered button for Step7cBounds
+Loaded Step7cBounds
+Registered button for Step7dParameterSuggestions
+Loaded Step7dParameterSuggestions
+Registered button for Step7eSpatialUpdate
+Loaded Step7eSpatialUpdate
+Registered button for Step7fMergingValidation
+Loaded Step7fMergingValidation
+Registered button for Step8aYRAComputation
+Loaded Step8aYRAComputation
+Registered button for Step8bFinalTemporalUpdate
+Loaded Step8bFinalTemporalUpdate
+Registered button for Step8cFilterSave
+Loaded Step8cFilterSave
+
+--- DEBUG: Starting data loading process ---
+Cache path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data
+Animal ID: 9999, Session ID: 1
+Output directory: C:/Users/ariAccount/Desktop
+Created/verified dataset output path: C:/Users/ariAccount/Desktop\9999_1_Processed
+Initializing Dask cluster with 8 workers and 200GB memory limit
+Dask Dashboard available at: http://127.0.0.1:8787/status
+
+--- DEBUG: Attempting to load selected zarr files ---
+Loaded processing_parameters from json
+Also stored processing_parameters at top level
+Loaded step2a_chunking_info from json
+Also stored step2a_chunking_info at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step2a_varr.zarr', trying Dataset...
+Loaded step2a_varr from zarr
+Stored step2a_varr in nested format under step2a_varr
+Also stored step2a_varr at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step2b_varr_ref.zarr', trying Dataset...
+Loaded step2b_varr_ref from zarr
+Stored step2b_varr_ref in nested format under step2b
+Also stored step2b_varr_ref at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step2c_motion.zarr', trying Dataset...
+Loaded step2c_motion from zarr
+Stored step2c_motion in nested format under step2c
+Also stored step2c_motion at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step2e_Y.zarr', trying Dataset...
+Loaded step2e_Y from zarr
+Stored step2e_Y only at top level (no mapping)
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step2e_Y_fm_chk.zarr', trying Dataset...
+Loaded step2e_Y_fm_chk from zarr
+Stored step2e_Y_fm_chk in nested format under step2e
+Also stored step2e_Y_fm_chk at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step2e_Y_hw_chk.zarr', trying Dataset...
+Loaded step2e_Y_hw_chk from zarr
+Stored step2e_Y_hw_chk in nested format under step2e
+Also stored step2e_Y_hw_chk at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3a_Y_fm_cropped.zarr', trying Dataset...
+Loaded step3a_Y_fm_cropped from zarr
+Stored step3a_Y_fm_cropped in nested format under step3a
+Also stored step3a_Y_fm_cropped at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3a_Y_hw_cropped.zarr', trying Dataset...
+Loaded step3a_Y_hw_cropped from zarr
+Stored step3a_Y_hw_cropped in nested format under step3a
+Also stored step3a_Y_hw_cropped at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3b_A.zarr', trying Dataset...
+Loaded step3b_A from zarr
+Stored step3b_A in nested format under step3b
+Also stored step3b_A at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3b_A_init.zarr', trying Dataset...
+Loaded step3b_A_init from zarr
+Stored step3b_A_init in nested format under step3b
+Also stored step3b_A_init at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3b_b.zarr', trying Dataset...
+Loaded step3b_b from zarr
+Stored step3b_b in nested format under step3b
+Also stored step3b_b at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3b_C.zarr', trying Dataset...
+Loaded step3b_C from zarr
+Stored step3b_C in nested format under step3b
+Also stored step3b_C at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3b_C_init.zarr', trying Dataset...
+Loaded step3b_C_init from zarr
+Stored step3b_C_init in nested format under step3b
+Also stored step3b_C_init at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step3b_f.zarr', trying Dataset...
+Loaded step3b_f from zarr
+Stored step3b_f in nested format under step3b
+Also stored step3b_f at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4c_merged_components.zarr', trying Dataset...
+Loaded step4c_merged_components from zarr
+Stored step4c_merged_components in nested format under step4c
+Also stored step4c_merged_components at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4d_temporal_components_signals.zarr', trying Dataset...
+Loaded step4d_temporal_components_signals from zarr
+Stored step4d_temporal_components_signals in nested format under step4d
+Also stored step4d_temporal_components_signals at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4d_temporal_components_spatial.zarr', trying Dataset...
+Loaded step4d_temporal_components_spatial from zarr
+Stored step4d_temporal_components_spatial in nested format under step4d
+Also stored step4d_temporal_components_spatial at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4e_A_pre_CNMF.zarr', trying Dataset...
+Loaded step4e_A_pre_CNMF from zarr
+Stored step4e_A_pre_CNMF in nested format under step4e
+Also stored step4e_A_pre_CNMF at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4e_C_pre_CNMF.zarr', trying Dataset...
+Loaded step4e_C_pre_CNMF from zarr
+Stored step4e_C_pre_CNMF in nested format under step4e
+Also stored step4e_C_pre_CNMF at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4f_A_clean.zarr', trying Dataset...
+Loaded step4f_A_clean from zarr
+Stored step4f_A_clean in nested format under step4f
+Also stored step4f_A_clean at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4f_C_clean.zarr', trying Dataset...
+Loaded step4f_C_clean from zarr
+Stored step4f_C_clean in nested format under step4f
+Also stored step4f_C_clean at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4g_A_merged.zarr', trying Dataset...
+Loaded step4g_A_merged from zarr
+Stored step4g_A_merged in nested format under step4g
+Also stored step4g_A_merged at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step4g_C_merged.zarr', trying Dataset...
+Loaded step4g_C_merged from zarr
+Stored step4g_C_merged in nested format under step4g
+Also stored step4g_C_merged at top level
+Loaded step5a_sn_spatial from npy
+Also stored step5a_sn_spatial at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step5b_A_filtered.zarr', trying Dataset...
+Loaded step5b_A_filtered from zarr
+Stored step5b_A_filtered in nested format under step5b
+Also stored step5b_A_filtered at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step5b_C_filtered.zarr', trying Dataset...
+Loaded step5b_C_filtered from zarr
+Stored step5b_C_filtered in nested format under step5b
+Also stored step5b_C_filtered at top level
+Error loading as DataArray: [Errno 13] Permission denied: 'C:\\Users\\ariAccount\\Desktop\\9999_1_Processed\\cache_data\\step6a_YrA.zarr', trying Dataset...
+Loaded step6a_YrA from zarr
+Stored step6a_YrA in nested format under step6a
+Also stored step6a_YrA at top level
+
+--- DEBUG: Looking for additional JSON and NumPy files ---
+
+--- DEBUG: Checking if SVD results need to be loaded ---
+SVD results directory not found at: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\svd_results
+
+--- DEBUG: Looking for cluster and boundary data ---
+
+=== DEBUG: Marking steps completed through 'Step6bValidateYRA' ===
+Target step index: 20 (0-based)
+After marking, state['results'] keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b']
+Navigating to next step: Step6cParameterSuggestion
+C:\Users\ariAccount\Desktop\MPS_1.0.0\steps\step6c_parameter_suggestion.py:918: UserWarning: tight_layout: falling back to Agg renderer
+  fig.tight_layout()
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+C:\Users\ariAccount\Desktop\MPS_1.0.0\env\lib\site-packages\distributed\node.py:151: UserWarning: Port 8787 is already in use.
+Perhaps you already have a cluster running?
+Hosting the HTTP server on port 60674 instead
+  warnings.warn(
+
+==== CHUNK COMPONENTS ANALYSIS ====
+Chunk 0: Frame range 0-1200
+  Found 103 components with IDs: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102]
+  g shape: (103, 1)
+==================================
+
+Initializing g_merged with proper shape: (103, 1)
+Initialized g_merged with shape: (103, 1)
+
+Processing chunk 0 (frames 0-1200)
+  Original chunk has 103 components with shape (1200, 103)
+  g shape before padding: (103, 1)
+  No padding needed, ensuring consistent coordinates
+  Using original arrays with shapes: C=(1200, 103), g=(103, 1)
+Adding g values for chunk 0 (frame range 0-1200)
+  g shape: (103, 1), g_merged shape: (103, 1)
+C:\Users\ariAccount\Desktop\MPS_1.0.0\steps\step6d_update_temporal.py:1043: UserWarning: tight_layout: falling back to Agg renderer
+  fig.tight_layout()
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+C:\Users\ariAccount\Desktop\MPS_1.0.0\steps\step7c_bounds.py:1113: UserWarning: tight_layout: falling back to Agg renderer
+  fig.tight_layout(rect=[0, 0.05, 1, 0.95], pad=0.5)
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+Using 5000 raw data points for histogram
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+Found step3a_Y_hw_cropped in step3a results
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth', 'step8a', 'step8a_YrA_updated']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth', 'step8a', 'step8a_YrA_updated']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+C:\Users\ariAccount\Desktop\MPS_1.0.0\env\lib\site-packages\distributed\node.py:151: UserWarning: Port 8787 is already in use.
+Perhaps you already have a cluster running?
+Hosting the HTTP server on port 61330 instead
+  warnings.warn(
+
+==== CHUNK COMPONENTS ANALYSIS ====
+Chunk 0: Frame range 0-1200
+  Found 101 components with IDs: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 93, 95, 96, 97, 98, 99, 100, 101, 102]
+  g shape: (101, 1)
+==================================
+
+Initializing g_merged with proper shape: (101, 1)
+Initialized g_merged with shape: (101, 1)
+
+Processing chunk 0 (frames 0-1200)
+  Original chunk has 101 components with shape (1200, 101)
+  g shape before padding: (101, 1)
+  No padding needed, ensuring consistent coordinates
+  Standardizing unit_id coordinates to range(max_units)
+  WARNING: Unit ID 101 not in target mapping!
+  WARNING: Unit ID 102 not in target mapping!
+  Created standardized arrays with shapes: C=(1200, 101), g=(101, 1)
+Adding g values for chunk 0 (frame range 0-1200)
+  g shape: (101, 1), g_merged shape: (101, 1)
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth', 'step8a', 'step8a_YrA_updated', 'step8b', 'step8b_C_final', 'step8b_S_final']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation', 'step8b_final_temporal_update']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation', 'step8b_final_temporal_update']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+[processing detection] No active processing threads detected
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth', 'step8a', 'step8a_YrA_updated', 'step8b', 'step8b_C_final', 'step8b_S_final']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation', 'step8b_final_temporal_update']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation', 'step8b_final_temporal_update']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True
+
+=== AUTO-SAVING PARAMETERS ===
+Parameter file path: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+[DEBUG] Successfully loaded existing parameters from: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+
+==== START: Parameter Extraction ====
+Controller type: <class '__main__.MainApplication'>
+Controller state keys: ['input_dir', 'output_dir', 'animal', 'session', 'results', 'session_log_path', 'dataset_output_path', 'cache_path', 'n_workers', 'memory_limit', 'initialized', 'dask_dashboard_url']
+Results keys: ['processing_parameters', 'step2a_chunking_info', 'step2a_varr', 'step2b', 'step2b_varr_ref', 'step2c', 'step2c_motion', 'step2e_Y', 'step2e', 'step2e_Y_fm_chk', 'step2e_Y_hw_chk', 'step3a', 'step3a_Y_fm_cropped', 'step3a_Y_hw_cropped', 'step3b', 'step3b_A', 'step3b_A_init', 'step3b_b', 'step3b_C', 'step3b_C_init', 'step3b_f', 'step4c', 'step4c_merged_components', 'step4d', 'step4d_temporal_components_signals', 'step4d_temporal_components_spatial', 'step4e', 'step4e_A_pre_CNMF', 'step4e_C_pre_CNMF', 'step4f', 'step4f_A_clean', 'step4f_C_clean', 'step4g', 'step4g_A_merged', 'step4g_C_merged', 'step5a_sn_spatial', 'step5b', 'step5b_A_filtered', 'step5b_C_filtered', 'step6a', 'step6a_YrA', 'step1_setup', 'step1', 'step2a_video_loading', 'step2a', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2d', 'step2e_transformation', 'step2f_validation', 'step2f', 'step3a_cropping', 'step3b_svd', 'step3c_svd_analysis', 'step3c', 'step4a_watershed_search', 'step4a', 'step4b_watershed_segmentation', 'step4b', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5a', 'step5b_validation_setup', 'step6a_yra_computation', 'step6b_validate_yra', 'step6b', 'step6c', 'step6d', 'step6d_C_new', 'step6d_S_new', 'step6d_g_new', 'step6e', 'step6d_C_filtered', 'step6d_S_filtered', 'step6d_A_filtered', 'step6e_C_filtered', 'step6e_S_filtered', 'step6e_A_filtered', 'step7a', 'step7a_A_dilated', 'step7b', 'step7b_clusters', 'step7b_component_valid_mask', 'step7c', 'step7c_cluster_bounds', 'step7c_boundary_stats', 'step7d', 'step7e', 'step7e_A_updated', 'step7f', 'step7f_A_merged', 'step7f_A_merged_raw', 'step7f_A_merged_smooth', 'step8a', 'step8a_YrA_updated', 'step8b', 'step8b_C_final', 'step8b_S_final', 'step8c', 'step8c_A_final', 'step8c_C_final', 'step8c_S_final', 'step8c_export_info']
+Final parameter keys: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation', 'step8b_final_temporal_update', 'step8b_filter_export']
+[DEBUG] Preserving existing value for step4c_merging_units.cross_merge: True (would be False)
+[DEBUG] Preserving existing value for step6a_yra_computation.computation_time: 5.802294492721558 (would be 0.0)
+[DEBUG] Preserving existing value for step7f_merging_validation.apply_smoothing: True (would be False)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_components_retained: 101 (would be 0)
+[DEBUG] Preserving existing value for step7f_merging_validation.smooth_percent_filtered: 1.9417475728155338 (would be 0.0)
+[DEBUG] Saving parameters with steps: ['step1_setup', 'step2a_video_loading', 'step2b_processing', 'step2c_motion_estimation', 'step2d_erroneous_frames', 'step2e_transformation', 'step3a_cropping', 'step3b_svd', 'step4a_watershed_search', 'step4b_watershed_segmentation', 'step4c_merging_units', 'step4d_temporal_signals', 'step4e_ac_initialization', 'step4f_dropping_nans', 'step4g_temporal_merging', 'step5a_noise_estimation', 'step5b_validation_setup', 'step6a_yra_computation', 'step6c_parameter_suggestion', 'step6d_temporal_update', 'step6e_filter_validate', 'step7a_dilate', 'step7b_cluster', 'step7c_bounds', 'step7d_parameter_suggestions', 'step7e_spatial_update', 'step7f_merging_validation', 'step8a_yra_computation', 'step8b_final_temporal_update', 'step8b_filter_export']
+[DEBUG] Parameters saved to: C:/Users/ariAccount/Desktop/9999_1_Processed\cache_data\processing_parameters.json
+Parameters saved successfully: True

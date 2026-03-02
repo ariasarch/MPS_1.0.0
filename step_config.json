@@ -1,0 +1,682 @@
+{
+  "step_modules": [
+    "step1_setup",
+    "step2a_video_loading",
+    "step2b_processing",
+    "step2c_motion_estimation",
+    "step2d_erroneous_frames",
+    "step2e_transformation",
+    "step2f_validation",
+    "step3a_cropping",
+    "step3b_svd",
+    "step3c_svd_analysis",
+    "step4a_watershed_search",
+    "step4b_watershed_segmentation",
+    "step4c_merging_units",
+    "step4d_temporal_signals",
+    "step4e_ac_initialization",
+    "step4f_dropping_nans",
+    "step4g_temporal_merging",
+    "step5a_noise_estimation",
+    "step5b_validation_setup",
+    "step6a_yra_computation",
+    "step6b_validate_yra",
+    "step6c_parameter_suggestion",
+    "step6d_update_temporal",
+    "step6e_filter_validate",
+    "step7a_dilation",
+    "step7b_kdtree",
+    "step7c_bounds",
+    "step7d_parameter_suggestions",
+    "step7e_spatial_update",
+    "step7f_merging_validation",
+    "step8a_yra_computation",
+    "step8b_final_temporal_update",
+    "step8c_filter_and_save"
+  ],
+  "step_classes": [
+    "Step1Setup",
+    "Step2aVideoLoading",
+    "Step2bProcessing",
+    "Step2cMotionEstimation",
+    "Step2dErroneousFrames",
+    "Step2eTransformation",
+    "Step2fValidation",
+    "Step3aCropping",
+    "Step3bNNDSVD",
+    "Step3cSVDAnalysis",
+    "Step4aWatershedSearch",
+    "Step4bWatershedSegmentation",
+    "Step4cMergingUnits",
+    "Step4dTemporalSignals",
+    "Step4eACInitialization",
+    "Step4fDroppingNans",
+    "Step4gTemporalMerging",
+    "Step5aNoiseEstimation",
+    "Step5bValidationSetup",
+    "Step6aYRAComputation",
+    "Step6bValidateYRA",
+    "Step6cParameterSuggestion",
+    "Step6dUpdateTemporal",
+    "Step6eFilterValidate",
+    "Step7aDilation",
+    "Step7bKDTree",
+    "Step7cBounds",
+    "Step7dParameterSuggestions",
+    "Step7eSpatialUpdate",
+    "Step7fMergingValidation",
+    "Step8aYRAComputation",
+    "Step8bFinalTemporalUpdate",
+    "Step8cFilterSave"
+  ],
+  "step_button_names": {
+    "Step1Setup": "initialize_button",
+    "Step2aVideoLoading": "load_button",
+    "Step2bProcessing": "run_button",
+    "Step2cMotionEstimation": "run_button",
+    "Step2dErroneousFrames": "run_button",
+    "Step2eTransformation": "run_button",
+    "Step2fValidation": "run_button",
+    "Step3aCropping": "crop_button",
+    "Step3bNNDSVD": "run_button",
+    "Step3cSVDAnalysis": "analyze_button",
+    "Step4aWatershedSearch": "run_button",
+    "Step4bWatershedSegmentation": "run_button",
+    "Step4cMergingUnits": "run_button",
+    "Step4dTemporalSignals": "run_button",
+    "Step4eACInitialization": "run_button",
+    "Step4fDroppingNans": "run_button",
+    "Step4gTemporalMerging": "run_button",
+    "Step5aNoiseEstimation": "run_button",
+    "Step5bValidationSetup": "run_button",
+    "Step6aYRAComputation": "run_button",
+    "Step6bValidateYRA": "run_button",
+    "Step6cParameterSuggestion": "run_button",
+    "Step6dUpdateTemporal": "run_button",
+    "Step6eFilterValidate": "run_button",
+    "Step7aDilation": "run_button",
+    "Step7bKDTree": "run_button",
+    "Step7cBounds": "run_button",
+    "Step7dParameterSuggestions": "run_button",
+    "Step7eSpatialUpdate": "run_button",
+    "Step7fMergingValidation": "run_button",
+    "Step8aYRAComputation": "run_button",
+    "Step8bFinalTemporalUpdate": "run_button",
+    "Step8cFilterSave": "run_button"
+  },
+  "step_parameters": {
+    "Step1Setup": ["n_workers", "memory_limit", "video_percent"],
+    "Step2aVideoLoading": ["pattern", "downsample", "downsample_strategy", "video_percent"],
+    "Step2bProcessing": ["denoise_method", "ksize", "bg_method", "wnd"],
+    "Step2cMotionEstimation": ["dim"],
+    "Step2dErroneousFrames": ["threshold_factor", "drop_frames"],
+    "Step2eTransformation": ["fill_value"],
+    "Step3aCropping": ["center_radius_factor", "y_offset", "x_offset"],
+    "Step3bNNDSVD": ["n_components", "n_power_iter", "sparsity_threshold"],
+    "Step4aWatershedSearch": ["min_distance", "threshold_rel", "sigma"],
+    "Step4bWatershedSegmentation": ["min_distance", "threshold_rel", "sigma", "min_size"],
+    "Step4cMergingUnits": ["distance_threshold", "size_ratio_threshold", "min_size", "cross_merge"],
+    "Step4dTemporalSignals": ["batch_size", "frame_chunk_size", "component_limit", "clear_cache", "memory_efficient"],
+    "Step4eACInitialization": ["spatial_norm", "min_size", "max_components", "skip_bg", "check_nan"],
+    "Step4fDroppingNans": [],
+    "Step4gTemporalMerging": ["temporal_corr_threshold", "spatial_overlap_threshold", "input_type", "max_components"],
+    "Step5aNoiseEstimation": ["noise_scale", "smoothing_sigma", "bg_threshold", "custom_threshold"],
+    "Step5bValidationSetup": ["input_type", "check_nan", "compute_stats", "min_size", "max_size", "apply_filtering"],
+    "Step6aYRAComputation": ["component_source", "subtract_bg", "use_float32", "fix_nans"],
+    "Step6bValidateYRA": [],
+    "Step6cParameterSuggestion": ["n_components", "n_frames", "component_source", "optimize_memory", "selection_method"],
+    "Step6dUpdateTemporal": ["p", "sparse_penal", "max_iters", "zero_thres", "normalize", "component_source"],
+    "Step6eFilterValidate": ["min_spike_sum", "min_c_var", "min_spatial_sum", "component_source"],
+    "Step7aDilation": ["window_size", "threshold"],
+    "Step7bKDTree": ["max_cluster_size", "min_area", "min_intensity", "overlap_threshold", "data_source"],
+    "Step7cBounds": ["dilation_radius", "padding", "min_size", "intensity_threshold"],
+    "Step7dParameterSuggestions": ["n_frames", "component_source", "sample_size"],
+    "Step7eSpatialUpdate": ["n_frames", "min_penalty", "max_penalty", "num_penalties", "min_std"],
+    "Step7fMergingValidation": ["apply_smoothing", "sigma", "handle_overlaps", "min_size"],
+    "Step8aYRAComputation": ["spatial_source", "temporal_source", "subtract_bg", "use_float32", "fix_nans"],
+    "Step8bFinalTemporalUpdate": ["p", "sparse_penal", "max_iters", "zero_thres", "normalize", "spatial_source"],
+    "Step8cFilterSave": ["min_size", "min_snr", "min_corr"]
+  },
+  "step_param_key_map": {
+    "Step1Setup": "step1_setup",
+    "Step2aVideoLoading": "step2a_video_loading",
+    "Step2bProcessing": "step2b_processing",
+    "Step2cMotionEstimation": "step2c_motion_estimation",
+    "Step2dErroneousFrames": "step2d_erroneous_frames",
+    "Step2eTransformation": "step2e_transformation",
+    "Step2fValidation": "step2f_validation",
+    "Step3aCropping": "step3a_cropping",
+    "Step3bNNDSVD": "step3b_svd",
+    "Step3cSVDAnalysis": "step3c_svd_analysis",
+    "Step4aWatershedSearch": "step4a_watershed_search",
+    "Step4bWatershedSegmentation": "step4b_watershed_segmentation",
+    "Step4cMergingUnits": "step4c_merging_units",
+    "Step4dTemporalSignals": "step4d_temporal_signals",
+    "Step4eACInitialization": "step4e_ac_initialization",
+    "Step4fDroppingNans": "step4f_dropping_nans",
+    "Step4gTemporalMerging": "step4g_temporal_merging",
+    "Step5aNoiseEstimation": "step5a_noise_estimation",
+    "Step5bValidationSetup": "step5b_validation_setup",
+    "Step6aYRAComputation": "step6a_yra_computation",
+    "Step6bValidateYRA": "step6b_validate_yra",
+    "Step6cParameterSuggestion": "step6c_parameter_suggestion",
+    "Step6dUpdateTemporal": "step6d_temporal_update",
+    "Step6eFilterValidate": "step6e_filter_validate",
+    "Step7aDilation": "step7a_dilate",
+    "Step7bKDTree": "step7b_cluster",
+    "Step7cBounds": "step7c_bounds",
+    "Step7dParameterSuggestions": "step7d_parameter_suggestions",
+    "Step7eSpatialUpdate": "step7e_spatial_update",
+    "Step7fMergingValidation": "step7f_merging_validation",
+    "Step8aYRAComputation": "step8a_yra_computation",
+    "Step8bFinalTemporalUpdate": "step8b_final_temporal_update",
+    "Step8cFilterSave": "step8c_filter_export"
+  },
+  "step_schema": {
+    "step1_setup": {
+      "results_key": null,
+      "presence_check": "state_key",
+      "state_presence_key": "n_workers",
+      "params_subkey": null,
+      "fields": {
+        "n_workers":            {"source": "state", "default": 8},
+        "memory_limit":         {"source": "state", "default": "200GB"},
+        "video_percent":        {"source": "state", "default": 100},
+        "cache_path":           {"source": "state", "default": ""},
+        "dataset_output_path":  {"source": "state", "default": ""}
+      }
+    },
+    "step2a_video_loading": {
+      "results_key": "step2a",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "pattern":             {"source": "state", "default": ".*\\.avi$"},
+        "downsample":          {"source": "special", "special": "downsample_params"},
+        "downsample_strategy": {"source": "state",  "default": "subset"},
+        "video_percent":       {"source": "state",  "default": 100}
+      }
+    },
+    "step2b_processing": {
+      "results_key": "step2b",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "denoise_method": {"source": "results", "default": "median"},
+        "ksize":          {"source": "results", "default": 7},
+        "bg_method":      {"source": "results", "default": "tophat"},
+        "wnd":            {"source": "results", "default": 15}
+      }
+    },
+    "step2c_motion_estimation": {
+      "results_key": "step2c",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "dim": {"source": "results", "default": "frame"}
+      }
+    },
+    "step2d_erroneous_frames": {
+      "results_key": "step2d",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "threshold_factor": {"source": "results", "default": 5.0},
+        "drop_frames":      {"source": "results", "default": true}
+      }
+    },
+    "step2e_transformation": {
+      "results_key": "step2e",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "fill_value": {"source": "results", "default": 0.0}
+      }
+    },
+    "step3a_cropping": {
+      "results_key": "step3a",
+      "presence_check": "results_key",
+      "params_subkey": "crop_info",
+      "fields": {
+        "center_radius_factor": {"source": "subkey", "default": 0.75},
+        "y_offset":             {"source": "subkey", "default": 0},
+        "x_offset":             {"source": "subkey", "default": 0}
+      }
+    },
+    "step3b_svd": {
+      "results_key": "step3b",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "n_components":       {"source": "special", "special": "svd_n_components"},
+        "n_power_iter":       {"source": "literal",  "default": 5},
+        "sparsity_threshold": {"source": "literal",  "default": 0.05}
+      }
+    },
+    "step4a_watershed_search": {
+      "results_key": "step4a",
+      "presence_check": "results_key",
+      "params_subkey": "watershed_params",
+      "fields": {
+        "min_distance":   {"source": "subkey", "default": 10},
+        "threshold_rel":  {"source": "subkey", "default": 0.1},
+        "sigma":          {"source": "subkey", "default": 1.0}
+      }
+    },
+    "step4b_watershed_segmentation": {
+      "results_key": "step4b",
+      "presence_check": "results_key",
+      "params_subkey": "segmentation_params",
+      "fields": {
+        "min_distance":  {"source": "subkey", "default": 20},
+        "threshold_rel": {"source": "subkey", "default": 0.2},
+        "sigma":         {"source": "subkey", "default": 2.0},
+        "min_size":      {"source": "subkey", "default": 10}
+      }
+    },
+    "step4c_merging_units": {
+      "results_key": "step4c",
+      "presence_check": "results_key",
+      "params_subkey": "merging_params",
+      "fields": {
+        "distance_threshold":  {"source": "subkey", "default": 25.0},
+        "size_ratio_threshold":{"source": "subkey", "default": 5.0},
+        "min_size":            {"source": "subkey", "default": 9},
+        "max_size":            {"source": "subkey", "default": 5000},
+        "cross_merge":         {"source": "subkey", "default": false}
+      }
+    },
+    "step4d_temporal_signals": {
+      "results_key": "step4d",
+      "presence_check": "results_key",
+      "params_subkey": "extraction_params",
+      "fields": {
+        "batch_size":        {"source": "subkey", "default": 10},
+        "frame_chunk_size":  {"source": "subkey", "default": 10000},
+        "component_limit":   {"source": "subkey", "default": 0},
+        "clear_cache":       {"source": "subkey", "default": true},
+        "memory_efficient":  {"source": "subkey", "default": true}
+      }
+    },
+    "step4e_ac_initialization": {
+      "results_key": "step4e",
+      "presence_check": "results_key",
+      "params_subkey": "initialization_params",
+      "fields": {
+        "spatial_norm":    {"source": "subkey", "default": "max"},
+        "min_size":        {"source": "subkey", "default": 10},
+        "max_components":  {"source": "subkey", "default": 0},
+        "skip_bg":         {"source": "subkey", "default": true},
+        "check_nan":       {"source": "subkey", "default": true}
+      }
+    },
+    "step4f_dropping_nans": {
+      "results_key": "step4f",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "n_units_initial": {"source": "results", "default": 0},
+        "n_units_final":   {"source": "results", "default": 0},
+        "n_removed":       {"source": "results", "default": 0}
+      }
+    },
+    "step4g_temporal_merging": {
+      "results_key": "step4g",
+      "presence_check": "results_key",
+      "params_subkey": "merging_params",
+      "fields": {
+        "temporal_corr_threshold":  {"source": "subkey", "default": 0.75},
+        "spatial_overlap_threshold":{"source": "subkey", "default": 0.3},
+        "max_size":                 {"source": "subkey", "default": 5000},
+        "input_type":               {"source": "subkey", "default": "clean"},
+        "max_components":           {"source": "subkey", "default": 0}
+      }
+    },
+    "step5a_noise_estimation": {
+      "results_key": "step5a",
+      "presence_check": "results_key",
+      "params_subkey": "noise_params",
+      "fields": {
+        "noise_scale":      {"source": "subkey", "default": 1.5},
+        "smoothing_sigma":  {"source": "subkey", "default": 1.0},
+        "bg_threshold":     {"source": "subkey", "default": "mean"},
+        "custom_threshold": {"source": "subkey", "default": 0.0}
+      }
+    },
+    "step5b_validation_setup": {
+      "results_key": "step5b",
+      "presence_check": "results_key",
+      "params_subkey": "validation_params",
+      "fields": {
+        "input_type":      {"source": "subkey", "default": "merged"},
+        "check_nan":       {"source": "subkey", "default": true},
+        "compute_stats":   {"source": "subkey", "default": true},
+        "min_size":        {"source": "subkey", "default": 10},
+        "max_size":        {"source": "subkey", "default": 1000},
+        "apply_filtering": {"source": "subkey", "default": false}
+      }
+    },
+    "step6a_yra_computation": {
+      "results_key": "step6a",
+      "presence_check": "results_key",
+      "params_subkey": "yra_computation_params",
+      "fields": {
+        "component_source": {"source": "subkey", "default": "merged"},
+        "subtract_bg":      {"source": "subkey", "default": true},
+        "use_float32":      {"source": "subkey", "default": true},
+        "fix_nans":         {"source": "subkey", "default": true},
+        "computation_time": {"source": "subkey", "default": 0.0}
+      }
+    },
+    "step6c_parameter_suggestion": {
+      "results_key": "step6c",
+      "presence_check": "results_key",
+      "params_subkey": "parameter_suggestion_params",
+      "fields": {
+        "n_components":       {"source": "subkey", "default": 20},
+        "n_frames":           {"source": "subkey", "default": 5000},
+        "component_source":   {"source": "subkey", "default": "merged"},
+        "optimize_memory":    {"source": "subkey", "default": true},
+        "selection_method":   {"source": "subkey", "default": "random"},
+        "ar_order_p":         {"source": "special", "special": "step6c_ar_order_p"},
+        "max_iterations":     {"source": "special", "special": "step6c_max_iterations"},
+        "sparse_penalty_balanced":  {"source": "special", "special": "step6c_sparse_penalty_balanced"},
+        "zero_threshold_balanced":  {"source": "special", "special": "step6c_zero_threshold_balanced"},
+        "snr_median":               {"source": "special", "special": "step6c_snr_median"},
+        "temporal_complexity":      {"source": "special", "special": "step6c_temporal_complexity"}
+      }
+    },
+    "step6d_temporal_update": {
+      "results_key": "step6d",
+      "presence_check": "results_key",
+      "params_subkey": "params",
+      "fields": {
+        "p":                 {"source": "subkey",  "default": 2},
+        "sparse_penal":      {"source": "subkey",  "default": 0.01},
+        "max_iters":         {"source": "subkey",  "default": 500},
+        "zero_thres":        {"source": "subkey",  "default": 0.0005},
+        "normalize":         {"source": "subkey",  "default": true},
+        "component_source":  {"source": "results", "default": "merged"},
+        "processing_time":   {"source": "results", "default": 0.0}
+      }
+    },
+    "step6e_filter_validate": {
+      "results_key": "step6e",
+      "presence_check": "results_key",
+      "params_subkey": "thresholds",
+      "fields": {
+        "min_spike_sum":    {"source": "subkey",  "default": 1e-6},
+        "min_c_var":        {"source": "subkey",  "default": 1e-6},
+        "min_spatial_sum":  {"source": "subkey",  "default": 1e-6},
+        "component_source": {"source": "results", "default": "merged"},
+        "n_initial":        {"source": "special", "special": "step6e_n_initial"},
+        "n_filtered":       {"source": "special", "special": "step6e_n_filtered"},
+        "variables_saved":  {"source": "special", "special": "step6e_variables_saved"},
+        "saving_timestamp": {"source": "special", "special": "step6e_saving_timestamp"}
+      }
+    },
+    "step7a_dilate": {
+      "results_key": "step7a",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "window_size":          {"source": "results", "default": 3},
+        "threshold":            {"source": "results", "default": 0.1},
+        "expansion_ratio":      {"source": "results", "default": 0.0},
+        "active_pixels_before": {"source": "results", "default": 0},
+        "active_pixels_after":  {"source": "results", "default": 0},
+        "variables_saved":      {"source": "special", "special": "step7a_variables_saved"},
+        "saving_timestamp":     {"source": "special", "special": "step7a_saving_timestamp"}
+      }
+    },
+    "step7b_cluster": {
+      "results_key": "step7b",
+      "presence_check": "results_key",
+      "params_subkey": "parameters",
+      "fields": {
+        "max_cluster_size":  {"source": "subkey",  "default": 10},
+        "min_area":          {"source": "subkey",  "default": 20},
+        "min_intensity":     {"source": "subkey",  "default": 0.1},
+        "overlap_threshold": {"source": "subkey",  "default": 0.2},
+        "data_source":       {"source": "results", "default": "dilated"},
+        "num_clusters":      {"source": "special", "special": "step7b_num_clusters"},
+        "variables_saved":   {"source": "special", "special": "step7b_variables_saved"},
+        "saving_timestamp":  {"source": "special", "special": "step7b_saving_timestamp"}
+      }
+    },
+    "step7c_bounds": {
+      "results_key": "step7c",
+      "presence_check": "results_key",
+      "params_subkey": "parameters",
+      "fields": {
+        "dilation_radius":    {"source": "subkey",  "default": 10},
+        "padding":            {"source": "subkey",  "default": 20},
+        "min_size":           {"source": "subkey",  "default": 40},
+        "intensity_threshold":{"source": "subkey",  "default": 0.05},
+        "n_clusters":         {"source": "special", "special": "step7c_n_clusters"},
+        "variables_saved":    {"source": "special", "special": "step7c_variables_saved"},
+        "saving_timestamp":   {"source": "special", "special": "step7c_saving_timestamp"}
+      }
+    },
+    "step7d_parameter_suggestions": {
+      "results_key": "step7d",
+      "presence_check": "results_key",
+      "params_subkey": "parameters",
+      "fields": {
+        "n_frames":                    {"source": "subkey",  "default": 1000},
+        "component_source":            {"source": "subkey",  "default": "dilated"},
+        "sample_size":                 {"source": "subkey",  "default": 0},
+        "min_std_conservative":        {"source": "special", "special": "step7d_min_std_conservative"},
+        "min_std_balanced":            {"source": "special", "special": "step7d_min_std_balanced"},
+        "min_std_aggressive":          {"source": "special", "special": "step7d_min_std_aggressive"},
+        "penalty_scale_conservative":  {"source": "special", "special": "step7d_penalty_scale_conservative"},
+        "penalty_scale_balanced":      {"source": "special", "special": "step7d_penalty_scale_balanced"},
+        "penalty_scale_aggressive":    {"source": "special", "special": "step7d_penalty_scale_aggressive"},
+        "spatial_score_mean":          {"source": "special", "special": "step7d_spatial_score_mean"},
+        "spatial_score_std":           {"source": "special", "special": "step7d_spatial_score_std"},
+        "bg_std_median":               {"source": "special", "special": "step7d_bg_std_median"},
+        "comp_std_median":             {"source": "special", "special": "step7d_comp_std_median"}
+      }
+    },
+    "step7e_spatial_update": {
+      "results_key": "step7e",
+      "presence_check": "results_key",
+      "params_subkey": "parameters",
+      "fields": {
+        "n_frames":         {"source": "subkey",  "default": 1000},
+        "min_penalty":      {"source": "subkey",  "default": 1e-6},
+        "max_penalty":      {"source": "subkey",  "default": 0.01},
+        "num_penalties":    {"source": "subkey",  "default": 10},
+        "min_std":          {"source": "subkey",  "default": 0.1},
+        "variables_saved":  {"source": "special", "special": "step7e_variables_saved"},
+        "saving_timestamp": {"source": "special", "special": "step7e_saving_timestamp"}
+      }
+    },
+    "step7f_merging_validation": {
+      "results_key": "step7f",
+      "presence_check": "results_key",
+      "params_subkey": "step7f_parameters",
+      "fields": {
+        "apply_smoothing":            {"source": "subkey",  "default": true},
+        "sigma":                      {"source": "subkey",  "default": 1.5},
+        "handle_overlaps":            {"source": "subkey",  "default": true},
+        "min_size":                   {"source": "subkey",  "default": 10},
+        "max_size":                   {"source": "subkey",  "default": 5000},
+        "raw_components_retained":    {"source": "special", "special": "step7f_raw_retained"},
+        "smooth_components_retained": {"source": "special", "special": "step7f_smooth_retained"},
+        "raw_percent_filtered":       {"source": "special", "special": "step7f_raw_pct"},
+        "smooth_percent_filtered":    {"source": "special", "special": "step7f_smooth_pct"},
+        "variables_saved":            {"source": "special", "special": "step7f_variables_saved"},
+        "saving_timestamp":           {"source": "special", "special": "step7f_saving_timestamp"}
+      }
+    },
+    "step8a_yra_computation": {
+      "results_key": "step8a",
+      "presence_check": "results_key",
+      "params_subkey": "yra_computation_params",
+      "fields": {
+        "spatial_source":   {"source": "subkey",  "default": "step7f_A_merged"},
+        "temporal_source":  {"source": "subkey",  "default": "step6e_C_filtered"},
+        "subtract_bg":      {"source": "subkey",  "default": true},
+        "use_float32":      {"source": "subkey",  "default": true},
+        "fix_nans":         {"source": "subkey",  "default": true},
+        "computation_time": {"source": "subkey",  "default": 0.0},
+        "variables_saved":  {"source": "special", "special": "step8a_variables_saved"},
+        "saving_timestamp": {"source": "special", "special": "step8a_saving_timestamp"}
+      }
+    },
+    "step8b_final_temporal_update": {
+      "results_key": "step8b",
+      "presence_check": "results_key",
+      "params_subkey": "step8b_params",
+      "fields": {
+        "p":                        {"source": "subkey",  "default": 2},
+        "sparse_penal":             {"source": "subkey",  "default": 0.01},
+        "max_iters":                {"source": "subkey",  "default": 500},
+        "zero_thres":               {"source": "subkey",  "default": 0.0005},
+        "normalize":                {"source": "subkey",  "default": true},
+        "spatial_source":           {"source": "results", "default": "step7f_A_merged"},
+        "total_time":               {"source": "special", "special": "step8b_total_time"},
+        "successful_components":    {"source": "special", "special": "step8b_successful_components"},
+        "success_rate":             {"source": "special", "special": "step8b_success_rate"},
+        "avg_time_per_component":   {"source": "special", "special": "step8b_avg_time"},
+        "variables_saved":          {"source": "special", "special": "step8b_variables_saved"},
+        "saving_timestamp":         {"source": "special", "special": "step8b_saving_timestamp"}
+      }
+    },
+    "step8b_filter_export": {
+      "results_key": "step8c",
+      "presence_check": "results_key",
+      "params_subkey": null,
+      "fields": {
+        "min_size":          {"source": "special", "special": "step8c_min_size"},
+        "min_snr":           {"source": "special", "special": "step8c_min_snr"},
+        "min_corr":          {"source": "special", "special": "step8c_min_corr"},
+        "original_count":    {"source": "special", "special": "step8c_original_count"},
+        "final_count":       {"source": "special", "special": "step8c_final_count"},
+        "percent_retained":  {"source": "special", "special": "step8c_percent_retained"},
+        "export_path":       {"source": "special", "special": "step8c_export_path"},
+        "export_formats":    {"source": "special", "special": "step8c_export_formats"},
+        "include_metadata":  {"source": "literal", "default": true},
+        "compression_level": {"source": "literal", "default": 4},
+        "export_time":       {"source": "special", "special": "step8c_export_time"}
+      }
+    }
+  },
+  "file_to_step_map": {
+    "step2a_varr": {"step": "step2a_varr", "nested": true},
+    "step2a_chunking_info": {"step": "step2a", "nested": false},
+    "step2b_varr_ref": {"step": "step2b", "nested": true},
+    "step2c_motion": {"step": "step2c", "nested": true},
+    "step2e_Y_fm_chk": {"step": "step2e", "nested": true},
+    "step2e_Y_hw_chk": {"step": "step2e", "nested": true},
+    "step3a_Y_fm_cropped": {"step": "step3a", "nested": true},
+    "step3a_Y_hw_cropped": {"step": "step3a", "nested": true},
+    "step3b_A_init": {"step": "step3b", "nested": true},
+    "step3b_C_init": {"step": "step3b", "nested": true},
+    "step3b_b": {"step": "step3b", "nested": true},
+    "step3b_f": {"step": "step3b", "nested": true},
+    "step3b_A": {"step": "step3b", "nested": true},
+    "step3b_C": {"step": "step3b", "nested": true},
+    "step3b_svd_results": {"step": "step3b", "nested": true},
+    "step3b_nndsvd_results": {"step": "step3b", "nested": false},
+    "step4b_separated_components_np": {"step": "step4b", "nested": false},
+    "step4c_merged_components": {"step": "step4c", "nested": true},
+    "step4d_temporal_components_signals": {"step": "step4d", "nested": true},
+    "step4d_temporal_components_spatial": {"step": "step4d", "nested": true},
+    "step4e_AC_backup": {"step": "step4e", "nested": false},
+    "step4e_A_pre_CNMF": {"step": "step4e", "nested": true},
+    "step4e_C_pre_CNMF": {"step": "step4e", "nested": true},
+    "step4f_AC_clean_backup": {"step": "step4f", "nested": false},
+    "step4f_A_clean": {"step": "step4f", "nested": true},
+    "step4f_C_clean": {"step": "step4f", "nested": true},
+    "step4g_A_merged": {"step": "step4g", "nested": true},
+    "step4g_A_merged_npy": {"step": "step4g", "nested": false},
+    "step4g_C_merged": {"step": "step4g", "nested": true},
+    "step4g_C_merged_npy": {"step": "step4g", "nested": false},
+    "step_4g_merged_coords": {"step": "step4g", "nested": false},
+    "step5a_sn_spatial": {"step": "step5a", "nested": false},
+    "step5a_sn_spatial_coords": {"step": "step5a", "nested": false},
+    "step5b_A_filtered": {"step": "step5b", "nested": true},
+    "step5b_C_filtered": {"step": "step5b", "nested": true},
+    "step5b_filtered_coords": {"step": "step5b", "nested": false},
+    "step6a_YrA": {"step": "step6a", "nested": true},
+    "step6a_YrA_npy": {"step": "step6a", "nested": false},
+    "step6a_YrA_coords": {"step": "step6a", "nested": false},
+    "step6d_C_new": {"step": "step6d", "nested": false},
+    "step6d_C_new_zarr": {"step": "step6d", "nested": true},
+    "step6d_S_new": {"step": "step6d", "nested": false},
+    "step6d_S_new_zarr": {"step": "step6d", "nested": true},
+    "step6d_b0_new": {"step": "step6d", "nested": false},
+    "step6d_b0_new_zarr": {"step": "step6d", "nested": true},
+    "step6d_c0_new": {"step": "step6d", "nested": false},
+    "step6d_c0_new_zarr": {"step": "step6d", "nested": true},
+    "step6d_g_new": {"step": "step6d", "nested": false},
+    "step6d_g_new_zarr": {"step": "step6d", "nested": true},
+    "step6d_temporal_update_coords": {"step": "step6d", "nested": false},
+    "step6e_A_filtered": {"step": "step6e", "nested": true},
+    "step6e_A_filtered_npy": {"step": "step6e", "nested": false},
+    "step6e_A_filtered_coords": {"step": "step6e", "nested": false},
+    "step6e_C_filtered": {"step": "step6e", "nested": true},
+    "step6e_C_filtered_npy": {"step": "step6e", "nested": false},
+    "step6e_C_new": {"step": "step6e", "nested": true},
+    "step6e_C_new_npy": {"step": "step6e", "nested": false},
+    "step6e_S_filtered": {"step": "step6e", "nested": true},
+    "step6e_S_filtered_npy": {"step": "step6e", "nested": false},
+    "step6e_S_new": {"step": "step6e", "nested": true},
+    "step6e_S_new_npy": {"step": "step6e", "nested": false},
+    "step6e_temporal_results_summary": {"step": "step6e", "nested": false},
+    "step7a_A_dilated": {"step": "step7a", "nested": true},
+    "step7a_dilation_results_summary": {"step": "step7a", "nested": false},
+    "step7b_clustering_results_summary": {"step": "step7b", "nested": false},
+    "step7b_clusters": {"step": "step7b", "nested": false},
+    "step7b_clusters_pkl": {"step": "step7b", "nested": false},
+    "step7b_component_valid_mask": {"step": "step7b", "nested": false},
+    "step7c_boundary_results_summary": {"step": "step7c", "nested": false},
+    "step7c_boundary_stats": {"step": "step7c", "nested": false},
+    "step7c_cluster_bounds_pkl": {"step": "step7c", "nested": false},
+    "processing_parameters": {"step": "processing_parameters", "nested": false},
+    "temporal_params": {"step": "temporal_params", "nested": false},
+    "step7e_A_updated": {"step": "step7e", "nested": true},
+    "step7e_multi_lasso_results": {"step": "step7e", "nested": false},
+    "step7e_multi_lasso_results_pkl": {"step": "step7e", "nested": false},
+    "step7e_spatial_update_summary": {"step": "step7e", "nested": false},
+    "step7f_A_merged": {"step": "step7f", "nested": true},
+    "step7f_A_merged_raw": {"step": "step7f", "nested": true},
+    "step7f_A_merged_smooth": {"step": "step7f", "nested": true},
+    "step7f_merging_results_summary": {"step": "step7f", "nested": false},
+    "step8a_C_updated": {"step": "step8a", "nested": true},
+    "step8a_C_updated_npy": {"step": "step8a", "nested": false},
+    "step8a_C_updated_coords": {"step": "step8a", "nested": false},
+    "step8a_S_updated": {"step": "step8a", "nested": true},
+    "step8a_S_updated_npy": {"step": "step8a", "nested": false},
+    "step8a_S_updated_coords": {"step": "step8a", "nested": false},
+    "step8a_summary": {"step": "step8a", "nested": false},
+    "step8a_update_stats": {"step": "step8a", "nested": false},
+    "step8a_YrA_updated": {"step": "step8a", "nested": true},
+    "step8a_YrA_updated_npy": {"step": "step8a", "nested": false},
+    "step8a_YrA_updated_coords": {"step": "step8a", "nested": false},
+    "step8a_spatial_source": {"step": "step8a", "nested": false},
+    "step8a_temporal_source": {"step": "step8a", "nested": false},
+    "step8b_C_final": {"step": "step8b", "nested": true},
+    "step8b_C_final_npy": {"step": "step8b", "nested": false},
+    "step8b_S_final": {"step": "step8b", "nested": true},
+    "step8b_S_final_npy": {"step": "step8b", "nested": false},
+    "step8b_b0_final": {"step": "step8b", "nested": true},
+    "step8b_b0_final_npy": {"step": "step8b", "nested": false},
+    "step8b_c0_final": {"step": "step8b", "nested": true},
+    "step8b_c0_final_npy": {"step": "step8b", "nested": false},
+    "step8b_g_final": {"step": "step8b", "nested": true},
+    "step8b_g_final_npy": {"step": "step8b", "nested": false},
+    "step8b_processing_stats": {"step": "step8b", "nested": false},
+    "step8b_params": {"step": "step8b", "nested": false},
+    "step8b_coords": {"step": "step8b", "nested": false},
+    "step8c_A_final": {"step": "step8c", "nested": true},
+    "step8c_C_final": {"step": "step8c", "nested": true},
+    "step8c_S_final": {"step": "step8c", "nested": true},
+    "step8c_filtering_stats": {"step": "step8c", "nested": true},
+    "step8c_export_info": {"step": "step8c", "nested": true},
+    "step8c_export_summary": {"step": "step8c", "nested": false},
+    "step8c_filtered_coords": {"step": "step8c", "nested": false}
+  }
+}
