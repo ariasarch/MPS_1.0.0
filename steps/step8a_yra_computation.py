@@ -308,23 +308,34 @@ class Step8aYRAComputation(ttk.Frame):
                 else:
                     raise ValueError(f"Could not find {temporal_source} in results")
                 
-                # Filter C_matrix to only include neurons that exist in A_matrix
-                self.log("Filtering temporal components to match spatial components...")
+                # Align C to A by position, not by ID label.
+                # Spatial components (step7f/7e) were re-indexed 0..N after filtering,
+                # while C (step6e) kept original IDs. Positional order is preserved.
+                self.log("Aligning temporal components to spatial components by position...")
                 A_unit_ids = A_matrix.coords['unit_id'].values
                 C_unit_ids = C_matrix.coords['unit_id'].values
+                self.log(f"  A has {len(A_unit_ids)} units, IDs: {A_unit_ids[:5]}...{A_unit_ids[-3:]}")
+                self.log(f"  C has {len(C_unit_ids)} units, IDs: {C_unit_ids[:5]}...{C_unit_ids[-3:]}")
 
-                # Find common unit IDs
-                common_unit_ids = np.intersect1d(A_unit_ids, C_unit_ids)
-                self.log(f"  A has {len(A_unit_ids)} units")
-                self.log(f"  C has {len(C_unit_ids)} units")
-                self.log(f"  Common units: {len(common_unit_ids)}")
+                if len(A_unit_ids) == len(C_unit_ids):
+                    # Same count — direct positional alignment, reassign C's coords to match A
+                    self.log("  Same count: using positional alignment")
+                    C_matrix = C_matrix.assign_coords(unit_id=A_unit_ids)
+                elif len(A_unit_ids) < len(C_unit_ids):
+                    # A has fewer units (some were dropped in step7f merging)
+                    # Take the first N temporal traces positionally
+                    self.log(f"  A has fewer units ({len(A_unit_ids)} vs {len(C_unit_ids)}): "
+                            f"taking first {len(A_unit_ids)} temporal traces by position")
+                    C_matrix = C_matrix.isel(unit_id=slice(0, len(A_unit_ids)))
+                    C_matrix = C_matrix.assign_coords(unit_id=A_unit_ids)
+                else:
+                    self.log(f"  WARNING: A has MORE units than C ({len(A_unit_ids)} vs {len(C_unit_ids)}), "
+                            f"this is unexpected — truncating A to match C")
+                    A_matrix = A_matrix.isel(unit_id=slice(0, len(C_unit_ids)))
+                    A_unit_ids = A_matrix.coords['unit_id'].values
+                    C_matrix = C_matrix.assign_coords(unit_id=A_unit_ids)
 
-                # Filter C to only include common units and reorder to match A
-                C_matrix = C_matrix.sel(unit_id=common_unit_ids)
-
-                # Ensure C and A have same unit order
-                C_matrix = C_matrix.sel(unit_id=A_unit_ids)
-                self.log(f"  Filtered C shape: {C_matrix.shape}")
+                self.log(f"  Aligned C shape: {C_matrix.shape}, IDs now match A: {C_matrix.coords['unit_id'].values[:5]}")
 
                 # Get background components if needed
                 if subtract_bg:

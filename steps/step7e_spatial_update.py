@@ -77,20 +77,20 @@ class Step7eSpatialUpdate(ttk.Frame):
             text="Run Spatial Update",
             command=self.run_spatial_update
         )
-        self.run_button.grid(row=6, column=0, columnspan=3, pady=20, padx=10)
+        self.run_button.grid(row=7, column=0, columnspan=3, pady=20, padx=10)
         
         # Status
         self.status_var = tk.StringVar(value="Ready to update spatial components")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=7, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=8, column=0, columnspan=3, pady=10)
         
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=8, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=9, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
         
         # Stats panel
         self.stats_frame = ttk.LabelFrame(self.control_frame, text="Update Statistics")
-        self.stats_frame.grid(row=9, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.stats_frame.grid(row=10, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Stats text with scrollbar
         stats_scroll = ttk.Scrollbar(self.stats_frame)
@@ -187,17 +187,23 @@ class Step7eSpatialUpdate(ttk.Frame):
         
         # Min STD threshold
         ttk.Label(self.control_frame, text="Min STD:").grid(row=4, column=0, padx=10, pady=10, sticky="w")
-        self.min_std_var = tk.DoubleVar(value=0.1)
+        self.min_std_var = tk.DoubleVar(value=0.005)
         min_std_entry = ttk.Entry(self.control_frame, textvariable=self.min_std_var, width=10)
         min_std_entry.grid(row=4, column=1, padx=10, pady=10, sticky="w")
         ttk.Label(self.control_frame, text="Minimum pixel STD to consider for update").grid(row=4, column=2, padx=10, pady=10, sticky="w")
         
+        # Floor subtraction toggle
+        ttk.Label(self.control_frame, text="Subtract Floor:").grid(row=5, column=0, padx=10, pady=10, sticky="w")
+        self.subtract_floor_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(self.control_frame, variable=self.subtract_floor_var).grid(row=5, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Remove C_filtered baseline (recommended for long recordings)").grid(row=5, column=2, padx=10, pady=10, sticky="w")
+
         # Progress reporting interval
-        ttk.Label(self.control_frame, text="Progress Interval:").grid(row=5, column=0, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Progress Interval:").grid(row=6, column=0, padx=10, pady=10, sticky="w")
         self.progress_interval_var = tk.IntVar(value=1000)
         progress_interval_entry = ttk.Entry(self.control_frame, textvariable=self.progress_interval_var, width=10)
-        progress_interval_entry.grid(row=5, column=1, padx=10, pady=10, sticky="w")
-        ttk.Label(self.control_frame, text="How often to report progress (pixels)").grid(row=5, column=2, padx=10, pady=10, sticky="w")
+        progress_interval_entry.grid(row=6, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="How often to report progress (pixels)").grid(row=6, column=2, padx=10, pady=10, sticky="w")
     
     def bind_mousewheel(self):
         """Bind mousewheel to scrolling"""
@@ -297,620 +303,623 @@ class Step7eSpatialUpdate(ttk.Frame):
         thread.start()
     
     def _spatial_update_thread(self, n_frames, min_penalty, max_penalty, num_penalties, min_std, progress_interval):
-        """Thread function for spatial update"""
-        try:
-            # Import required modules
-            self.log("Importing required modules...")
-            
-            # Add the utility directory to the path if needed
-            module_base_path = Path(__file__).parent.parent
-            if str(module_base_path) not in sys.path:
-                sys.path.append(str(module_base_path))
-            
-            # Log platform and Python version info
-            self.log(f"Platform: {sys.platform}")
-            self.log(f"Python version: {sys.version}")
-            
-            # Try to import required libraries
+            """Thread function for spatial update"""
             try:
-                import numpy as np
-                import xarray as xr
+                # Import required modules
+                self.log("Importing required modules...")
                 
-                # Import the spatial update utility functions
+                # Add the utility directory to the path if needed
+                module_base_path = Path(__file__).parent.parent
+                if str(module_base_path) not in sys.path:
+                    sys.path.append(str(module_base_path))
+                
+                # Log platform and Python version info
+                self.log(f"Platform: {sys.platform}")
+                self.log(f"Python version: {sys.version}")
+                
+                # Try to import required libraries
                 try:
-                    from spatial_update_utils import (
-                        process_all_clusters_multi_lasso,
-                        create_updated_component_array,
-                        process_component_multi_lasso, 
-                        get_component_ids,
-                        modified_construct_component_bounds_dict_with_mapping
-                    )
-                    self.log("Successfully imported spatial update utilities")
-                except ImportError:
-                    self.log("Could not import spatial_update_utils.py - make sure it's in the same directory")
-                    self.status_var.set("Error: Missing spatial_update_utils.py")
+                    import numpy as np
+                    import xarray as xr
+                    
+                    # Import the spatial update utility functions
+                    try:
+                        from spatial_update_utils import (
+                            process_all_clusters_multi_lasso,
+                            create_updated_component_array,
+                            process_component_multi_lasso, 
+                            get_component_ids,
+                            modified_construct_component_bounds_dict_with_mapping
+                        )
+                        self.log("Successfully imported spatial update utilities")
+                    except ImportError:
+                        self.log("Could not import spatial_update_utils.py - make sure it's in the same directory")
+                        self.status_var.set("Error: Missing spatial_update_utils.py")
+                        return
+                    
+                    # Try to import save_files utility
+                    try:
+                        from saving_utilities import save_files
+                        self.log("Successfully imported save_files utility")
+                        use_save_files = True
+                    except ImportError:
+                        self.log("Warning: save_files utility not found, will use direct saving methods")
+                        use_save_files = False
+                    
+                    self.log("Successfully imported all required modules")
+                except ImportError as e:
+                    self.log(f"Error importing modules: {str(e)}")
+                    self.status_var.set(f"Error: Required library not found")
                     return
                 
-                # Try to import save_files utility
+                # Load required data
+                self.log("\nLoading required data...")
+                
                 try:
-                    from saving_utilities import save_files
-                    self.log("Successfully imported save_files utility")
-                    use_save_files = True
-                except ImportError:
-                    self.log("Warning: save_files utility not found, will use direct saving methods")
-                    use_save_files = False
+                    # Load step7b_clusters and bounds
+                    step7b_clusters, step7c_cluster_data = self.load_cluster_data()
+                    self.log(f"Loaded {len(step7b_clusters)} step7b_clusters")
+                    
+                    # Log detailed cluster info
+                    if len(step7b_clusters) > 0:
+                        self.log(f"First step7b_cluster: {step7b_clusters[0]}")
+                        self.log(f"Type: {type(step7b_clusters[0])}")
+                    
+                    if len(step7c_cluster_data) > 0:
+                        self.log(f"First step7c_cluster_data item type: {type(step7c_cluster_data[0])}")
+                        if isinstance(step7c_cluster_data[0], tuple) and len(step7c_cluster_data[0]) == 2:
+                            comp_indices, bounds = step7c_cluster_data[0]
+                            self.log(f"First item component indices: {comp_indices}")
+                            self.log(f"First item bounds: {bounds}")
+                    
+                    # Load spatial components (step7a_dilated)
+                    step7a_dilated = self.load_spatial_components()
+                    self.log(f"Loaded step7a_dilated spatial components with shape {step7a_dilated.shape}")
+                    self.log(f"step7a_dilated unit_ids (first 5): {step7a_dilated.coords['unit_id'].values[:5]}")
+                    self.log(f"step7a_dilated unit_ids (last 5): {step7a_dilated.coords['unit_id'].values[-5:]}")
+                    self.log(f"step7a_dilated unit_id dtype: {step7a_dilated.coords['unit_id'].dtype}")
                 
-                self.log("Successfully imported all required modules")
-            except ImportError as e:
-                self.log(f"Error importing modules: {str(e)}")
-                self.status_var.set(f"Error: Required library not found")
-                return
-            
-            # Load required data
-            self.log("\nLoading required data...")
-            
-            try:
-                # Load step7b_clusters and bounds
-                step7b_clusters, step7c_cluster_data = self.load_cluster_data()
-                self.log(f"Loaded {len(step7b_clusters)} step7b_clusters")
+                    # Log unit ID info
+                    unit_ids = step7a_dilated.coords['unit_id'].values
+                    self.log(f"Unit IDs shape: {unit_ids.shape}")
+                    self.log(f"First 5 unit IDs: {unit_ids[:5]}")
+                    
+                    # Count active pixels in original components
+                    total_active_original = 0
+                    for comp_id in unit_ids:
+                        try:
+                            comp_data = step7a_dilated.sel(unit_id=comp_id).compute().values
+                            active_pixels = np.sum(comp_data > 0)
+                            total_active_original += active_pixels
+                            if active_pixels == 0:
+                                self.log(f"WARNING: Component {comp_id} has 0 active pixels in original data")
+                        except Exception as e:
+                            self.log(f"Error counting active pixels for component {comp_id}: {str(e)}")
+                    
+                    self.log(f"Total active pixels in original components: {total_active_original}")
+                    
+                    # Load temporal components
+                    step6e_C_filtered = self.load_temporal_components()
+                    self.log(f"Loaded filtered temporal components with shape {step6e_C_filtered.shape}")
+                    temporal_unit_ids = step6e_C_filtered.coords['unit_id'].values
+                    self.log(f"C_filtered unit_ids (first 5): {temporal_unit_ids[:5]}")
+                    
+                    # Log temporal component stats
+                    C_min = step6e_C_filtered.min().values
+                    C_max = step6e_C_filtered.max().values
+                    C_mean = step6e_C_filtered.mean().values
+                    C_std = step6e_C_filtered.std().values
+                    self.log(f"Temporal component stats: min={C_min}, max={C_max}, mean={C_mean}, std={C_std}")
+                    
+                    # Floor subtraction
+                    subtract_floor = self.subtract_floor_var.get()
+                    if subtract_floor:
+                        floor_val = float(step6e_C_filtered.min())
+                        self.log(f"Subtracting C_filtered floor: {floor_val:.6f}")
+                        step6e_C_filtered = step6e_C_filtered - floor_val
+                        new_max = float(step6e_C_filtered.max())
+                        self.log(f"C_filtered range after floor subtraction: [0.0, {new_max:.5f}]")
+                    else:
+                        self.log("Floor subtraction disabled")
+
+                    # ── BUILD SPATIAL -> TEMPORAL ID REMAP ───────────────────────
+                    # step7a re-indexed the 84 survivors from 0..83
+                    # step6e kept original IDs (e.g. 3..88), dropping rejected ones
+                    # Positional order is preserved, so zip() gives the correct mapping
+                    temporal_unit_ids_arr = step6e_C_filtered.coords['unit_id'].values
+                    if len(unit_ids) == len(temporal_unit_ids_arr):
+                        self.spatial_to_temporal = {
+                            int(s): int(t)
+                            for s, t in zip(unit_ids, temporal_unit_ids_arr)
+                        }
+                        self.log(f"Built spatial->temporal ID map ({len(self.spatial_to_temporal)} entries)")
+                        self.log(f"  Sample: spatial 0->{self.spatial_to_temporal.get(0)}, "
+                                f"1->{self.spatial_to_temporal.get(1)}, "
+                                f"2->{self.spatial_to_temporal.get(2)}")
+                    else:
+                        self.log(f"WARNING: count mismatch ({len(unit_ids)} spatial vs "
+                                f"{len(temporal_unit_ids_arr)} temporal) — ID remapping disabled")
+                        self.spatial_to_temporal = {}
+                    # ─────────────────────────────────────────────────────────────
+
+                    # Load video data
+                    Y_cropped = self.load_video_data()
+                    Y_cropped = Y_cropped.fillna(0)
+                    self.log(f"Loaded cropped video data with shape {Y_cropped.shape}")
+
+                    # Sample a few random pixels to see their values
+                    import random
+                    for _ in range(5):
+                        h = random.randint(0, Y_cropped.shape[1]-1)
+                        w = random.randint(0, Y_cropped.shape[2]-1)
+                        pixel_trace = Y_cropped[:, h, w].values
+                        self.log(f"Sample pixel ({h},{w}) first 5 values: {pixel_trace[:5]}")
+                        self.log(f"  Has NaNs: {np.isnan(pixel_trace).any()}")
+                        self.log(f"  STD: {np.std(pixel_trace)}")
+                    
+                    # Check data ranges for all inputs
+                    self.log("\nData range check:")
+                    self.log(f"  step7a_dilated range: [{step7a_dilated.min().values}, {step7a_dilated.max().values}]")
+                    self.log(f"  step6e_C_filtered range: [{step6e_C_filtered.min().values}, {step6e_C_filtered.max().values}]")
+                    self.log(f"  Y_cropped range: [{Y_cropped.min().values}, {Y_cropped.max().values}]")
+                    
+                    # Check if n_frames is greater than available frames
+                    if n_frames > Y_cropped.sizes['frame']:
+                        n_frames = Y_cropped.sizes['frame']
+                        self.log(f"Adjusted n_frames to match available data: {n_frames}")
+                    
+                    # Limit video data to n_frames
+                    if n_frames > 0:
+                        Y_cropped = Y_cropped.isel(frame=slice(0, n_frames))
+                        self.log(f"Using first {n_frames} frames for processing")
+                    else:
+                        self.log(f"Using all {Y_cropped.sizes['frame']} frames for processing")
+                        
+                    # Load background components if available
+                    try:
+                        step3b_f = self.load_background_components()
+                        if step3b_f is not None:
+                            self.log(f"Loaded background components with shape {step3b_f.shape}")
+                            self.log(f"  Background range: [{step3b_f.min().values}, {step3b_f.max().values}]")
+                        else:
+                            self.log("No background components found, proceeding without background")
+                    except Exception as e:
+                        self.log(f"Error loading background: {str(e)}, proceeding without background")
+                        step3b_f = None
+                    
+                    # Load noise estimates if available
+                    try:
+                        step5a_sn_spatial = self.load_noise_estimates()
+                        if step5a_sn_spatial is not None:
+                            self.log(f"Loaded noise estimates with shape {step5a_sn_spatial.shape}")
+                            self.log(f"  Noise range: [{step5a_sn_spatial.min().values}, {step5a_sn_spatial.max().values}]")
+                        else:
+                            self.log("No noise estimates found, proceeding without noise estimates")
+                    except Exception as e:
+                        self.log(f"Error loading noise estimates: {str(e)}, proceeding without noise estimates")
+                        step5a_sn_spatial = None
+                    
+                except Exception as e:
+                    self.log(f"Error loading required data: {str(e)}")
+                    self.log(traceback.format_exc())
+                    self.status_var.set(f"Error: {str(e)}")
+                    return
                 
-                # Log detailed cluster info
+                self.update_progress(20)
+
+                # Create a mapping between indices and component IDs
+                self.log("\nCreating component ID mapping...")
+                unit_ids = step7a_dilated.coords['unit_id'].values
+                self.component_id_mapping = {}
+                for idx, comp_id in enumerate(unit_ids):
+                    self.component_id_mapping[idx] = comp_id
+                    self.log(f"  Index {idx} -> Component ID {comp_id}")
+
+                # Also create reverse mapping (ID to index)
+                self.component_index_mapping = {comp_id: idx for idx, comp_id in enumerate(unit_ids)}
+                self.log(f"Created mapping for {len(self.component_id_mapping)} components")
+                
+                # Create output directory for results
+                self.log("\nCreating output directory...")
+                try:
+                    dataset_output_path = self.controller.state.get('dataset_output_path', '')
+                    cache_path = self.controller.state.get('cache_path', '')
+                    if not dataset_output_path:
+                        if cache_path:
+                            dataset_output_path = os.path.dirname(cache_path)
+                    
+                    if not dataset_output_path:
+                        dataset_output_path = os.path.join(os.getcwd(), "output")
+                    
+                    multi_lasso_dir = None
+                    self.log(f"Will save results to cache path: {cache_path}")
+                except Exception as e:
+                    self.log(f"Warning: Could not create output directory: {str(e)}")
+                    self.log("Will continue without saving images")
+                    multi_lasso_dir = None
+                
+                # Generate penalty values
+                penalties = np.logspace(np.log10(min_penalty), np.log10(max_penalty), num_penalties)
+                self.log(f"Generated {num_penalties} penalties from {min_penalty:.2e} to {max_penalty:.2e}")
+                self.log(f"Penalties: {penalties}")
+                
+                # Log parameters
+                self.log(f"\nProcessing parameters:")
+                self.log(f"  n_frames: {n_frames}")
+                self.log(f"  min_penalty: {min_penalty}")
+                self.log(f"  max_penalty: {max_penalty}")
+                self.log(f"  num_penalties: {num_penalties}")
+                self.log(f"  min_std: {min_std}")
+                self.log(f"  progress_interval: {progress_interval}")
+                
+                # Check cluster structure
+                self.log("\nCluster structure check:")
                 if len(step7b_clusters) > 0:
-                    self.log(f"First step7b_cluster: {step7b_clusters[0]}")
+                    self.log(f"First cluster in step7b_clusters: {step7b_clusters[0]}")
                     self.log(f"Type: {type(step7b_clusters[0])}")
-                
                 if len(step7c_cluster_data) > 0:
-                    self.log(f"First step7c_cluster_data item type: {type(step7c_cluster_data[0])}")
+                    self.log(f"First item in step7c_cluster_data: {type(step7c_cluster_data[0])}")
                     if isinstance(step7c_cluster_data[0], tuple) and len(step7c_cluster_data[0]) == 2:
                         comp_indices, bounds = step7c_cluster_data[0]
-                        self.log(f"First item component indices: {comp_indices}")
-                        self.log(f"First item bounds: {bounds}")
+                        self.log(f"  Component indices: {comp_indices}")
+                        self.log(f"  Bounds: {bounds}")
                 
-                # Load spatial components (step7a_dilated)
-                step7a_dilated = self.load_spatial_components()
-                self.log(f"Loaded step7a_dilated spatial components with shape {step7a_dilated.shape}")
+                # Process all clusters
+                self.log("\nRunning spatial update...")
+                step7e_multi_lasso_results = {
+                    'A_new': {},
+                    'processing_stats': {},
+                    'cluster_info': {}
+                }
                 
-                # Log unit ID info
-                unit_ids = step7a_dilated.coords['unit_id'].values
-                self.log(f"Unit IDs shape: {unit_ids.shape}")
-                self.log(f"First 5 unit IDs: {unit_ids[:5]}")
+                total_clusters = len(step7b_clusters)
+                total_components_processed = 0
+                start_time = time.time()
                 
-                # Count active pixels in original components
-                total_active_original = 0
-                for comp_id in unit_ids:
-                    try:
-                        comp_data = step7a_dilated.sel(unit_id=comp_id).compute().values
-                        active_pixels = np.sum(comp_data > 0)
-                        total_active_original += active_pixels
-                        if active_pixels == 0:
-                            self.log(f"WARNING: Component {comp_id} has 0 active pixels in original data")
-                    except Exception as e:
-                        self.log(f"Error counting active pixels for component {comp_id}: {str(e)}")
-                
-                self.log(f"Total active pixels in original components: {total_active_original}")
-                
-                # Load temporal components
-                step6e_C_filtered = self.load_temporal_components()
-                self.log(f"Loaded filtered temporal components with shape {step6e_C_filtered.shape}")
-                
-                # Log temporal component stats
-                C_min = step6e_C_filtered.min().values
-                C_max = step6e_C_filtered.max().values
-                C_mean = step6e_C_filtered.mean().values
-                C_std = step6e_C_filtered.std().values
-                self.log(f"Temporal component stats: min={C_min}, max={C_max}, mean={C_mean}, std={C_std}")
-                
-                # Load video data
-                Y_cropped = self.load_video_data()
-                Y_cropped = Y_cropped.fillna(0)
-                self.log(f"Loaded cropped video data with shape {Y_cropped.shape}")
-
-                # Sample a few random pixels to see their values
-                import random
-                for _ in range(5):
-                    h = random.randint(0, Y_cropped.shape[1]-1)
-                    w = random.randint(0, Y_cropped.shape[2]-1)
-                    pixel_trace = Y_cropped[:, h, w].values
-                    self.log(f"Sample pixel ({h},{w}) first 5 values: {pixel_trace[:5]}")
-                    self.log(f"  Has NaNs: {np.isnan(pixel_trace).any()}")
-                    self.log(f"  STD: {np.std(pixel_trace)}")
-                
-                # Check data ranges for all inputs
-                self.log("\nData range check:")
-                self.log(f"  step7a_dilated range: [{step7a_dilated.min().values}, {step7a_dilated.max().values}]")
-                self.log(f"  step6e_C_filtered range: [{step6e_C_filtered.min().values}, {step6e_C_filtered.max().values}]")
-                self.log(f"  Y_cropped range: [{Y_cropped.min().values}, {Y_cropped.max().values}]")
-                
-                # Check if n_frames is greater than available frames
-                if n_frames > Y_cropped.sizes['frame']:
-                    n_frames = Y_cropped.sizes['frame']
-                    self.log(f"Adjusted n_frames to match available data: {n_frames}")
-                
-                # Limit video data to n_frames
-                if n_frames > 0:
-                    # Use specified number of frames
-                    Y_cropped = Y_cropped.isel(frame=slice(0, n_frames))
-                    self.log(f"Using first {n_frames} frames for processing")
-                else:
-                    # Use all frames
-                    self.log(f"Using all {Y_cropped.sizes['frame']} frames for processing")
-                    
-                # Load background components if available
-                try:
-                    step3b_f = self.load_background_components()
-                    if step3b_f is not None:
-                        self.log(f"Loaded background components with shape {step3b_f.shape}")
-                        self.log(f"  Background range: [{step3b_f.min().values}, {step3b_f.max().values}]")
-                    else:
-                        self.log("No background components found, proceeding without background")
-                except Exception as e:
-                    self.log(f"Error loading background: {str(e)}, proceeding without background")
-                    step3b_f = None
-                
-                # Load noise estimates if available
-                try:
-                    step5a_sn_spatial = self.load_noise_estimates()
-                    if step5a_sn_spatial is not None:
-                        self.log(f"Loaded noise estimates with shape {step5a_sn_spatial.shape}")
-                        self.log(f"  Noise range: [{step5a_sn_spatial.min().values}, {step5a_sn_spatial.max().values}]")
-                    else:
-                        self.log("No noise estimates found, proceeding without noise estimates")
-                except Exception as e:
-                    self.log(f"Error loading noise estimates: {str(e)}, proceeding without noise estimates")
-                    step5a_sn_spatial = None
-                
-            except Exception as e:
-                self.log(f"Error loading required data: {str(e)}")
-                self.log(traceback.format_exc())
-                self.status_var.set(f"Error: {str(e)}")
-                return
-            
-            self.update_progress(20)
-
-            # Create a mapping between indices and component IDs
-            self.log("\nCreating component ID mapping...")
-            unit_ids = step7a_dilated.coords['unit_id'].values
-            self.component_id_mapping = {}
-            for idx, comp_id in enumerate(unit_ids):
-                self.component_id_mapping[idx] = comp_id
-                self.log(f"  Index {idx} -> Component ID {comp_id}")
-
-            # Also create reverse mapping (ID to index)
-            self.component_index_mapping = {comp_id: idx for idx, comp_id in enumerate(unit_ids)}
-            self.log(f"Created mapping for {len(self.component_id_mapping)} components")
-            
-            # Create output directory for results
-            self.log("\nCreating output directory...")
-            try:
-                dataset_output_path = self.controller.state.get('dataset_output_path', '')
-                cache_path = self.controller.state.get('cache_path', '')
-                if not dataset_output_path:
-                    # Try to find from cache path
-                    if cache_path:
-                        dataset_output_path = os.path.dirname(cache_path)
-                
-                if not dataset_output_path:
-                    # Last resort - use a subfolder in current directory
-                    dataset_output_path = os.path.join(os.getcwd(), "output")
-                
-                multi_lasso_dir = None
-                self.log(f"Will save results to cache path: {cache_path}")
-            except Exception as e:
-                self.log(f"Warning: Could not create output directory: {str(e)}")
-                self.log("Will continue without saving images")
-                multi_lasso_dir = None
-            
-            # Generate penalty values
-            penalties = np.logspace(np.log10(min_penalty), np.log10(max_penalty), num_penalties)
-            self.log(f"Generated {num_penalties} penalties from {min_penalty:.2e} to {max_penalty:.2e}")
-            self.log(f"Penalties: {penalties}")
-            
-            # Log parameters
-            self.log(f"\nProcessing parameters:")
-            self.log(f"  n_frames: {n_frames}")
-            self.log(f"  min_penalty: {min_penalty}")
-            self.log(f"  max_penalty: {max_penalty}")
-            self.log(f"  num_penalties: {num_penalties}")
-            self.log(f"  min_std: {min_std}")
-            self.log(f"  progress_interval: {progress_interval}")
-            
-            # Check cluster structure
-            self.log("\nCluster structure check:")
-            if len(step7b_clusters) > 0:
-                self.log(f"First cluster in step7b_clusters: {step7b_clusters[0]}")
-                self.log(f"Type: {type(step7b_clusters[0])}")
-            if len(step7c_cluster_data) > 0:
-                self.log(f"First item in step7c_cluster_data: {type(step7c_cluster_data[0])}")
-                if isinstance(step7c_cluster_data[0], tuple) and len(step7c_cluster_data[0]) == 2:
-                    comp_indices, bounds = step7c_cluster_data[0]
-                    self.log(f"  Component indices: {comp_indices}")
-                    self.log(f"  Bounds: {bounds}")
-            
-            # Process all clusters without incremental visualization
-            self.log("\nRunning spatial update...")
-            step7e_multi_lasso_results = {
-                'A_new': {},
-                'processing_stats': {},
-                'cluster_info': {}
-            }
-            
-            total_clusters = len(step7b_clusters)
-            total_components_processed = 0
-            start_time = time.time()
-            
-            # Create bounds dictionary for each component
-            self.log("\nConstructing component bounds dictionary...")
-            bounds_dict = modified_construct_component_bounds_dict_with_mapping(
-                step7b_clusters, 
-                step7c_cluster_data, 
-                self.component_id_mapping, 
-                self.log
-            )
-
-            self.log(f"Created bounds dictionary with {len(bounds_dict)} components")
-            
-            # Log a sample of the bounds dictionary
-            sample_keys = list(bounds_dict.keys())[:3]
-            for key in sample_keys:
-                self.log(f"Bounds for component {key}: {bounds_dict[key]}")
-            
-            for cluster_idx, (cluster_item, bounds) in enumerate(zip(step7b_clusters, step7c_cluster_data)):
-                cluster_start = time.time()
-                self.log(f"\n{'='*40}")
-                self.log(f"Processing cluster {cluster_idx + 1}/{total_clusters}")
-                
-                # Get component IDs safely
-                components = get_component_ids(
-                    cluster_item, 
+                # Create bounds dictionary for each component
+                self.log("\nConstructing component bounds dictionary...")
+                bounds_dict = modified_construct_component_bounds_dict_with_mapping(
+                    step7b_clusters, 
+                    step7c_cluster_data, 
                     self.component_id_mapping, 
                     self.log
                 )
-                self.log(f"Components in cluster: {components}")
+
+                self.log(f"Created bounds dictionary with {len(bounds_dict)} components")
                 
-                try:
-                    # Get bounds and local data for this cluster
-                    if isinstance(bounds, tuple) and len(bounds) == 2:
-                        _, bounds_dict_item = bounds
-                    else:
-                        bounds_dict_item = bounds
+                sample_keys = list(bounds_dict.keys())[:3]
+                for key in sample_keys:
+                    self.log(f"Bounds for component {key}: {bounds_dict[key]}")
+                
+                for cluster_idx, (cluster_item, bounds) in enumerate(zip(step7b_clusters, step7c_cluster_data)):
+                    cluster_start = time.time()
+                    self.log(f"\n{'='*40}")
+                    self.log(f"Processing cluster {cluster_idx + 1}/{total_clusters}")
                     
-                    # Log bounds info
-                    self.log(f"Bounds info: {type(bounds_dict_item)}")
-                    self.log(f"Bounds dict keys: {list(bounds_dict_item.keys())}")
-                    if 'dilated_mask' in bounds_dict_item:
-                        self.log(f"Found dilated_mask with {np.sum(bounds_dict_item['dilated_mask'])} active pixels")
-                    else:
-                        self.log("WARNING: No dilated_mask found in bounds")
-                    if 'height' in bounds_dict_item and 'width' in bounds_dict_item:
-                        h_slice = bounds_dict_item['height']
-                        w_slice = bounds_dict_item['width']
-                        self.log(f"Height slice: {h_slice.start}:{h_slice.stop}, Width slice: {w_slice.start}:{w_slice.stop}")
-                    else:
-                        self.log("WARNING: Bounds dict doesn't have expected structure")
-                        continue
+                    # Get component IDs safely
+                    components = get_component_ids(
+                        cluster_item, 
+                        self.component_id_mapping, 
+                        self.log
+                    )
+                    self.log(f"Components in cluster: {components}")
                     
-                    h_slice = slice(int(bounds_dict_item['height'].start), int(bounds_dict_item['height'].stop))
-                    w_slice = slice(int(bounds_dict_item['width'].start), int(bounds_dict_item['width'].stop))
-                    
-                    # Extract local data
-                    Y_local = Y_cropped.isel(height=h_slice, width=w_slice)
-                    sn_local = None if step5a_sn_spatial is None else step5a_sn_spatial.isel(height=h_slice, width=w_slice)
-                    
-                    # FIX: Limit background to same number of frames
-                    if step3b_f is None:
-                        f_local = None
-                    else:
-                        # Ensure background matches the number of frames
-                        if hasattr(step3b_f, 'isel') and 'frame' in step3b_f.dims:
-                            f_local = step3b_f.isel(frame=slice(0, n_frames)).values
-                        else:
-                            # If it's already a numpy array, just slice it
-                            f_local = step3b_f.values[:n_frames]
-
-                    dilated_local = step7a_dilated.isel(height=h_slice, width=w_slice)
-                    
-                    self.log(f"Local region shape: {Y_local.shape}")
-
-                    
-                    # RECALCULATE DILATED MASK FOR THIS CLUSTER
-                    self.log("Recalculating dilated mask for sparse processing...")
                     try:
-                        from skimage import morphology
-                        
-                        # Get all components in this cluster and create combined mask
-                        cluster_mask = None
-                        for comp_id in components:
-                            try:
-                                comp_data = dilated_local.sel(unit_id=comp_id).compute().values
-                                if cluster_mask is None:
-                                    cluster_mask = (comp_data > 0)
-                                else:
-                                    cluster_mask = cluster_mask | (comp_data > 0)
-                            except Exception as e:
-                                self.log(f"Error adding component {comp_id} to cluster mask: {str(e)}")
-                        
-                        if cluster_mask is not None:
-                            # Apply morphological dilation
-                            dilation_radius = 10  # Same as Step 7c default
-                            selem = morphology.disk(dilation_radius)
-                            dilated_mask = morphology.binary_dilation(cluster_mask, selem)
-                            
-                            active_pixels = np.sum(dilated_mask)
-                            total_pixels = dilated_mask.size
-                            self.log(f"Created dilated mask: {active_pixels}/{total_pixels} pixels active ({active_pixels/total_pixels*100:.1f}%)")
-                            
-                            # Store it in bounds_dict_item for the processing functions
-                            bounds_dict_item['dilated_mask'] = dilated_mask
+                        # Get bounds and local data for this cluster
+                        if isinstance(bounds, tuple) and len(bounds) == 2:
+                            _, bounds_dict_item = bounds
                         else:
-                            self.log("ERROR: Could not create cluster mask")
+                            bounds_dict_item = bounds
+                        
+                        self.log(f"Bounds info: {type(bounds_dict_item)}")
+                        self.log(f"Bounds dict keys: {list(bounds_dict_item.keys())}")
+                        if 'dilated_mask' in bounds_dict_item:
+                            self.log(f"Found dilated_mask with {np.sum(bounds_dict_item['dilated_mask'])} active pixels")
+                        else:
+                            self.log("WARNING: No dilated_mask found in bounds")
+                        if 'height' in bounds_dict_item and 'width' in bounds_dict_item:
+                            h_slice = bounds_dict_item['height']
+                            w_slice = bounds_dict_item['width']
+                            self.log(f"Height slice: {h_slice.start}:{h_slice.stop}, Width slice: {w_slice.start}:{w_slice.stop}")
+                        else:
+                            self.log("WARNING: Bounds dict doesn't have expected structure")
                             continue
-                            
-                    except Exception as e:
-                        self.log(f"Error creating dilated mask: {str(e)}")
-                        # Fallback - use all pixels (no sparse processing)
-                        dilated_mask = np.ones((Y_local.shape[1], Y_local.shape[2]), dtype=bool)
-                        bounds_dict_item['dilated_mask'] = dilated_mask
-                        self.log("Using fallback: processing all pixels")
-                    
-                    # Calculate pixel STD statistics for this region
-                    Y_local_vals = Y_local.values
-                    pixel_stds = np.std(Y_local_vals, axis=0)
-                    below_threshold = np.sum(pixel_stds < min_std)
-                    above_threshold = np.sum(pixel_stds >= min_std)
-                    self.log(f"Pixel STD stats for region:")
-                    self.log(f"  Min STD: {np.min(pixel_stds):.6f}")
-                    self.log(f"  Max STD: {np.max(pixel_stds):.6f}")
-                    self.log(f"  Mean STD: {np.mean(pixel_stds):.6f}")
-                    self.log(f"  Median STD: {np.median(pixel_stds):.6f}")
-                    self.log(f"  Pixels below min_std ({min_std}): {below_threshold} ({below_threshold/(below_threshold+above_threshold)*100:.1f}%)")
-                    self.log(f"Y_local_vals shape: {Y_local_vals.shape}")
-                    self.log(f"Y_local_vals contains NaN: {np.isnan(Y_local_vals).any()}")
-                    self.log(f"Y_local_vals contains Inf: {np.isinf(Y_local_vals).any()}")
-
-                    # When calculating pixel_stds, add more debugging:
-                    try:
-                        pixel_stds = np.std(Y_local_vals, axis=0)
-                        self.log(f"Successfully calculated STD, shape: {pixel_stds.shape}")
-                    except Exception as e:
-                        self.log(f"Error calculating STD: {str(e)}")
                         
-                    self.log(f"pixel_stds contains NaN: {np.isnan(pixel_stds).any()}")
-                    self.log(f"pixel_stds contains Inf: {np.isinf(pixel_stds).any()}")
-
-                    # Try to identify specific locations with NaNs
-                    if np.isnan(pixel_stds).any():
-                        nan_coords = np.where(np.isnan(pixel_stds))
-                        sample_idx = min(5, len(nan_coords[0]))
-                        self.log(f"Sample NaN locations (up to 5): {list(zip(nan_coords[0][:sample_idx], nan_coords[1][:sample_idx]))}")
+                        h_slice = slice(int(bounds_dict_item['height'].start), int(bounds_dict_item['height'].stop))
+                        w_slice = slice(int(bounds_dict_item['width'].start), int(bounds_dict_item['width'].stop))
                         
-                        # Check a sample pixel with NaN STD
-                        if len(nan_coords[0]) > 0:
-                            y_nan, x_nan = nan_coords[0][0], nan_coords[1][0]
-                            nan_pixel_trace = Y_local_vals[:, y_nan, x_nan]
-                            self.log(f"Pixel trace at NaN location ({y_nan},{x_nan}):")
-                            self.log(f"  First few values: {nan_pixel_trace[:5]}")
-                            self.log(f"  Has NaNs: {np.isnan(nan_pixel_trace).any()}")
-                            self.log(f"  Has Infs: {np.isinf(nan_pixel_trace).any()}")
-                            self.log(f"  All identical values: {np.all(nan_pixel_trace == nan_pixel_trace[0])}")
-                    
-                    # Process each component in the cluster
-                    for comp_id in components:
-                        comp_start = time.time()
-                        self.log(f"\nProcessing component {comp_id}")
+                        # Extract local data
+                        Y_local = Y_cropped.isel(height=h_slice, width=w_slice)
+                        sn_local = None if step5a_sn_spatial is None else step5a_sn_spatial.isel(height=h_slice, width=w_slice)
                         
-                        try:
-
-                            if isinstance(comp_id, float) and comp_id.is_integer():
-                                comp_id_for_selection = int(comp_id)
+                        if step3b_f is None:
+                            f_local = None
+                        else:
+                            if hasattr(step3b_f, 'isel') and 'frame' in step3b_f.dims:
+                                f_local = step3b_f.isel(frame=slice(0, n_frames)).values
                             else:
-                                comp_id_for_selection = comp_id
+                                f_local = step3b_f.values[:n_frames]
 
-                            # Check if component exists in temporal data
-                            temporal_unit_ids = step6e_C_filtered.coords['unit_id'].values
-                            if comp_id_for_selection not in temporal_unit_ids:
-                                self.log(f"Component {comp_id} not found in filtered temporal components, skipping")
+                        dilated_local = step7a_dilated.isel(height=h_slice, width=w_slice)
+                        
+                        self.log(f"Local region shape: {Y_local.shape}")
+                        
+                        # Recalculate dilated mask for this cluster
+                        self.log("Recalculating dilated mask for sparse processing...")
+                        try:
+                            from skimage import morphology
+                            
+                            cluster_mask = None
+                            for comp_id in components:
+                                try:
+                                    comp_data = dilated_local.sel(unit_id=comp_id).compute().values
+                                    if cluster_mask is None:
+                                        cluster_mask = (comp_data > 0)
+                                    else:
+                                        cluster_mask = cluster_mask | (comp_data > 0)
+                                except Exception as e:
+                                    self.log(f"Error adding component {comp_id} to cluster mask: {str(e)}")
+                            
+                            if cluster_mask is not None:
+                                dilation_radius = 10
+                                selem = morphology.disk(dilation_radius)
+                                dilated_mask = morphology.binary_dilation(cluster_mask, selem)
+                                
+                                active_pixels = np.sum(dilated_mask)
+                                total_pixels = dilated_mask.size
+                                self.log(f"Created dilated mask: {active_pixels}/{total_pixels} pixels active ({active_pixels/total_pixels*100:.1f}%)")
+                                bounds_dict_item['dilated_mask'] = dilated_mask
+                            else:
+                                self.log("ERROR: Could not create cluster mask")
                                 continue
-
-                            # Get temporal data for this component
-                            C_local = step6e_C_filtered.sel(unit_id=comp_id_for_selection)
-
-                            # Limit to the same number of frames as Y_local
-                            if n_frames > 0:
-                                C_local = C_local.isel(frame=slice(0, n_frames))
-                            
-                            # Log temporal trace stats
-                            C_vals = C_local.values
-                            self.log(f"Component {comp_id} temporal trace:")
-                            self.log(f"  Shape: {C_vals.shape}")
-                            self.log(f"  Range: [{np.min(C_vals)}, {np.max(C_vals)}]")
-                            self.log(f"  Mean: {np.mean(C_vals):.6f}, STD: {np.std(C_vals):.6f}")
-                            
-                            # Get original component mask for reference
-                            try:
-                                orig_comp = dilated_local.sel(unit_id=comp_id).compute().values
-                                orig_pixels = np.sum(orig_comp > 0)
-                                self.log(f"Original component has {orig_pixels} active pixels")
                                 
-                                # Check if original is all zeros
-                                if orig_pixels == 0:
-                                    self.log("WARNING: Original component has 0 active pixels")
-                            except Exception as e:
-                                self.log(f"Error checking original component: {str(e)}")
-                                orig_pixels = 0
-                            
-                            # Process this component
-                            self.log(f"Starting multi-LASSO processing...")
-                            A_multi, stats_multi = process_component_multi_lasso(
-                                Y_local=Y_local,
-                                C_local=C_local,
-                                dilated_mask=dilated_mask,
-                                sn_local=sn_local,
-                                background=f_local,
-                                penalties=penalties,
-                                min_std=min_std,
-                                progress_interval=progress_interval,
-                                log_function=lambda *args, **kwargs: None
-                            )
-                            self.log(f"Multi-LASSO processing complete")
-                            
-                            # Count active pixels in result
-                            active_pixels = np.sum(A_multi > 0)
-                            if active_pixels == 0:
-                                self.log("WARNING: Result has 0 active pixels")
-                                
-                                # Check coefficient distribution
-                                if np.max(A_multi) > 0:
-                                    self.log(f"  Max coefficient: {np.max(A_multi):.8f}")
-                                    self.log(f"  Possibly below activity threshold")
-                                else:
-                                    self.log(f"  All coefficients are zero")
-                            
-                            # Store results
-                            step7e_multi_lasso_results['A_new'][comp_id] = A_multi
-                            step7e_multi_lasso_results['processing_stats'][comp_id] = stats_multi
-                            
-                            # Update progress
-                            total_components_processed += 1
-                            comp_time = time.time() - comp_start
-                            self.log(f"Component {comp_id} completed in {comp_time:.1f}s")
-                            self.log(f"Found {stats_multi['active_pixels']} active pixels")
-                            self.log(f"Processing rate: {stats_multi['processing_rate']:.1f} pixels/sec")
-                            
                         except Exception as e:
-                            self.log(f"Error processing component {comp_id}: {str(e)}")
-                            self.log(traceback.format_exc())
-                            continue
-                    
-                    # Store cluster info
-                    step7e_multi_lasso_results['cluster_info'][cluster_idx] = {
-                        'components': components,
-                        'bounds': bounds_dict_item,
-                        'processing_time': time.time() - cluster_start
-                    }
-                    
-                    # Update progress
-                    progress_value = 20 + (60 * (cluster_idx + 1) / total_clusters)
-                    self.update_progress(progress_value)
-                    
-                except Exception as e:
-                    self.log(f"Error processing cluster {cluster_idx}: {str(e)}")
-                    self.log(traceback.format_exc())
-                    continue
-            
-            self.log(f"\nSpatial update completed successfully")
-            self.log(f"Updated {len(step7e_multi_lasso_results['A_new'])} components")
-            
-            # Check for components with zero active pixels
-            zero_count = 0
-            for comp_id, stats in step7e_multi_lasso_results['processing_stats'].items():
-                if stats['active_pixels'] == 0:
-                    zero_count += 1
-                    self.log(f"Component {comp_id} has 0 active pixels after update")
-            
-            if zero_count > 0:
-                self.log(f"WARNING: {zero_count} components have 0 active pixels after update")
-            
-            # Create full component array with updates
-            self.log("\nCreating updated component array...")
-            
-            # Create bounds dictionary for each component
-            bounds_dict = modified_construct_component_bounds_dict_with_mapping(
-                step7b_clusters, 
-                step7c_cluster_data, 
-                self.component_id_mapping, 
-                self.log
-            )
-            
-            # Create updated array 
-            try:
-                # Modified version of create_updated_component_array to avoid dask array assignment
-                step7e_A_updated = self.modified_create_updated_array(
-                    A_original=step7a_dilated,
-                    component_updates=step7e_multi_lasso_results['A_new'],
-                    bounds_dict=bounds_dict
+                            self.log(f"Error creating dilated mask: {str(e)}")
+                            dilated_mask = np.ones((Y_local.shape[1], Y_local.shape[2]), dtype=bool)
+                            bounds_dict_item['dilated_mask'] = dilated_mask
+                            self.log("Using fallback: processing all pixels")
+                        
+                        # Calculate pixel STD statistics for this region
+                        Y_local_vals = Y_local.values
+                        pixel_stds = np.std(Y_local_vals, axis=0)
+                        below_threshold = np.sum(pixel_stds < min_std)
+                        above_threshold = np.sum(pixel_stds >= min_std)
+                        self.log(f"Pixel STD stats for region:")
+                        self.log(f"  Min STD: {np.min(pixel_stds):.6f}")
+                        self.log(f"  Max STD: {np.max(pixel_stds):.6f}")
+                        self.log(f"  Mean STD: {np.mean(pixel_stds):.6f}")
+                        self.log(f"  Median STD: {np.median(pixel_stds):.6f}")
+                        self.log(f"  Pixels below min_std ({min_std}): {below_threshold} ({below_threshold/(below_threshold+above_threshold)*100:.1f}%)")
+                        self.log(f"Y_local_vals shape: {Y_local_vals.shape}")
+                        self.log(f"Y_local_vals contains NaN: {np.isnan(Y_local_vals).any()}")
+                        self.log(f"Y_local_vals contains Inf: {np.isinf(Y_local_vals).any()}")
+
+                        try:
+                            pixel_stds = np.std(Y_local_vals, axis=0)
+                            self.log(f"Successfully calculated STD, shape: {pixel_stds.shape}")
+                        except Exception as e:
+                            self.log(f"Error calculating STD: {str(e)}")
+                            
+                        self.log(f"pixel_stds contains NaN: {np.isnan(pixel_stds).any()}")
+                        self.log(f"pixel_stds contains Inf: {np.isinf(pixel_stds).any()}")
+
+                        if np.isnan(pixel_stds).any():
+                            nan_coords = np.where(np.isnan(pixel_stds))
+                            sample_idx = min(5, len(nan_coords[0]))
+                            self.log(f"Sample NaN locations (up to 5): {list(zip(nan_coords[0][:sample_idx], nan_coords[1][:sample_idx]))}")
+                            
+                            if len(nan_coords[0]) > 0:
+                                y_nan, x_nan = nan_coords[0][0], nan_coords[1][0]
+                                nan_pixel_trace = Y_local_vals[:, y_nan, x_nan]
+                                self.log(f"Pixel trace at NaN location ({y_nan},{x_nan}):")
+                                self.log(f"  First few values: {nan_pixel_trace[:5]}")
+                                self.log(f"  Has NaNs: {np.isnan(nan_pixel_trace).any()}")
+                                self.log(f"  Has Infs: {np.isinf(nan_pixel_trace).any()}")
+                                self.log(f"  All identical values: {np.all(nan_pixel_trace == nan_pixel_trace[0])}")
+                        
+                        # Process each component in the cluster
+                        for comp_id in components:
+                            comp_start = time.time()
+                            self.log(f"\nProcessing component {comp_id}")
+                            
+                            try:
+                                spatial_id = int(comp_id) if isinstance(comp_id, float) else int(comp_id)
+
+                                # ── REMAP SPATIAL ID -> TEMPORAL ID ──────────────
+                                if self.spatial_to_temporal:
+                                    temporal_id = self.spatial_to_temporal.get(spatial_id)
+                                    if temporal_id is None:
+                                        self.log(f"Spatial component {spatial_id} has no temporal mapping, skipping")
+                                        continue
+                                else:
+                                    temporal_id = spatial_id  # fallback: assume IDs match
+
+                                temporal_unit_ids = step6e_C_filtered.coords['unit_id'].values
+                                if temporal_id not in temporal_unit_ids:
+                                    self.log(f"Temporal ID {temporal_id} (from spatial {spatial_id}) not in C_filtered, skipping")
+                                    continue
+
+                                self.log(f"Mapped spatial {spatial_id} -> temporal {temporal_id}")
+                                C_local = step6e_C_filtered.sel(unit_id=temporal_id)
+                                # ─────────────────────────────────────────────────
+
+                                # Limit to the same number of frames as Y_local
+                                if n_frames > 0:
+                                    C_local = C_local.isel(frame=slice(0, n_frames))
+                                
+                                # Log temporal trace stats
+                                C_vals = C_local.values
+                                self.log(f"Component {comp_id} temporal trace:")
+                                self.log(f"  Shape: {C_vals.shape}")
+                                self.log(f"  Range: [{np.min(C_vals)}, {np.max(C_vals)}]")
+                                self.log(f"  Mean: {np.mean(C_vals):.6f}, STD: {np.std(C_vals):.6f}")
+                                
+                                # Get original component mask for reference
+                                try:
+                                    orig_comp = dilated_local.sel(unit_id=comp_id).compute().values
+                                    orig_pixels = np.sum(orig_comp > 0)
+                                    self.log(f"Original component has {orig_pixels} active pixels")
+                                    if orig_pixels == 0:
+                                        self.log("WARNING: Original component has 0 active pixels")
+                                except Exception as e:
+                                    self.log(f"Error checking original component: {str(e)}")
+                                    orig_pixels = 0
+                                
+                                # Process this component
+                                self.log(f"Starting multi-LASSO processing...")
+                                A_multi, stats_multi = process_component_multi_lasso(
+                                    Y_local=Y_local,
+                                    C_local=C_local,
+                                    dilated_mask=dilated_mask,
+                                    sn_local=sn_local,
+                                    background=f_local,
+                                    penalties=penalties,
+                                    min_std=min_std,
+                                    progress_interval=progress_interval,
+                                    log_function=lambda *args, **kwargs: None
+                                )
+                                self.log(f"Multi-LASSO processing complete")
+                                
+                                # Count active pixels in result
+                                active_pixels = np.sum(A_multi > 0)
+                                if active_pixels == 0:
+                                    self.log("WARNING: Result has 0 active pixels")
+                                    if np.max(A_multi) > 0:
+                                        self.log(f"  Max coefficient: {np.max(A_multi):.8f}")
+                                        self.log(f"  Possibly below activity threshold")
+                                    else:
+                                        self.log(f"  All coefficients are zero")
+                                
+                                # Store results keyed by spatial_id (comp_id) so downstream
+                                # code (bounds_dict, A_updated indexing) stays consistent
+                                step7e_multi_lasso_results['A_new'][comp_id] = A_multi
+                                step7e_multi_lasso_results['processing_stats'][comp_id] = stats_multi
+                                
+                                total_components_processed += 1
+                                comp_time = time.time() - comp_start
+                                self.log(f"Component {comp_id} completed in {comp_time:.1f}s")
+                                self.log(f"Found {stats_multi['active_pixels']} active pixels")
+                                self.log(f"Processing rate: {stats_multi['processing_rate']:.1f} pixels/sec")
+                                
+                            except Exception as e:
+                                self.log(f"Error processing component {comp_id}: {str(e)}")
+                                self.log(traceback.format_exc())
+                                continue
+                        
+                        # Store cluster info
+                        step7e_multi_lasso_results['cluster_info'][cluster_idx] = {
+                            'components': components,
+                            'bounds': bounds_dict_item,
+                            'processing_time': time.time() - cluster_start
+                        }
+                        
+                        progress_value = 20 + (60 * (cluster_idx + 1) / total_clusters)
+                        self.update_progress(progress_value)
+                        
+                    except Exception as e:
+                        self.log(f"Error processing cluster {cluster_idx}: {str(e)}")
+                        self.log(traceback.format_exc())
+                        continue
+                
+                self.log(f"\nSpatial update completed successfully")
+                self.log(f"Updated {len(step7e_multi_lasso_results['A_new'])} components")
+                
+                # Check for components with zero active pixels
+                zero_count = 0
+                for comp_id, stats in step7e_multi_lasso_results['processing_stats'].items():
+                    if stats['active_pixels'] == 0:
+                        zero_count += 1
+                        self.log(f"Component {comp_id} has 0 active pixels after update")
+                
+                if zero_count > 0:
+                    self.log(f"WARNING: {zero_count} components have 0 active pixels after update")
+                
+                # Create full component array with updates
+                self.log("\nCreating updated component array...")
+                
+                bounds_dict = modified_construct_component_bounds_dict_with_mapping(
+                    step7b_clusters, 
+                    step7c_cluster_data, 
+                    self.component_id_mapping, 
+                    self.log
                 )
                 
-                self.log(f"Created updated component array with shape {step7e_A_updated.shape}")
+                try:
+                    step7e_A_updated = self.modified_create_updated_array(
+                        A_original=step7a_dilated,
+                        component_updates=step7e_multi_lasso_results['A_new'],
+                        bounds_dict=bounds_dict
+                    )
+                    
+                    self.log(f"Created updated component array with shape {step7e_A_updated.shape}")
+                    
+                    total_active_updated = 0
+                    for comp_id in unit_ids:
+                        try:
+                            comp_data = step7e_A_updated.sel(unit_id=comp_id).compute().values
+                            active_pixels = np.sum(comp_data > 0)
+                            if comp_id in step7e_multi_lasso_results['A_new']:
+                                total_active_updated += active_pixels
+                                self.log(f"Component {comp_id}: {active_pixels} active pixels after update")
+                                if active_pixels == 0:
+                                    self.log(f"WARNING: Updated component {comp_id} has 0 active pixels")
+                        except Exception as e:
+                            self.log(f"Error counting active pixels for component {comp_id}: {str(e)}")
+                    
+                    self.log(f"Total active pixels in updated components: {total_active_updated}")
+                    if total_active_original > 0:
+                        change_pct = (total_active_updated - total_active_original) / total_active_original * 100
+                        self.log(f"Change: {change_pct:.1f}%")
+                    
+                except Exception as e:
+                    self.log(f"Error creating updated array: {str(e)}")
+                    self.log(traceback.format_exc())
+                    self.status_var.set(f"Error creating updated array")
+                    return
                 
-                # Count active pixels in updated component array
-                total_active_updated = 0
-                for comp_id in unit_ids:
-                    try:
-                        comp_data = step7e_A_updated.sel(unit_id=comp_id).compute().values
-                        active_pixels = np.sum(comp_data > 0)
-                        if comp_id in step7e_multi_lasso_results['A_new']:
-                            total_active_updated += active_pixels
-                            self.log(f"Component {comp_id}: {active_pixels} active pixels after update")
-                            if active_pixels == 0:
-                                self.log(f"WARNING: Updated component {comp_id} has 0 active pixels")
-                    except Exception as e:
-                        self.log(f"Error counting active pixels for component {comp_id}: {str(e)}")
+                # Save results to state
+                self.controller.state['results']['step7e'] = {
+                    'step7e_A_updated': step7e_A_updated,
+                    'step7e_multi_lasso_results': step7e_multi_lasso_results,
+                    'step7e_parameters': {
+                        'n_frames': n_frames,
+                        'min_penalty': min_penalty,
+                        'max_penalty': max_penalty,
+                        'num_penalties': num_penalties,
+                        'min_std': min_std
+                    }
+                }
                 
-                self.log(f"Total active pixels in updated components: {total_active_updated}")
-                if total_active_original > 0:
-                    change_pct = (total_active_updated - total_active_original) / total_active_original * 100
-                    self.log(f"Change: {change_pct:.1f}%")
+                self.controller.state['results']['step7e_A_updated'] = step7e_A_updated
+                
+                if hasattr(self.controller, 'auto_save_parameters'):
+                    self.controller.auto_save_parameters()
+                
+                self._save_updated_components(step7e_A_updated, step7e_multi_lasso_results, use_save_files)
+                
+                self.after_idle(lambda: self.create_visualizations(
+                    step7e_A_updated, 
+                    step7a_dilated, 
+                    step7e_multi_lasso_results
+                ))
+                
+                self.after_idle(lambda: self.enable_component_inspection(
+                    list(step7e_multi_lasso_results['A_new'].keys())
+                ))
+                
+                self.update_progress(100)
+                self.status_var.set("Spatial update complete")
+                self.processing_complete = True
+                self.controller.after(0, lambda: self.controller.on_step_complete(self.__class__.__name__))
                 
             except Exception as e:
-                self.log(f"Error creating updated array: {str(e)}")
+                self.status_var.set(f"Error: {str(e)}")
+                self.log(f"Error in spatial update thread: {str(e)}")
                 self.log(traceback.format_exc())
-                self.status_var.set(f"Error creating updated array")
-                return
-            
-            # Save results to state
-            self.controller.state['results']['step7e'] = {
-                'step7e_A_updated': step7e_A_updated,
-                'step7e_multi_lasso_results': step7e_multi_lasso_results,
-                'step7e_parameters': {
-                    'n_frames': n_frames,
-                    'min_penalty': min_penalty,
-                    'max_penalty': max_penalty,
-                    'num_penalties': num_penalties,
-                    'min_std': min_std
-                }
-            }
-            
-            # Also store at top level for easier access
-            self.controller.state['results']['step7e_A_updated'] = step7e_A_updated
-            
-            # Auto-save parameters
-            if hasattr(self.controller, 'auto_save_parameters'):
-                self.controller.auto_save_parameters()
-            
-            # Save to files
-            self._save_updated_components(step7e_A_updated, step7e_multi_lasso_results, use_save_files)
-            
-            # Create visualizations in main thread
-            self.after_idle(lambda: self.create_visualizations(
-                step7e_A_updated, 
-                step7a_dilated, 
-                step7e_multi_lasso_results
-            ))
-            
-            # Enable component inspection
-            self.after_idle(lambda: self.enable_component_inspection(
-                list(step7e_multi_lasso_results['A_new'].keys())
-            ))
-            
-            # Update progress and status
-            self.update_progress(100)
-            self.status_var.set("Spatial update complete")
 
-            # Mark as complete
-            self.processing_complete = True
-
-            # Notify controller for autorun
-            self.controller.after(0, lambda: self.controller.on_step_complete(self.__class__.__name__))
-            
-        except Exception as e:
-            self.status_var.set(f"Error: {str(e)}")
-            self.log(f"Error in spatial update thread: {str(e)}")
-            self.log(traceback.format_exc())
-
-            # Stop autorun if configured
-            if self.controller.state.get('autorun_stop_on_error', True):
-                self.controller.autorun_enabled = False
-                self.controller.autorun_indicator.config(text="")
+                if self.controller.state.get('autorun_stop_on_error', True):
+                    self.controller.autorun_enabled = False
+                    self.controller.autorun_indicator.config(text="")
 
     def modified_create_updated_array(self, A_original, component_updates, bounds_dict):
         """
@@ -1784,7 +1793,7 @@ class Step7eSpatialUpdate(ttk.Frame):
             if use_save_files:
                 # Use save_files utility if available
                 try:
-                    from utilities import save_files
+                    from saving_utilities import save_files
                     save_files(
                         step7e_A_updated.rename("step7e_A_updated"), 
                         cache_path, 

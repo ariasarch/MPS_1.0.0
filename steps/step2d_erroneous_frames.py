@@ -59,7 +59,39 @@ class Step2dErroneousFrames(ttk.Frame):
         self.threshold_var = tk.DoubleVar(value=5.0)
         self.threshold_entry = ttk.Entry(self.control_frame, textvariable=self.threshold_var, width=5)
         self.threshold_entry.grid(row=0, column=1, padx=10, pady=10, sticky="w")
-        
+        self.use_abs_limits_var = tk.BooleanVar(value=False)
+        self.height_min_var = tk.DoubleVar(value=-10.0)
+        self.height_max_var = tk.DoubleVar(value=10.0)
+        self.width_min_var = tk.DoubleVar(value=-10.0)
+        self.width_max_var = tk.DoubleVar(value=10.0)
+
+        # Absolute limits toggle
+        self.abs_limits_check = ttk.Checkbutton(
+            self.control_frame,
+            text="Use Absolute Pixel Limits",
+            variable=self.use_abs_limits_var,
+            command=self._toggle_abs_limits
+        )
+        self.abs_limits_check.grid(row=1, column=0, columnspan=2, padx=10, pady=(10,0), sticky="w")
+
+        # Height limits
+        ttk.Label(self.control_frame, text="Height (Y) Min:").grid(row=2, column=0, padx=10, pady=4, sticky="w")
+        self.height_min_entry = ttk.Entry(self.control_frame, textvariable=self.height_min_var, width=7, state="disabled")
+        self.height_min_entry.grid(row=2, column=1, padx=10, pady=4, sticky="w")
+
+        ttk.Label(self.control_frame, text="Height (Y) Max:").grid(row=3, column=0, padx=10, pady=4, sticky="w")
+        self.height_max_entry = ttk.Entry(self.control_frame, textvariable=self.height_max_var, width=7, state="disabled")
+        self.height_max_entry.grid(row=3, column=1, padx=10, pady=4, sticky="w")
+
+        # Width limits
+        ttk.Label(self.control_frame, text="Width (X) Min:").grid(row=4, column=0, padx=10, pady=4, sticky="w")
+        self.width_min_entry = ttk.Entry(self.control_frame, textvariable=self.width_min_var, width=7, state="disabled")
+        self.width_min_entry.grid(row=4, column=1, padx=10, pady=4, sticky="w")
+
+        ttk.Label(self.control_frame, text="Width (X) Max:").grid(row=5, column=0, padx=10, pady=4, sticky="w")
+        self.width_max_entry = ttk.Entry(self.control_frame, textvariable=self.width_max_var, width=7, state="disabled")
+        self.width_max_entry.grid(row=5, column=1, padx=10, pady=4, sticky="w")
+
         # Drop erroneous frames option
         self.step2d_drop_frames_var = tk.BooleanVar(value=True)
         self.step2d_drop_frames_check = ttk.Checkbutton(
@@ -67,7 +99,7 @@ class Step2dErroneousFrames(ttk.Frame):
             text="Drop Erroneous Frames",
             variable=self.step2d_drop_frames_var
         )
-        self.step2d_drop_frames_check.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky="w")
+        self.step2d_drop_frames_check.grid(row=6, column=0, columnspan=2, padx=10, pady=10, sticky="w")
         
         # Run button
         self.run_button = ttk.Button(
@@ -75,20 +107,20 @@ class Step2dErroneousFrames(ttk.Frame):
             text="Detect Erroneous Frames",
             command=self.run_detection
         )
-        self.run_button.grid(row=2, column=0, columnspan=2, pady=20, padx=10)
+        self.run_button.grid(row=7, column=0, columnspan=2, pady=20, padx=10)
         
         # Status
         self.status_var = tk.StringVar(value="Ready to detect erroneous frames")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=3, column=0, columnspan=2, pady=10)
+        self.status_label.grid(row=8, column=0, columnspan=2, pady=10)
         
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=4, column=0, columnspan=2, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=9, column=0, columnspan=2, pady=10, padx=10, sticky="ew")
         
         # Results frame
         self.results_frame = ttk.LabelFrame(self.control_frame, text="Detection Results")
-        self.results_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        self.results_frame.grid(row=10, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
         
         # Results text with scrollbar
         results_scroll = ttk.Scrollbar(self.results_frame)
@@ -132,6 +164,12 @@ class Step2dErroneousFrames(ttk.Frame):
         self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
         self.update_idletasks()
+
+    def _toggle_abs_limits(self):
+        state = "normal" if self.use_abs_limits_var.get() else "disabled"
+        for entry in [self.height_min_entry, self.height_max_entry,
+                    self.width_min_entry, self.width_max_entry]:
+            entry.config(state=state)
     
     def on_show_frame(self):
         """Called when this frame is shown - load parameters if available"""
@@ -166,6 +204,18 @@ class Step2dErroneousFrames(ttk.Frame):
         # Get parameters from UI
         step2d_threshold_factor = self.threshold_var.get()
         step2d_drop_frames = self.step2d_drop_frames_var.get()
+        step2d_use_abs_limits = self.use_abs_limits_var.get()
+        step2d_height_min = self.height_min_var.get() if step2d_use_abs_limits else None
+        step2d_height_max = self.height_max_var.get() if step2d_use_abs_limits else None
+        step2d_width_min = self.width_min_var.get() if step2d_use_abs_limits else None
+        step2d_width_max = self.width_max_var.get() if step2d_use_abs_limits else None
+
+        thread = threading.Thread(
+            target=self._detect_frames_thread,
+            args=(step2d_threshold_factor, step2d_drop_frames,
+                step2d_height_min, step2d_height_max,
+                step2d_width_min, step2d_width_max)
+        )
         
         # Validate threshold
         if step2d_threshold_factor <= 0:
@@ -176,12 +226,15 @@ class Step2dErroneousFrames(ttk.Frame):
         # Create a thread for processing
         thread = threading.Thread(
             target=self._detect_frames_thread,
-            args=(step2d_threshold_factor, step2d_drop_frames)
+            args=(step2d_threshold_factor, step2d_drop_frames,
+                step2d_height_min, step2d_height_max,
+                step2d_width_min, step2d_width_max)
         )
         thread.daemon = True
         thread.start()
     
-    def _detect_frames_thread(self, step2d_threshold_factor, step2d_drop_frames):
+    def _detect_frames_thread(self, step2d_threshold_factor, step2d_drop_frames,
+                            height_min, height_max, width_min, width_max):
         """Thread function for erroneous frame detection"""
         try:
             self.log("Initializing erroneous frame detection...")
@@ -283,6 +336,35 @@ class Step2dErroneousFrames(ttk.Frame):
             except Exception as e:
                 self.log(f"Error while checking for NaNs: {str(e)}")
             
+            # Absolute limits check — combine with threshold-based erroneous frames
+            if height_min is not None or height_max is not None or width_min is not None or width_max is not None:
+                shift_vals = step2d_motion.values  # shape (frames, 2) or (frames,)
+                
+                if len(shift_vals.shape) > 1:
+                    y_motion = shift_vals[:, 0]
+                    x_motion = shift_vals[:, 1]
+                else:
+                    y_motion = shift_vals
+                    x_motion = shift_vals
+
+                abs_erroneous = set()
+
+                if height_min is not None:
+                    abs_erroneous.update(np.where(y_motion < height_min)[0].tolist())
+                if height_max is not None:
+                    abs_erroneous.update(np.where(y_motion > height_max)[0].tolist())
+                if width_min is not None:
+                    abs_erroneous.update(np.where(x_motion < width_min)[0].tolist())
+                if width_max is not None:
+                    abs_erroneous.update(np.where(x_motion > width_max)[0].tolist())
+
+                abs_count = len(abs_erroneous)
+                self.log(f"Absolute limits flagged {abs_count} additional frames")
+
+                # Merge with threshold-based results
+                step2d_erroneous_frames = sorted(set(step2d_erroneous_frames) | abs_erroneous)
+                self.log(f"Combined erroneous frames (threshold + absolute): {len(step2d_erroneous_frames)}")
+
             # If no erroneous frames found, show anyway
             if len(step2d_erroneous_frames) == 0:
                 self.log("No erroneous frames detected - all frames are valid")
@@ -306,7 +388,11 @@ class Step2dErroneousFrames(ttk.Frame):
                     'step2d_height_stats': step2d_height_stats,
                     'step2d_width_stats': step2d_width_stats,
                     'step2d_varr_ref': step2d_varr_ref,
-                    'step2d_motion': step2d_motion
+                    'step2d_motion': step2d_motion,
+                    'step2d_height_min': height_min,
+                    'step2d_height_max': height_max,
+                    'step2d_width_min': width_min,
+                    'step2d_width_max': width_max,
                 }
                 
                 # Also store at top level for easier access
@@ -372,6 +458,7 @@ class Step2dErroneousFrames(ttk.Frame):
             self.update_progress(50)
             
             # Process erroneous frames
+            step2d_motion_original = step2d_motion
             if step2d_drop_frames and step2d_erroneous_frames:
                 self.log("Dropping erroneous frames...")
                 
@@ -481,7 +568,7 @@ class Step2dErroneousFrames(ttk.Frame):
             # Create visualization in the main thread
             self.log("Creating visualization...")
             self.after_idle(lambda: self.create_step2d_erroneous_frames_visualization(
-                step2d_motion, step2d_erroneous_frames, step2d_height_stats, step2d_width_stats
+                step2d_motion_original, step2d_erroneous_frames, step2d_height_stats, step2d_width_stats
             ))
             
             # Update results display in main thread
@@ -634,6 +721,18 @@ class Step2dErroneousFrames(ttk.Frame):
                     ax_combined.scatter(step2d_erroneous_frames, erroneous_y, c='purple', s=30, alpha=0.7, label='Y Erroneous Frames')
                     ax_combined.scatter(step2d_erroneous_frames, erroneous_x, c='orange', s=30, alpha=0.7, label='X Erroneous Frames')
                 
+                # Draw absolute limit lines if they were used
+                abs_limits = self.controller.state['results'].get('step2d', {})
+                h_min = abs_limits.get('step2d_height_min')
+                h_max = abs_limits.get('step2d_height_max')
+                w_min = abs_limits.get('step2d_width_min')
+                w_max = abs_limits.get('step2d_width_max')
+
+                if h_min is not None: ax_combined.axhline(h_min, color='blue', linestyle=':', linewidth=1.5, label='Y Abs Min')
+                if h_max is not None: ax_combined.axhline(h_max, color='blue', linestyle=':', linewidth=1.5, label='Y Abs Max')
+                if w_min is not None: ax_combined.axhline(w_min, color='red', linestyle=':', linewidth=1.5, label='X Abs Min')
+                if w_max is not None: ax_combined.axhline(w_max, color='red', linestyle=':', linewidth=1.5, label='X Abs Max')
+
                 ax_combined.set_title('X and Y Motion Over Time')
                 ax_combined.set_xlabel('Frame')
                 ax_combined.set_ylabel('Shift (pixels)')

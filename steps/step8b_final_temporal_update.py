@@ -325,6 +325,45 @@ class Step8bFinalTemporalUpdate(ttk.Frame):
         thread.daemon = True
         thread.start()
     
+    def _print_final_summary(self, C_final, S_final, params):
+        """Print a concise per-component summary to stdout"""
+        try:
+            print("\n" + "="*70)
+            print("STEP 8b FINAL SUMMARY")
+            print("="*70)
+            print(f"Parameters: p={params['p']}, sparse_penal={params['sparse_penal']}, "
+                f"zero_thres={params['zero_thres']}, normalize={params['normalize']}")
+
+            c_np = C_final.compute().values   # (frames, units)
+            s_np = S_final.compute().values
+            n_frames, n_units = c_np.shape
+            unit_ids = C_final.coords['unit_id'].values
+
+            print(f"\n{'Unit':>6} {'C_mean':>9} {'C_max':>9} {'C_std':>9} "
+                f"{'Spike%':>8} {'Zero%':>8} {'S_max':>9}")
+            print("-"*70)
+
+            spike_rates = []
+            for i, uid in enumerate(unit_ids):
+                c = c_np[:, i]
+                s = s_np[:, i]
+                spike_pct = (s > 0).sum() / n_frames * 100
+                zero_pct  = (s == 0).sum() / n_frames * 100
+                spike_rates.append(spike_pct)
+                flag = " !" if zero_pct < 80 else ""
+                print(f"  {uid:>4d}  {c.mean():>9.4f} {c.max():>9.4f} {c.std():>9.4f} "
+                    f"{spike_pct:>7.1f}% {zero_pct:>7.1f}%  {s.max():>9.4f}{flag}")
+
+            print("-"*70)
+            overall_sparsity = (s_np == 0).sum() / s_np.size * 100
+            low_sparsity = sum(1 for r in spike_rates if r > 20)
+            print(f"Overall sparsity: {overall_sparsity:.1f}%  |  "
+                f"Components >20% spike rate: {low_sparsity}/{n_units}")
+            print("="*70 + "\n")
+
+        except Exception as e:
+            print(f"[Summary] Error: {e}")
+
     def _temporal_update_thread(self, params, include_background, chunk_size, overlap):
         """Thread function for temporal update with temporal chunking"""
         try:
@@ -728,6 +767,9 @@ class Step8bFinalTemporalUpdate(ttk.Frame):
                 # Save to files
                 self._save_final_components(C_final, S_final, b0_final, c0_final, g_final, processing_stats)
                 
+                # Print final component summary to console
+                self._print_final_summary(C_final, S_final, params)
+
                 # Create visualizations in main thread
                 self.after_idle(lambda: self.create_visualizations(C_final, S_final, C_orig))
                 
@@ -928,131 +970,151 @@ class Step8bFinalTemporalUpdate(ttk.Frame):
         """Create visualizations for the final temporal components"""
         try:
             self.log("Creating visualizations...")
-            
-            # Clear the figure
             self.fig.clear()
-            
-            # Create 2x2 grid
-            gs = GridSpec(2, 2, figure=self.fig)
-            
-            # Plot temporal components (average trace)
+
+            gs = GridSpec(3, 2, figure=self.fig, height_ratios=[1.5, 1, 1])
+
+            # ── Row 0: average trace ──────────────────────────────────────────
             ax1 = self.fig.add_subplot(gs[0, :])
-            
-            # Plot final trace
             avg_trace_final = C_final.mean(dim='unit_id').compute()
-            ax1.plot(avg_trace_final.frame.values, avg_trace_final.values, 'r-', 
-                    alpha=0.8, label='Final')
-            
-            # Plot original trace if available
+            ax1.plot(avg_trace_final.frame.values, avg_trace_final.values,
+                    'r-', alpha=0.8, label='Final')
             if C_orig is not None:
                 try:
                     avg_trace_orig = C_orig.mean(dim='unit_id').compute()
-                    ax1.plot(avg_trace_orig.frame.values, avg_trace_orig.values, 'b-', 
-                            alpha=0.6, label='Original')
+                    ax1.plot(avg_trace_orig.frame.values, avg_trace_orig.values,
+                            'b-', alpha=0.6, label='Original')
                 except:
                     self.log("Warning: Could not compute average original trace")
-            
-            ax1.set_title('Average Temporal Component')
+            ax1.set_title('Average Temporal Component (all neurons)')
             ax1.set_xlabel('Frame')
             ax1.set_ylabel('Fluorescence (a.u.)')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
-            
-            # Plot component value histograms
+
+            # ── Row 1 left: C value histogram ────────────────────────────────
             ax2 = self.fig.add_subplot(gs[1, 0])
-            
-            # Plot final values
             c_vals = C_final.values.flatten()
             c_vals_finite = c_vals[np.isfinite(c_vals)]
             if len(c_vals_finite) > 0:
                 ax2.hist(c_vals_finite, bins=50, alpha=0.7, label='Final C', color='r')
-            else:
-                ax2.text(0.5, 0.5, "No finite values to display", ha='center', va='center', transform=ax2.transAxes)
-            
-            # Plot original values if available
             if C_orig is not None:
                 try:
-                    c_orig_vals = C_orig.values.flatten()
-                    ax2.hist(c_orig_vals, bins=50, alpha=0.5, label='Original C', color='b')
+                    ax2.hist(C_orig.values.flatten(), bins=50, alpha=0.5,
+                            label='Original C', color='b')
                 except:
                     pass
-            
-            ax2.set_title('Temporal Component Values')
+            ax2.set_title('Calcium Trace Value Distribution')
             ax2.set_xlabel('Value')
             ax2.set_ylabel('Count')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
-            
-            # Plot spike statistics
-            ax3 = self.fig.add_subplot(gs[1, 1])
-            
-            # Get non-zero spike values
-            s_vals = S_final.values.flatten()
-            nonzero_mask = s_vals > 0
-            s_nonzero = s_vals[nonzero_mask]
-            
-            # Filter out infinite and NaN values
-            s_nonzero_finite = s_nonzero[np.isfinite(s_nonzero)]
 
-            if len(s_nonzero_finite) > 0:
-                # Plot spike histogram
-                ax3.hist(s_nonzero_finite, bins=50, alpha=0.7, color='r', label='Spikes')
-                ax3.set_title('Spike Values (non-zero)')
-                ax3.set_xlabel('Value')
-                ax3.set_ylabel('Count')
-                ax3.grid(True, alpha=0.3)
-                
-                # Add sparsity info
-                sparsity = len(s_nonzero) / len(s_vals) * 100
-                ax3.text(0.05, 0.95, f"Sparsity: {sparsity:.2f}%", 
-                        transform=ax3.transAxes, va='top')
-                
-                # You might also want to log if there were infinite values
-                n_inf = len(s_nonzero) - len(s_nonzero_finite)
-                if n_inf > 0:
-                    ax3.text(0.05, 0.85, f"Excluded {n_inf} inf values", 
-                            transform=ax3.transAxes, va='top', fontsize=8, color='red')
+            # ── Row 1 right: spike magnitude histogram ───────────────────────
+            ax3 = self.fig.add_subplot(gs[1, 1])
+            s_vals = S_final.values.flatten()
+            s_nonzero = s_vals[(s_vals > 0) & np.isfinite(s_vals)]
+            if len(s_nonzero) > 0:
+                ax3.hist(s_nonzero, bins=50, alpha=0.7, color='r')
+                sparsity = (s_vals == 0).sum() / len(s_vals) * 100
+                ax3.set_title(f'Spike Magnitudes (non-zero)  |  Sparsity: {sparsity:.1f}%')
             else:
-                ax3.text(0.5, 0.5, "No spikes detected", ha='center', va='center', transform=ax3.transAxes)
-            
-            # Adjust layout
+                ax3.text(0.5, 0.5, "No spikes detected", ha='center', va='center',
+                        transform=ax3.transAxes)
+                ax3.set_title('Spike Magnitudes')
+                sparsity = 100.0
+            ax3.set_xlabel('Spike magnitude')
+            ax3.set_ylabel('Count')
+            ax3.grid(True, alpha=0.3)
+
+            # ── Row 2 left: per-component sparsity bar chart ──────────────────
+            ax4 = self.fig.add_subplot(gs[2, 0])
+            try:
+                s_np = S_final.compute().values          # (frames, units)
+                n_frames, n_units = s_np.shape
+                per_comp_sparsity = (s_np == 0).sum(axis=0) / n_frames * 100
+                unit_ids = S_final.coords['unit_id'].values
+                colors = ['#d62728' if v < 80 else '#2ca02c' for v in per_comp_sparsity]
+                ax4.bar(range(n_units), per_comp_sparsity, color=colors, width=0.8)
+                ax4.axhline(y=80, color='k', linestyle='--', linewidth=1,
+                            alpha=0.5, label='80% threshold')
+                ax4.set_title('Per-Component Sparsity (green ≥ 80% zero)')
+                ax4.set_xlabel('Component index')
+                ax4.set_ylabel('% zero frames')
+                ax4.set_ylim(0, 105)
+                ax4.legend(fontsize=8)
+                ax4.grid(True, alpha=0.2, axis='y')
+                # annotate problem components
+                bad = np.where(per_comp_sparsity < 80)[0]
+                if len(bad) > 0:
+                    ax4.text(0.02, 0.05,
+                            f"{len(bad)} components <80% sparse",
+                            transform=ax4.transAxes, fontsize=8, color='red')
+            except Exception as e:
+                self.log(f"Warning: Could not compute per-component sparsity: {e}")
+                ax4.text(0.5, 0.5, "Could not compute sparsity",
+                        ha='center', va='center', transform=ax4.transAxes)
+
+            # ── Row 2 right: per-component spike rate bar chart ───────────────
+            ax5 = self.fig.add_subplot(gs[2, 1])
+            try:
+                per_comp_spike_rate = (s_np > 0).sum(axis=0) / n_frames * 100
+                ax5.bar(range(n_units), per_comp_spike_rate, color='steelblue', width=0.8)
+                ax5.set_title('Per-Component Spike Rate (% frames with spike)')
+                ax5.set_xlabel('Component index')
+                ax5.set_ylabel('% frames with spike')
+                ax5.grid(True, alpha=0.2, axis='y')
+                median_rate = np.median(per_comp_spike_rate)
+                ax5.axhline(y=median_rate, color='orange', linestyle='--',
+                            linewidth=1, label=f'Median: {median_rate:.1f}%')
+                ax5.legend(fontsize=8)
+            except Exception as e:
+                self.log(f"Warning: Could not compute per-component spike rate: {e}")
+                ax5.text(0.5, 0.5, "Could not compute spike rate",
+                        ha='center', va='center', transform=ax5.transAxes)
+
             self.fig.tight_layout()
             self.canvas_fig.draw()
-            
-            # Also update stats text widget
+
+            # ── Stats text panel ──────────────────────────────────────────────
             self.stats_text.delete("1.0", tk.END)
-            self.stats_text.insert(tk.END, f"Final Temporal Update Statistics\n")
-            self.stats_text.insert(tk.END, f"=========================\n\n")
-            
-            # Components
-            self.stats_text.insert(tk.END, f"Components:\n")
-            self.stats_text.insert(tk.END, f"  Total: {len(C_final.unit_id)}\n")
-            self.stats_text.insert(tk.END, f"  Successfully updated: {len(C_final.unit_id)}\n\n")
-            
-            # C values statistics
-            self.stats_text.insert(tk.END, f"Final C values:\n")
-            self.stats_text.insert(tk.END, f"  Min: {np.min(c_vals):.6f}\n")
-            self.stats_text.insert(tk.END, f"  Max: {np.max(c_vals):.6f}\n")
-            self.stats_text.insert(tk.END, f"  Mean: {np.mean(c_vals):.6f}\n")
-            self.stats_text.insert(tk.END, f"  Std: {np.std(c_vals):.6f}\n\n")
-            
-            # S values statistics
-            self.stats_text.insert(tk.END, f"Spike statistics:\n")
+            self.stats_text.insert(tk.END, "Final Temporal Update Statistics\n")
+            self.stats_text.insert(tk.END, "=================================\n\n")
+
+            self.stats_text.insert(tk.END, f"Components: {len(C_final.unit_id)}\n\n")
+
+            self.stats_text.insert(tk.END, "Final C values:\n")
+            self.stats_text.insert(tk.END, f"  Min:  {np.min(c_vals_finite):.6f}\n")
+            self.stats_text.insert(tk.END, f"  Max:  {np.max(c_vals_finite):.6f}\n")
+            self.stats_text.insert(tk.END, f"  Mean: {np.mean(c_vals_finite):.6f}\n")
+            self.stats_text.insert(tk.END, f"  Std:  {np.std(c_vals_finite):.6f}\n\n")
+
+            self.stats_text.insert(tk.END, "Spike statistics:\n")
             if len(s_nonzero) > 0:
-                self.stats_text.insert(tk.END, f"  Spikes detected: {len(s_nonzero)}\n")
-                self.stats_text.insert(tk.END, f"  Sparsity: {sparsity:.4f}%\n")
-                self.stats_text.insert(tk.END, f"  Min (non-zero): {np.min(s_nonzero):.6f}\n")
-                self.stats_text.insert(tk.END, f"  Max: {np.max(s_nonzero):.6f}\n")
-                self.stats_text.insert(tk.END, f"  Mean (non-zero): {np.mean(s_nonzero):.6f}\n")
+                self.stats_text.insert(tk.END, f"  Non-zero frames:  {len(s_nonzero)}\n")
+                self.stats_text.insert(tk.END, f"  Overall sparsity: {sparsity:.2f}%\n")
+                self.stats_text.insert(tk.END, f"  Min spike:  {np.min(s_nonzero):.6f}\n")
+                self.stats_text.insert(tk.END, f"  Max spike:  {np.max(s_nonzero):.6f}\n")
+                self.stats_text.insert(tk.END, f"  Mean spike: {np.mean(s_nonzero):.6f}\n\n")
+                try:
+                    self.stats_text.insert(tk.END, "Per-component spike rate (% frames):\n")
+                    for i, uid in enumerate(unit_ids):
+                        rate = per_comp_spike_rate[i]
+                        sp   = per_comp_sparsity[i]
+                        flag = " ← LOW SPARSITY" if sp < 80 else ""
+                        self.stats_text.insert(
+                            tk.END, f"  Unit {uid:>4d}: {rate:5.1f}% spikes, {sp:5.1f}% zero{flag}\n")
+                except:
+                    pass
             else:
-                self.stats_text.insert(tk.END, f"  No spikes detected\n")
-            
+                self.stats_text.insert(tk.END, "  No spikes detected\n")
+
             self.log("Visualizations created successfully")
-            
+
         except Exception as e:
             self.log(f"Error creating visualizations: {str(e)}")
             self.log(traceback.format_exc())
-
+                 
     def enable_component_inspection(self, component_ids):
         """Enable the component inspection UI"""
         try:

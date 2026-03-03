@@ -227,29 +227,38 @@ def preprocess_trace(trace: Union[np.ndarray, xr.DataArray], normalize: bool = T
         return (trace - mean_val) / (std_val + 1e-8)
     return trace
 
-def compute_noise_estimate(A_current: xr.DataArray, sn_spatial: xr.DataArray) -> float:
-    """Compute noise estimate with more careful dot product."""
-    # Stack arrays
-    stacked_A = A_current.stack(spatial=['height', 'width'])
-    stacked_sn = sn_spatial.stack(spatial=['height', 'width'])
+# def compute_noise_estimate(A_current: xr.DataArray, sn_spatial: xr.DataArray) -> float:
+#     """Compute noise estimate with more careful dot product."""
+#     # Stack arrays
+#     stacked_A = A_current.stack(spatial=['height', 'width'])
+#     stacked_sn = sn_spatial.stack(spatial=['height', 'width'])
     
-    # Convert to numpy for computation
-    A_vals = stacked_A.values
-    sn_vals = stacked_sn.values
+#     # Convert to numpy for computation
+#     A_vals = stacked_A.values
+#     sn_vals = stacked_sn.values
     
-    # Try regular dot product
-    try:
-        result = np.dot(sn_vals, A_vals)
-    except Exception:
-        # Use weighted average of noise values where A is non-zero as fallback
-        mask = A_vals > 0
-        if mask.any():
-            weighted_noise = np.mean(sn_vals[mask] * A_vals[mask])
-            result = max(weighted_noise, 1e-6)
-        else:
-            result = 1e-6
+#     # Try regular dot product
+#     try:
+#         result = np.dot(sn_vals, A_vals)
+#     except Exception:
+#         # Use weighted average of noise values where A is non-zero as fallback
+#         mask = A_vals > 0
+#         if mask.any():
+#             weighted_noise = np.mean(sn_vals[mask] * A_vals[mask])
+#             result = max(weighted_noise, 1e-6)
+#         else:
+#             result = 1e-6
             
-    return float(result)
+#     return float(result)
+
+def compute_noise_estimate(trace: np.ndarray) -> float:
+    """Estimate noise from PSD of the trace (standard CNMF method)."""
+    # Use the upper half of the power spectrum as noise estimate
+    ff, psd = np.fft.rfftfreq(len(trace)), np.abs(np.fft.rfft(trace))**2
+    noise_freq_mask = ff > 0.25  # upper quarter of frequencies
+    if noise_freq_mask.any():
+        return np.sqrt(np.mean(psd[noise_freq_mask]) / len(trace))
+    return np.std(np.diff(trace)) / np.sqrt(2)
 
 def construct_ar_matrix(g: np.ndarray, n_frames: int) -> dia_matrix:
     """Construct AR matrix for temporal deconvolution."""
@@ -322,44 +331,50 @@ def solve_temporal_component(
 ) -> bool:
     """Solve temporal component optimization problem."""
     try:
-        # Try with ECOS first
         try:
+            print(f"  [Solver] Trying ECOS...")
             result = prob.solve(
                 solver='ECOS',
                 max_iters=max_iters,
                 verbose=False,
-                abstol=1e-3,    
-                reltol=1e-3,   
-                feastol=1e-3,  
+                abstol=1e-3,
+                reltol=1e-3,
+                feastol=1e-3,
                 warm_start=True,
-                ignore_dpp=True  # Ignore presolve
+                ignore_dpp=True
             )
-        except Exception:
-            # Fall back to SCS 
+            print(f"  [Solver] ECOS result: status={prob.status}, value={prob.value}")
+        except Exception as e:
+            print(f"  [Solver] ECOS failed with: {str(e)}, trying SCS...")
             try:
                 result = prob.solve(
                     solver='SCS',
                     max_iters=max_iters,
                     verbose=False,
-                    eps=1e-2,           
-                    alpha=2.0,          # Over-relaxation
-                    scale=0.2,          # Reduce scaling
-                    normalize=True,     # Enable normalization
+                    eps=1e-2,
+                    alpha=2.0,
+                    scale=0.2,
+                    normalize=True,
                     warm_start=True,
                     acceleration_lookback=20
                 )
-            except Exception:
+                print(f"  [Solver] SCS result: status={prob.status}, value={prob.value}")
+            except Exception as e2:
+                print(f"  [Solver] SCS also failed with: {str(e2)}")
                 if log_fn:
                     log_fn("Solver failed with both ECOS and SCS")
                 return False
-        
-        return prob.status in ['optimal', 'optimal_inaccurate']
-        
+
+        final_status = prob.status in ['optimal', 'optimal_inaccurate']
+        print(f"  [Solver] Returning success={final_status} (status='{prob.status}')")
+        return final_status
+
     except Exception as e:
+        print(f"  [Solver] Outer exception: {str(e)}")
         if log_fn:
             log_fn(f"Optimization failed with error: {str(e)}")
         return False
-
+    
 def create_output_arrays(
     n_components: int,
     n_frames: int,
@@ -469,53 +484,64 @@ def process_single_component(
     try:
         # Preprocess trace
         trace_values = preprocess_trace(trace.compute(), params['normalize'])
-        
+        print(f"\n[Component {idx}] === DIAGNOSTICS ===")
+        print(f"[Component {idx}] Trace stats: min={trace_values.min():.4f}, max={trace_values.max():.4f}, mean={trace_values.mean():.4f}, std={trace_values.std():.4f}")
+        print(f"[Component {idx}] Trace length: {len(trace_values)}, any NaN: {np.any(np.isnan(trace_values))}, any Inf: {np.any(np.isinf(trace_values))}")
+
         # Get noise estimate
-        noise_sigma = compute_noise_estimate(A_cropped.isel(unit_id=idx), sn_spatial)
-        
+        noise_sigma = compute_noise_estimate(trace_values)
+        print(f"[Component {idx}] Noise sigma: {noise_sigma:.6f}")
+        print(f"[Component {idx}] Effective sparsity penalty: {params['sparse_penal'] * noise_sigma:.6f}")
+
         # Estimate AR 
         g = estimate_ar_coeffs_robust(trace_values, params['p'], log_fn)
         g_new[idx] = g
-        
+        print(f"[Component {idx}] AR coefficients (g): {g}")
+        roots = np.abs(np.roots(np.concatenate([[1], -g])))
+        print(f"[Component {idx}] AR root magnitudes: {roots} (max={roots.max():.4f}, stable={roots.max() < 1.0})")
+
         # Setup optimization
         G = construct_ar_matrix(g, len(trace_values))
         prob, c, s, b, c0, dc_vec = setup_cvxpy_problem(
             trace_values, G, len(trace_values), g, noise_sigma, params['sparse_penal']
         )
-        
+        print(f"[Component {idx}] dc_vec stats: min={dc_vec.min():.4f}, max={dc_vec.max():.4f} (decay check)")
+
         solve_start = time.time()
-        if convergence_tracker is not None:
-            track_cvxpy_iteration(
-                convergence_tracker,
-                None,  # prob is None for initial state
-                idx,
-                0,    # iteration 0
-                solve_start,
-                g,
-                noise_sigma
-            )
-        
-        # Solve without callback
         success = solve_temporal_component(prob, params['max_iters'], log_fn)
-        
-        if convergence_tracker is not None and success:
-            track_cvxpy_iteration(
-                convergence_tracker,
-                prob,
-                idx,
-                1,    # final iteration
-                solve_start,
-                g,
-                noise_sigma
-            )
+        solve_time = time.time() - solve_start
+
+        print(f"[Component {idx}] Solver status: {prob.status}")
+        print(f"[Component {idx}] Solver success flag: {success}")
+        print(f"[Component {idx}] Objective value: {prob.value}")
+        print(f"[Component {idx}] Solve time: {solve_time:.3f}s")
 
         if success and prob.value is not None:
-            C_new[:, idx] = np.maximum(c.value, params['zero_thres'])
-            S_new[:, idx] = np.maximum(s.value, params['zero_thres'])
-            b0_new[:, idx] = np.maximum(b.value, params['zero_thres'])
-            c0_new[:, idx] = np.maximum(c0.value * dc_vec, params['zero_thres'])
+            c_val = c.value
+            s_val = s.value
+            b_val = b.value
+            c0_val = c0.value
+
+            print(f"[Component {idx}] c.value: min={c_val.min():.6f}, max={c_val.max():.6f}, mean={c_val.mean():.6f}")
+            print(f"[Component {idx}] s.value: min={s_val.min():.6f}, max={s_val.max():.6f}, mean={s_val.mean():.6f}")
+            print(f"[Component {idx}] s nonzero count (before threshold): {np.sum(s_val > 0)} / {len(s_val)}")
+            print(f"[Component {idx}] s nonzero count (after threshold {params['zero_thres']}): {np.sum(s_val > params['zero_thres'])} / {len(s_val)}")
+            print(f"[Component {idx}] b.value: {b_val:.6f}")
+            print(f"[Component {idx}] c0.value: {c0_val:.6f}")
+
+            c_val = c_val.copy()
+            s_val = s_val.copy()
+            c_val[c_val < params['zero_thres']] = 0.0
+            s_val[s_val < params['zero_thres']] = 0.0
+            C_new[:, idx] = c_val
+            S_new[:, idx] = s_val
+            b0_new[:, idx] = max(float(b_val), 0.0)
+            c0_new[:, idx] = np.maximum(c0_val * dc_vec, 0.0)
+        else:
+            print(f"[Component {idx}] *** SOLVE FAILED — arrays left as zeros ***")
             
     except Exception as e:
+        print(f"[Component {idx}] *** EXCEPTION: {str(e)} ***")
         if log_fn:
             log_fn(f"Error processing component {idx}: {str(e)}")
 
@@ -691,6 +717,7 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
     
     # Sort chunks by start index
     chunk_results.sort(key=lambda x: x[5])
+    actual_unit_ids = chunk_results[0][0].coords['unit_id'].values
     start_frame = chunk_results[0][5]
     end_frame = chunk_results[-1][6]
     if log_fn:
@@ -749,8 +776,9 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
                 g_padded = np.zeros(g_shape)
                 
                 # Create a mapping from original unit IDs to positions
+                actual_unit_ids = chunk_results[0][0].coords['unit_id'].values
                 mapping = {}
-                for i, unit_id in enumerate(range(max_units)):
+                for i, unit_id in enumerate(actual_unit_ids):
                     mapping[unit_id] = i
                     
                 # Fill in the values from the original arrays at the proper positions
@@ -819,8 +847,9 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
                     g_std = np.zeros((max_units, g.sizes['lag']))
                     
                     # Create a mapping from original unit IDs to positions
+                    actual_unit_ids = chunk_results[0][0].coords['unit_id'].values
                     mapping = {}
-                    for i, unit_id in enumerate(range(max_units)):
+                    for i, unit_id in enumerate(actual_unit_ids):
                         mapping[unit_id] = i
                     
                     # Fill in the values
@@ -937,7 +966,7 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
         g_merged,
         dims=['unit_id', 'lag'],
         coords={
-            'unit_id': range(max_units),
+             'unit_id': actual_unit_ids,
             'lag': range(g_merged.shape[1])
         }
     )
@@ -959,7 +988,7 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
             dims=['frame', 'unit_id'],
             coords={
                 'frame': np.arange(total_frames),
-                'unit_id': np.arange(max_units)
+                'unit_id': actual_unit_ids
             }
         )
         
@@ -968,7 +997,7 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
             dims=['frame', 'unit_id'],
             coords={
                 'frame': np.arange(total_frames),
-                'unit_id': np.arange(max_units)
+                'unit_id': actual_unit_ids
             }
         )
         
@@ -977,7 +1006,7 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
             dims=['frame', 'unit_id'],
             coords={
                 'frame': np.arange(total_frames),
-                'unit_id': np.arange(max_units)
+                'unit_id': actual_unit_ids
             }
         )
         
@@ -986,7 +1015,7 @@ def merge_temporal_chunks(chunk_results, overlap=100, log_fn=None):
             dims=['frame', 'unit_id'],
             coords={
                 'frame': np.arange(total_frames),
-                'unit_id': np.arange(max_units)
+                'unit_id': actual_unit_ids
             }
         )
         

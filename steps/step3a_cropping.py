@@ -564,7 +564,8 @@ class Step3aCropping(ttk.Frame):
             self.canvas.figure = self.fig  # Update the canvas to use the new figure
             
             # Calculate mean activity map
-            activity_map = Y.mean('frame').compute()
+            n_frames = min(100, Y.sizes['frame'])
+            activity_map = Y.isel(frame=slice(0, n_frames)).mean('frame').compute()
             
             # Add NaN detection and reporting
             has_nans = np.isnan(activity_map.values).any()

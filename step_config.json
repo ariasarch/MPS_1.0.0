@@ -109,7 +109,7 @@
     "Step2aVideoLoading": ["pattern", "downsample", "downsample_strategy", "video_percent"],
     "Step2bProcessing": ["denoise_method", "ksize", "bg_method", "wnd"],
     "Step2cMotionEstimation": ["dim"],
-    "Step2dErroneousFrames": ["threshold_factor", "drop_frames"],
+    "Step2dErroneousFrames": ["threshold_factor", "drop_frames", "use_abs_limits", "height_min", "height_max", "width_min", "width_max"],
     "Step2eTransformation": ["fill_value"],
     "Step3aCropping": ["center_radius_factor", "y_offset", "x_offset"],
     "Step3bNNDSVD": ["n_components", "n_power_iter", "sparsity_threshold"],
@@ -222,7 +222,12 @@
       "params_subkey": null,
       "fields": {
         "threshold_factor": {"source": "results", "default": 5.0},
-        "drop_frames":      {"source": "results", "default": true}
+        "drop_frames":      {"source": "results", "default": true},
+        "use_abs_limits":   {"source": "results", "default": false},
+        "height_min":       {"source": "results", "default": null},
+        "height_max":       {"source": "results", "default": null},
+        "width_min":        {"source": "results", "default": null},
+        "width_max":        {"source": "results", "default": null}
       }
     },
     "step2e_transformation": {

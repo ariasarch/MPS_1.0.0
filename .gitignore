@@ -1,4 +1,8 @@
 # Python bytecode
 __pycache__/
+logs/
+env/
+dask-worker-space/
 *.pyc
 *.pyo
+*.log
