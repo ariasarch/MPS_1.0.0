@@ -5,8 +5,9 @@ This guide walks through the complete miniscope calcium imaging processing pipel
 
 ## Quick Start
 1. **Initial Setup**
-   - In VSC, Open: `C:\Users\coffeeadmin\GUI_PSS_0.0.1\GUI_PSS_0.0.1.py`
-   - Run: `GUI_PSS_0.0.1.py`
+   * **Windows**: Double-click the **MPS** icon or run `launcher.bat`
+   * **Mac**: Run the `launcher.command` file
+   * **Logs**: Every run automatically saves a detailed log file in the `logs` folder inside the MPS directory (the same folder where the launcher files live).
 
 2. **Loading Data**
    - **New Analysis**: Start with Step 1: Project Configuration
@@ -36,8 +37,15 @@ This guide walks through the complete miniscope calcium imaging processing pipel
 ## Getting Started
 
 ### Step A: Initial Setup
-In VSC, Open: `C:\Users\coffeeadmin\GUI_PSS_0.0.1\GUI_PSS_0.0.1.py`
-Run: `GUI_PSS_0.0.1.py`
+
+Launch MPS using the platform-specific launcher.
+
+* **Windows**: Double-click the **MPS** icon or run `launcher.bat`
+* **Mac**: Run `launcher.command`
+
+This will start the Miniscope Processing Suite GUI.
+
+**Logs:** Every run automatically saves a detailed log file in the `logs` folder inside the MPS directory (the same folder where the launcher files live). If a step crashes or behaves unexpectedly, check the newest log file in this directory.
 
 ### Step B: Loading Data
 - **Existing parameter file** → File → Load parameters file
@@ -525,6 +533,7 @@ One of the most common questions when using MPS is: how do I know which paramete
 10. **Document your parameters**: The pipeline saves all parameters automatically for reproducibility
 11. **Inspect temporal signals, not just spatial maps**: The calcium traces are where the scientific signal lives. Spatial footprints are reference maps; don't over-interpret their exact shape.
 12. **Use a consistent parameter set across sessions**: If you use the same Step 8 parameters for all recordings in an experiment, you can compare raw traces directly without Z-scoring.
+13. **Check logs when debugging**: Every run automatically saves a detailed log file in the `logs` folder inside the MPS directory (the same folder where `main.py` lives).
 
 ## Common Issues and Solutions
 
