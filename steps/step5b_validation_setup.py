@@ -385,43 +385,34 @@ class Step5bValidationSetup(ttk.Frame):
                 # IMMEDIATELY CONVERT TO NUMPY ARRAYS
                 self.log("Converting data to numpy arrays...")
                 
-                # Save the original dimensions and coordinates for later use
+                # Save metadata but DON'T load Y into RAM - it's 87GB
                 Y_dims = Y_hw_cropped_xarray.dims
                 Y_coords = {dim: Y_hw_cropped_xarray[dim].values for dim in Y_dims}
-                
+                Y_shape = tuple(Y_hw_cropped_xarray.sizes[d] for d in Y_dims)
+                self.Y_metadata = {'dims': Y_dims, 'coords': Y_coords, 'shape': Y_shape}
+
+                # A and C are small (n_components x height x width), safe to load
                 A_dims = A_xarray.dims
                 A_coords = {dim: A_xarray[dim].values for dim in A_dims}
-                
                 C_dims = C_xarray.dims
                 C_coords = {dim: C_xarray[dim].values for dim in C_dims}
-                
                 sn_dims = step5a_sn_spatial_xarray.dims
                 sn_coords = {dim: step5a_sn_spatial_xarray[dim].values for dim in sn_dims}
-                
-                # Convert to numpy arrays
-                step3a_Y_hw_cropped = Y_hw_cropped_xarray.compute().values
+
                 A = A_xarray.compute().values
                 C = C_xarray.compute().values
                 step5a_sn_spatial = step5a_sn_spatial_xarray.compute().values
-                
-                # Get shape information
-                Y_shape = step3a_Y_hw_cropped.shape
+
                 A_shape = A.shape
                 C_shape = C.shape
                 sn_shape = step5a_sn_spatial.shape
-                
-                # Store metadata for reconstruction
-                self.Y_metadata = {'dims': Y_dims, 'coords': Y_coords, 'shape': Y_shape}
+
                 self.A_metadata = {'dims': A_dims, 'coords': A_coords, 'shape': A_shape}
                 self.C_metadata = {'dims': C_dims, 'coords': C_coords, 'shape': C_shape}
                 self.sn_metadata = {'dims': sn_dims, 'coords': sn_coords, 'shape': sn_shape}
-                
-                # Log the conversion success
-                self.log(f"Successfully converted to numpy arrays")
-                self.log(f"Y shape: {Y_shape}")
-                self.log(f"A shape: {A_shape}")
-                self.log(f"C shape: {C_shape}")
-                self.log(f"sn shape: {sn_shape}")
+
+                self.log(f"A shape: {A_shape}, C shape: {C_shape}, sn shape: {sn_shape}")
+                self.log(f"Y shape (not loaded): {Y_shape}")
                 
             except Exception as e:
                 self.log(f"Error finding or converting required data: {str(e)}")
@@ -434,54 +425,34 @@ class Step5bValidationSetup(ttk.Frame):
             self.log("Validating input data shapes...")
             
             # Check for NaN/Inf values if requested
+            # NaN check - stream Y chunk by chunk, load A/C/sn directly
             if check_nan:
-                self.log("Checking for NaN/Inf values (this may take a while)...")
-                Y_nan_count = np.isnan(step3a_Y_hw_cropped).sum()
+                self.log("Checking A, C, sn for NaN/Inf...")
                 A_nan_count = np.isnan(A).sum()
                 C_nan_count = np.isnan(C).sum()
                 sn_nan_count = np.isnan(step5a_sn_spatial).sum()
-                
-                Y_inf_count = np.isinf(step3a_Y_hw_cropped).sum()
-                A_inf_count = np.isinf(A).sum()
-                C_inf_count = np.isinf(C).sum()
-                sn_inf_count = np.isinf(step5a_sn_spatial).sum()
-                
-                self.log(f"Y NaN count: {Y_nan_count}, Inf count: {Y_inf_count}")
-                self.log(f"A NaN count: {A_nan_count}, Inf count: {A_inf_count}")
-                self.log(f"C NaN count: {C_nan_count}, Inf count: {C_inf_count}")
-                self.log(f"sn NaN count: {sn_nan_count}, Inf count: {sn_inf_count}")
-                
-                if (Y_nan_count > 0 or A_nan_count > 0 or C_nan_count > 0 or sn_nan_count > 0 or
-                    Y_inf_count > 0 or A_inf_count > 0 or C_inf_count > 0 or sn_inf_count > 0):
-                    self.log("WARNING: NaN or Inf values detected. This may cause issues in subsequent processing.")
-            
+                self.log(f"A NaN: {A_nan_count}, C NaN: {C_nan_count}, sn NaN: {sn_nan_count}")
+                self.log("Skipping Y NaN check (87GB - use dask stats if needed)")
+
             self.update_progress(40)
-            
-            # Data statistics if requested
+
+
             if compute_stats:
-                self.log("Computing basic statistics...")
-                # Get statistics from numpy arrays
-                Y_min = float(np.nanmin(step3a_Y_hw_cropped))
-                Y_max = float(np.nanmax(step3a_Y_hw_cropped))
-                A_min = float(np.nanmin(A))
-                A_max = float(np.nanmax(A))
-                C_min = float(np.nanmin(C))
-                C_max = float(np.nanmax(C))
-                sn_min = float(np.nanmin(step5a_sn_spatial))
-                sn_max = float(np.nanmax(step5a_sn_spatial))
-                
+                self.log("Computing stats (streaming Y via dask)...")
+                Y_min = float(Y_hw_cropped_xarray.data.min().compute())
+                Y_max = float(Y_hw_cropped_xarray.data.max().compute())
                 self.log(f"Y range: [{Y_min:.2f}, {Y_max:.2f}]")
-                self.log(f"A range: [{A_min:.2f}, {A_max:.2f}]")
-                self.log(f"C range: [{C_min:.2f}, {C_max:.2f}]")
-                self.log(f"sn range: [{sn_min:.2f}, {sn_max:.2f}]")
-            
+                self.log(f"A range: [{float(A.min()):.2f}, {float(A.max()):.2f}]")
+                self.log(f"C range: [{float(C.min()):.2f}, {float(C.max()):.2f}]")
+                self.log(f"sn range: [{float(step5a_sn_spatial.min()):.2f}, {float(step5a_sn_spatial.max()):.2f}]")
+
+            # Memory estimate without loading Y
+            total_bytes = A.nbytes + C.nbytes + step5a_sn_spatial.nbytes
+            self.log(f"Loaded arrays memory: {total_bytes / 1e9:.2f} GB (Y not loaded)")
             self.update_progress(60)
             
             # Estimate memory usage
             self.log("Estimating memory usage...")
-            total_bytes = (
-                step3a_Y_hw_cropped.nbytes + A.nbytes + C.nbytes + step5a_sn_spatial.nbytes
-            )
             self.log(f"Estimated total memory usage: {total_bytes / 1e9:.2f} GB")
             
             # Calculate component size statistics

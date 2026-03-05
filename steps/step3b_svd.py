@@ -323,66 +323,34 @@ class Step3bNNDSVD(ttk.Frame):
             Y_offset = (Y_reshaped - Y_min + 1e-6).fillna(0)
             self.log(f"Current chunk sizes: "
                     f"{Y_offset.chunks if hasattr(Y_offset,'chunks') else 'Not chunked'}")
+
             self.update_progress(20)
             # -----------------------------------------------------------------
-            # ----- 2.  TRY IN‑MEMORY RANDOMIZED SVD  --------------------------
+            # ----- 2.  RANDOMIZED SVD (sklearn, RAM-efficient algorithm) -----
             # -----------------------------------------------------------------
-            try:
-                self.log("Loading data into memory for randomized_svd…")
+            self.log("Loading data into memory...")
+            # Persist first to avoid dask holding multiple intermediate copies
+            Y_offset_persisted = Y_offset.data.rechunk({0: chunk_size, 1: -1})
+            Y_reshaped_values = np.empty((n_frames, n_pixels), dtype=np.float32)
+            for i, start in enumerate(range(0, n_frames, chunk_size)):
+                end = min(start + chunk_size, n_frames)
+                Y_reshaped_values[start:end] = Y_offset_persisted[start:end].compute()
+                if i % 10 == 0:
+                    self.log(f"  Loaded frames {start}-{end}...")
+            self.log(f"Data loaded, shape: {Y_reshaped_values.shape}")
+            self.log(f"Data loaded, shape: {Y_reshaped_values.shape}")
+            self.update_progress(35)
 
-                if hasattr(Y_offset, '_data') and isinstance(Y_offset._data, np.ndarray):
-                    self.log("Data already in memory as numpy array")
-                    Y_reshaped_values = Y_offset._data.astype(np.float32)
+            self.log("Running randomized_svd...")
+            U, S, Vt = randomized_svd(
+                Y_reshaped_values,
+                n_components=n_components,
+                n_iter=n_power_iter,
+                random_state=42
+            )
+            del Y_reshaped_values  # free the 87 GB immediately after SVD
+            self.log("randomized_svd completed.")
 
-                elif hasattr(step3a_Y_fm_cropped, '_data') \
-                    and isinstance(step3a_Y_fm_cropped._data, np.ndarray):
-                    self.log("Original data already in memory, reshaping…")
-                    Y_reshaped_temp  = step3a_Y_fm_cropped.stack(spatial=['height', 'width'])
-                    Y_offset_temp    = Y_reshaped_temp - Y_min + 1e-6
-                    Y_reshaped_values = Y_offset_temp.values.astype(np.float32)
-
-                else:
-                    self.log("Data not in memory, loading from disk/cache…")
-                    if 'step3a' in self.controller.state['results']:
-                        step3a_data = self.controller.state['results']['step3a']['step3a_Y_fm_cropped']
-                        if hasattr(step3a_data, 'values'):
-                            self.log("Found step3a data in state, using that…")
-                            Y_reshaped_temp  = step3a_data.stack(spatial=['height', 'width'])
-                            Y_offset_temp    = Y_reshaped_temp - Y_min + 1e-6
-                            Y_reshaped_values = Y_offset_temp.values.astype(np.float32)
-                            Y_reshaped_values = np.nan_to_num(
-                                Y_reshaped_values, nan=0.0, posinf=None, neginf=None
-                            )
-                        else:
-                            self.log("Loading through standard path…")
-                            Y_reshaped_values = Y_offset.values.astype(np.float32)
-                    else:
-                        Y_reshaped_values = Y_offset.values.astype(np.float32)
-
-                self.log(f"Data loaded successfully, shape: {Y_reshaped_values.shape}")
-
-                # ---------- the original randomized SVD ----------------------
-                U, S, Vt = randomized_svd(
-                    Y_reshaped_values,
-                    n_components=n_components,
-                    n_iter=n_power_iter,
-                    random_state=42
-                )
-                self.log("randomized_svd completed.")
-
-            # -----------------------------------------------------------------
-            # ----- 3.  FALLBACK ON MemoryError TO COMPRESSED SVD -------------
-            # -----------------------------------------------------------------
-            except MemoryError:
-                self.log("Error: Block compression size error encountered.")
-                self.log("This issue is currently under investigation and falls outside the scope of this implementation.")
-                self.log("Common resolution: Try adjusting the zoom/cropping parameters by 0.1-0.2 decimal places.")
-                self.log("This typically resolves the compression mismatch.")
-                self.status_var.set("Error: Block compression size issue - see log for details")
-                
-                # Properly raise the error to stop processing
-                raise RuntimeError("Block compression size error. Please adjust zoom/cropping parameters and retry.")
-                
             # Update progress
             self.update_progress(50)
             
