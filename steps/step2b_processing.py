@@ -62,6 +62,27 @@ class Step2bProcessing(ttk.Frame):
             self.control_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         
         self.control_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # ── Processing order ──────────────────────────────────────────────────
+        self.order_frame = ttk.LabelFrame(self.control_frame, text="Processing Order")
+        self.order_frame.pack(fill=tk.X, expand=True, padx=10, pady=10)
+
+        self.processing_order_var = tk.StringVar(value="bg_first")   # auto-selected default
+
+        ttk.Radiobutton(
+            self.order_frame,
+            text="Background Removal → Denoise",
+            variable=self.processing_order_var,
+            value="bg_first"
+        ).pack(anchor="w", padx=10, pady=4)
+
+        ttk.Radiobutton(
+            self.order_frame,
+            text="Denoise → Background Removal",
+            variable=self.processing_order_var,
+            value="denoise_first"
+        ).pack(anchor="w", padx=10, pady=4)
+        # ─────────────────────────────────────────────────────────────────────
         
         # Denoising parameters
         self.denoise_frame = ttk.LabelFrame(self.control_frame, text="Denoising")
@@ -176,6 +197,7 @@ class Step2bProcessing(ttk.Frame):
         ksize = self.ksize_var.get()
         bg_method = self.bg_method_var.get()
         wnd = self.wnd_var.get()
+        processing_order = self.processing_order_var.get()
         
         # Validate parameters
         if ksize <= 0:
@@ -191,7 +213,7 @@ class Step2bProcessing(ttk.Frame):
         # Create a thread for processing
         thread = threading.Thread(
             target=self._process_thread,
-            args=(denoise_method, ksize, bg_method, wnd)
+            args=(denoise_method, ksize, bg_method, wnd, processing_order)
         )
         thread.daemon = True
         thread.start()
@@ -209,10 +231,12 @@ class Step2bProcessing(ttk.Frame):
                 self.bg_method_var.set(params['bg_method'])
             if 'wnd' in params:
                 self.wnd_var.set(params['wnd'])
+            if 'processing_order' in params:
+                self.processing_order_var.set(params['processing_order'])
             
             self.log("Parameters loaded from file")
     
-    def _process_thread(self, denoise_method, ksize, bg_method, wnd):
+    def _process_thread(self, denoise_method, ksize, bg_method, wnd, processing_order):
         """Thread function for background removal and denoising"""
         try:
             self.log("Initializing processing...")
@@ -247,7 +271,6 @@ class Step2bProcessing(ttk.Frame):
             
             def remove_background(step2a_varr, method, wnd):
                 """Remove background from a video."""
-                # No UI references here
                 print(f"Removing background with method: {method}, window size: {wnd}")
                 selem = disk(wnd)
                 res = xr.apply_ufunc(
@@ -265,7 +288,6 @@ class Step2bProcessing(ttk.Frame):
             
             def denoise(step2a_varr, method, **kwargs):
                 """Denoise the movie frame by frame."""
-                # No UI references here
                 print(f"Denoising with method: {method}, params: {kwargs}")
                 if method == "gaussian":
                     func = cv2.GaussianBlur
@@ -291,7 +313,7 @@ class Step2bProcessing(ttk.Frame):
                 res = res.astype(step2a_varr.dtype)
                 return res.rename(step2a_varr.name + "_denoised")
             
-            # Get data from previous step - do this in the main thread
+            # Get data from previous step
             self.log("Getting data from previous step...")
             if 'step2a_varr' in self.controller.state['results'].get('step2a', {}):
                 step2a_varr = self.controller.state['results']['step2a']['step2a_varr']
@@ -317,10 +339,7 @@ class Step2bProcessing(ttk.Frame):
             self.log("Subtracting minimum value...")
             step2b_varr_ref = step2b_varr_ref - step2b_varr_min
             self.update_progress(30)
-            
-            # Log what we're about to do - in the main thread
-            self.log(f"Applying {denoise_method} denoising with kernel size {ksize}...")
-            
+
             # Set up denoising parameters based on the method
             if denoise_method == "median":
                 denoise_params = {"ksize": ksize}
@@ -330,36 +349,40 @@ class Step2bProcessing(ttk.Frame):
                 denoise_params = {"d": ksize, "sigmaColor": 75, "sigmaSpace": 75}
             else:  # anisotropic
                 denoise_params = {"niter": ksize, "kappa": 50, "gamma": 0.1, "option": 1}
-            
-            # Apply denoising - this will be sent to Dask
-            step2b_varr_denoised = denoise(step2b_varr_ref, denoise_method, **denoise_params)
-            
-            # Create preview - in the main thread
-            self.log("Creating denoising preview...")
+
             frame_idx = min(2000, step2b_varr_ref.shape[0] - 1)
             orig_frame = step2b_varr_ref.isel(frame=frame_idx).compute()
-            denoised_frame = step2b_varr_denoised.isel(frame=frame_idx).compute()
-            
-            self.update_progress(50)
-            
-            # Log what in the main thread
-            self.log(f"Removing background with {bg_method} method, window size {wnd}...")
-            
-            # Apply background removal - will be sent to Dask
-            step2b_varr_bg_removed = remove_background(step2b_varr_denoised, bg_method, wnd)
-            
-            # Create preview - in the main thread
-            self.log("Creating background removal preview...")
-            bg_removed_frame = step2b_varr_bg_removed.isel(frame=frame_idx).compute()
+
+            # ── Apply operations in selected order ────────────────────────────
+            if processing_order == "bg_first":
+                self.log(f"Order: Background Removal → Denoise")
+                self.log(f"Removing background with {bg_method} method, window size {wnd}...")
+                step2b_intermediate = remove_background(step2b_varr_ref, bg_method, wnd)
+                self.update_progress(50)
+                self.log(f"Applying {denoise_method} denoising with kernel size {ksize}...")
+                step2b_varr_bg_removed = denoise(step2b_intermediate, denoise_method, **denoise_params)
+                # previews
+                intermediate_frame = step2b_intermediate.isel(frame=frame_idx).compute()
+                denoised_frame     = step2b_varr_bg_removed.isel(frame=frame_idx).compute()
+                bg_removed_frame   = denoised_frame
+            else:
+                self.log(f"Order: Denoise → Background Removal")
+                self.log(f"Applying {denoise_method} denoising with kernel size {ksize}...")
+                step2b_intermediate = denoise(step2b_varr_ref, denoise_method, **denoise_params)
+                self.update_progress(50)
+                self.log(f"Removing background with {bg_method} method, window size {wnd}...")
+                step2b_varr_bg_removed = remove_background(step2b_intermediate, bg_method, wnd)
+                # previews
+                denoised_frame   = step2b_intermediate.isel(frame=frame_idx).compute()
+                bg_removed_frame = step2b_varr_bg_removed.isel(frame=frame_idx).compute()
+            # ─────────────────────────────────────────────────────────────────
 
             # NaN Check
             try:
-                # Check a sample frame first for quick feedback
                 sample_nans = np.isnan(bg_removed_frame.values).sum()
                 if sample_nans > 0:
                     self.log(f"WARNING: Detected {sample_nans} NaN values in sample frame after background removal!")
                     
-                # Then check the whole array (may be expensive)
                 nan_count = step2b_varr_bg_removed.isnull().sum().compute().item()
                 if nan_count > 0:
                     self.log(f"WARNING: Detected {nan_count} NaN values in full dataset after background removal!")
@@ -379,13 +402,11 @@ class Step2bProcessing(ttk.Frame):
             
             if cache_data_path:
                 try:
-                    # Import saving_utilities
                     utilities_spec = importlib.util.find_spec("saving_utilities")
                     if utilities_spec:
                         saving_utilities = importlib.import_module("saving_utilities")
                         save_files = saving_utilities.save_files
                         
-                        # Save file - important! Don't reference UI inside this function
                         self.log("Saving to cache...")
                         step2b_varr_ref = save_files(step2b_varr_ref.rename("step2b_varr_ref"), dpath=cache_data_path, overwrite=True)
                         self.log(f"Saved reference array to {cache_data_path}")
@@ -408,7 +429,8 @@ class Step2bProcessing(ttk.Frame):
                 'denoise_method': denoise_method,
                 'ksize': ksize,
                 'bg_method': bg_method,
-                'wnd': wnd
+                'wnd': wnd,
+                'processing_order': processing_order
             }
             
             # Complete
@@ -450,12 +472,10 @@ class Step2bProcessing(ttk.Frame):
             self.fig.colorbar(im1, ax=axs[0, 0])
             
             # Plot 1D signal comparison (before and after denoising)
-            # Extract a line from the middle of the frame for comparison
             middle_row = original_frame.shape[0] // 2
             original_line = original_frame[middle_row, :]
             denoised_line = denoised_frame[middle_row, :]
             
-            # Plot the denoising signal comparison
             axs[0, 1].plot(original_line, label='Original Signal', color='blue', alpha=0.7)
             axs[0, 1].plot(denoised_line, label='After Denoising', color='green', alpha=0.7)
             axs[0, 1].set_title('Denoising Comparison')
@@ -469,10 +489,8 @@ class Step2bProcessing(ttk.Frame):
             self.fig.colorbar(im3, ax=axs[1, 0])
             
             # Plot 1D signal comparison (before and after background removal)
-            # Extract a line from the middle of the frame for comparison
             bg_removed_line = bg_removed_frame[middle_row, :]
             
-            # Plot the background removal signal comparison
             axs[1, 1].plot(original_line, label='Original Signal', color='blue', alpha=0.7)
             axs[1, 1].plot(bg_removed_line, label='After Background Removal', color='red', alpha=0.7)
             axs[1, 1].set_title('Background Removal Comparison')
