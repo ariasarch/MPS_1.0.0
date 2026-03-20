@@ -679,33 +679,23 @@ class Step2dErroneousFrames(ttk.Frame):
             if len(shift_vals.shape) > 1 and shift_vals.shape[1] > 1:
                 self.log("Detected multi-dimensional motion data (X and Y).")
                 
-                # For multidimensional data, create a 2x1 grid (combined motion plot and two histograms)
                 grid_spec = self.fig.add_gridspec(2, 2, height_ratios=[1, 1])
-                
-                # Combined X/Y motion plot at the top spanning both columns
                 ax_combined = self.fig.add_subplot(grid_spec[0, :])
-                
-                # Two histogram plots at the bottom
                 ax_hist_y = self.fig.add_subplot(grid_spec[1, 0])
                 ax_hist_x = self.fig.add_subplot(grid_spec[1, 1])
                 
-                # Get frame indices
                 frames = np.arange(shift_vals.shape[0])
                 
-                # Calculate thresholds
                 y_threshold = step2d_height_stats['mean'] + self.threshold_var.get() * step2d_height_stats['std']
                 x_threshold = step2d_width_stats['mean'] + self.threshold_var.get() * step2d_width_stats['std']
                 
-                # First column (index 0) is Y motion
                 y_motion = shift_vals[:, 0]
-                # Second column (index 1) is X motion
                 x_motion = shift_vals[:, 1]
                 
-                # Plot both X and Y motion on the same graph
+                # Combined motion plot
                 ax_combined.plot(frames, y_motion, 'b-', alpha=0.7, label='Y Motion (Vertical)')
                 ax_combined.plot(frames, x_motion, 'r-', alpha=0.7, label='X Motion (Horizontal)')
                 
-                # Add threshold lines for Y and X motion
                 ax_combined.axhline(step2d_height_stats['mean'] + y_threshold, color='blue', linestyle='--', alpha=0.3, label='Y Upper Threshold')
                 ax_combined.axhline(step2d_height_stats['mean'] - y_threshold, color='blue', linestyle='--', alpha=0.3)
                 ax_combined.axhline(step2d_height_stats['mean'], color='blue', linestyle='-', alpha=0.2, label='Y Mean')
@@ -714,20 +704,20 @@ class Step2dErroneousFrames(ttk.Frame):
                 ax_combined.axhline(step2d_width_stats['mean'] - x_threshold, color='red', linestyle='--', alpha=0.3)
                 ax_combined.axhline(step2d_width_stats['mean'], color='red', linestyle='-', alpha=0.2, label='X Mean')
                 
-                # Mark erroneous frames if any
                 if step2d_erroneous_frames and len(step2d_erroneous_frames) > 0:
                     erroneous_y = y_motion[step2d_erroneous_frames]
                     erroneous_x = x_motion[step2d_erroneous_frames]
                     ax_combined.scatter(step2d_erroneous_frames, erroneous_y, c='purple', s=30, alpha=0.7, label='Y Erroneous Frames')
                     ax_combined.scatter(step2d_erroneous_frames, erroneous_x, c='orange', s=30, alpha=0.7, label='X Erroneous Frames')
                 
-                # Draw absolute limit lines if they were used
+                # Absolute limits
                 abs_limits = self.controller.state['results'].get('step2d', {})
                 h_min = abs_limits.get('step2d_height_min')
                 h_max = abs_limits.get('step2d_height_max')
                 w_min = abs_limits.get('step2d_width_min')
                 w_max = abs_limits.get('step2d_width_max')
 
+                # Draw on combined plot
                 if h_min is not None: ax_combined.axhline(h_min, color='blue', linestyle=':', linewidth=1.5, label='Y Abs Min')
                 if h_max is not None: ax_combined.axhline(h_max, color='blue', linestyle=':', linewidth=1.5, label='Y Abs Max')
                 if w_min is not None: ax_combined.axhline(w_min, color='red', linestyle=':', linewidth=1.5, label='X Abs Min')
@@ -739,21 +729,19 @@ class Step2dErroneousFrames(ttk.Frame):
                 ax_combined.grid(True, alpha=0.3)
                 ax_combined.legend(loc='upper right')
                 
-                # Histogram for Y motion (bottom left)
+                # Y histogram
                 n_y, bins_y, _ = ax_hist_y.hist(y_motion, bins=30, alpha=0.7, color='b')
-                
-                # Mark threshold region for Y
                 ax_hist_y.axvline(step2d_height_stats['mean'] + y_threshold, color='darkgreen', linestyle='--', alpha=0.7, label='Threshold')
                 ax_hist_y.axvline(step2d_height_stats['mean'] - y_threshold, color='darkgreen', linestyle='--', alpha=0.7)
                 ax_hist_y.axvline(step2d_height_stats['mean'], color='green', linestyle='-', alpha=0.7, label='Mean')
                 
-                # Shade erroneous regions for Y
                 max_height_y = np.max(n_y) * 1.1
-                min_bin_y = np.min(bins_y)
-                max_bin_y = np.max(bins_y)
-                
-                ax_hist_y.fill_betweenx([0, max_height_y], step2d_height_stats['mean'] + y_threshold, max_bin_y, alpha=0.2, color='lightcoral', label='Erroneous Region')
-                ax_hist_y.fill_betweenx([0, max_height_y], min_bin_y, step2d_height_stats['mean'] - y_threshold, alpha=0.2, color='lightcoral')
+                ax_hist_y.fill_betweenx([0, max_height_y], step2d_height_stats['mean'] + y_threshold, np.max(bins_y), alpha=0.2, color='lightcoral', label='Erroneous Region')
+                ax_hist_y.fill_betweenx([0, max_height_y], np.min(bins_y), step2d_height_stats['mean'] - y_threshold, alpha=0.2, color='lightcoral')
+
+                # Draw abs limits on Y histogram
+                if h_min is not None: ax_hist_y.axvline(h_min, color='blue', linestyle=':', linewidth=1.5, label='Y Abs Min')
+                if h_max is not None: ax_hist_y.axvline(h_max, color='blue', linestyle=':', linewidth=1.5, label='Y Abs Max')
                 
                 ax_hist_y.set_title('Y Motion Distribution')
                 ax_hist_y.set_xlabel('Shift (pixels)')
@@ -761,21 +749,19 @@ class Step2dErroneousFrames(ttk.Frame):
                 ax_hist_y.grid(True, alpha=0.3)
                 ax_hist_y.legend()
                 
-                # Histogram for X motion (bottom right)
+                # X histogram
                 n_x, bins_x, _ = ax_hist_x.hist(x_motion, bins=30, alpha=0.7, color='r')
-                
-                # Mark threshold region for X
                 ax_hist_x.axvline(step2d_width_stats['mean'] + x_threshold, color='darkgreen', linestyle='--', alpha=0.7, label='Threshold')
                 ax_hist_x.axvline(step2d_width_stats['mean'] - x_threshold, color='darkgreen', linestyle='--', alpha=0.7)
                 ax_hist_x.axvline(step2d_width_stats['mean'], color='green', linestyle='-', alpha=0.7, label='Mean')
                 
-                # Shade erroneous regions for X
                 max_height_x = np.max(n_x) * 1.1
-                min_bin_x = np.min(bins_x)
-                max_bin_x = np.max(bins_x)
-                
-                ax_hist_x.fill_betweenx([0, max_height_x], step2d_width_stats['mean'] + x_threshold, max_bin_x, alpha=0.2, color='lightcoral', label='Erroneous Region')
-                ax_hist_x.fill_betweenx([0, max_height_x], min_bin_x, step2d_width_stats['mean'] - x_threshold, alpha=0.2, color='lightcoral')
+                ax_hist_x.fill_betweenx([0, max_height_x], step2d_width_stats['mean'] + x_threshold, np.max(bins_x), alpha=0.2, color='lightcoral', label='Erroneous Region')
+                ax_hist_x.fill_betweenx([0, max_height_x], np.min(bins_x), step2d_width_stats['mean'] - x_threshold, alpha=0.2, color='lightcoral')
+
+                # Draw abs limits on X histogram
+                if w_min is not None: ax_hist_x.axvline(w_min, color='red', linestyle=':', linewidth=1.5, label='X Abs Min')
+                if w_max is not None: ax_hist_x.axvline(w_max, color='red', linestyle=':', linewidth=1.5, label='X Abs Max')
                 
                 ax_hist_x.set_title('X Motion Distribution')
                 ax_hist_x.set_xlabel('Shift (pixels)')
@@ -784,17 +770,14 @@ class Step2dErroneousFrames(ttk.Frame):
                 ax_hist_x.legend()
                 
             else:
-                # Original code for single dimension data
+                # Single dimension data
                 self.log("Detected single-dimensional motion data.")
                 axs = self.fig.subplots(2, 1)
                 
                 shift_dim = str(step2c_motion.coords.get('shift_dim', ['unknown'])[0])
                 frames = np.arange(len(shift_vals))
-                
-                # Calculate threshold
                 threshold = step2d_height_stats['mean'] + self.threshold_var.get() * step2d_height_stats['std']
                 
-                # Determine label and color based on shift dimension
                 if shift_dim.lower() == 'width':
                     motion_label = 'X Motion (Horizontal)'
                     motion_color = 'r'
@@ -802,41 +785,29 @@ class Step2dErroneousFrames(ttk.Frame):
                     motion_label = 'Y Motion (Vertical)'
                     motion_color = 'b'
                 
-                # Plot motion over time with appropriate color
                 axs[0].plot(frames, shift_vals, color=motion_color, alpha=0.7, label=motion_label)
                 
-                # Mark erroneous frames, only if any were found
                 if step2d_erroneous_frames and len(step2d_erroneous_frames) > 0:
                     erroneous_y = shift_vals[step2d_erroneous_frames]
                     axs[0].scatter(step2d_erroneous_frames, erroneous_y, c='purple', s=30, alpha=0.7, label='Erroneous Frames')
                 
-                # Plot threshold lines
                 axs[0].axhline(step2d_height_stats['mean'] + threshold, color='darkgreen', linestyle='--', alpha=0.5, label='Upper Threshold')
                 axs[0].axhline(step2d_height_stats['mean'] - threshold, color='darkgreen', linestyle='--', alpha=0.5, label='Lower Threshold')
                 axs[0].axhline(step2d_height_stats['mean'], color='green', linestyle='-', alpha=0.5, label='Mean')
-                
                 axs[0].set_title(motion_label)
                 axs[0].set_xlabel('Frame')
                 axs[0].set_ylabel('Shift (pixels)')
                 axs[0].grid(True, alpha=0.3)
                 axs[0].legend()
                 
-                # Plot motion histogram
                 n, bins, _ = axs[1].hist(shift_vals, bins=30, alpha=0.7, color=motion_color)
-                
-                # Mark threshold region
                 axs[1].axvline(step2d_height_stats['mean'] + threshold, color='darkgreen', linestyle='--', alpha=0.7, label='Threshold')
                 axs[1].axvline(step2d_height_stats['mean'] - threshold, color='darkgreen', linestyle='--', alpha=0.7)
                 axs[1].axvline(step2d_height_stats['mean'], color='green', linestyle='-', alpha=0.7, label='Mean')
                 
-                # Shade erroneous regions
                 max_height = np.max(n) * 1.1
-                min_bin = np.min(bins)
-                max_bin = np.max(bins)
-                
-                axs[1].fill_betweenx([0, max_height], step2d_height_stats['mean'] + threshold, max_bin, alpha=0.2, color='lightcoral', label='Erroneous Region')
-                axs[1].fill_betweenx([0, max_height], min_bin, step2d_height_stats['mean'] - threshold, alpha=0.2, color='lightcoral')
-                
+                axs[1].fill_betweenx([0, max_height], step2d_height_stats['mean'] + threshold, np.max(bins), alpha=0.2, color='lightcoral', label='Erroneous Region')
+                axs[1].fill_betweenx([0, max_height], np.min(bins), step2d_height_stats['mean'] - threshold, alpha=0.2, color='lightcoral')
                 axs[1].set_title(f'{motion_label} Distribution')
                 axs[1].set_xlabel('Shift (pixels)')
                 axs[1].set_ylabel('Count')
@@ -845,11 +816,10 @@ class Step2dErroneousFrames(ttk.Frame):
             
             self.fig.tight_layout()
             self.canvas_fig.draw()
-            
-            # Log success
-            self.log(f"Visualization created successfully")
+            self.log("Visualization created successfully")
             
         except Exception as e:
             self.log(f"Error creating visualization: {str(e)}")
             import traceback
             self.log(traceback.format_exc())
+            

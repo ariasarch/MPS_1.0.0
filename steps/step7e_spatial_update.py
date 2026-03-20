@@ -307,6 +307,7 @@ class Step7eSpatialUpdate(ttk.Frame):
             try:
                 # Import required modules
                 self.log("Importing required modules...")
+                import gc
                 
                 # Add the utility directory to the path if needed
                 module_base_path = Path(__file__).parent.parent
@@ -444,8 +445,15 @@ class Step7eSpatialUpdate(ttk.Frame):
 
                     # Load video data
                     Y_cropped = self.load_video_data()
-                    Y_cropped = Y_cropped.fillna(0)
+                    # NOTE: load_video_data() already handles fillna(0)
                     self.log(f"Loaded cropped video data with shape {Y_cropped.shape}")
+
+                    # Downcast to float32 to halve video memory footprint
+                    if Y_cropped.dtype == np.float64:
+                        self.log("Downcasting Y_cropped from float64 -> float32 to save memory...")
+                        Y_cropped = Y_cropped.astype(np.float32)
+                        gc.collect()
+                        self.log(f"Y_cropped dtype is now {Y_cropped.dtype}")
 
                     # Sample a few random pixels to see their values
                     import random
@@ -815,6 +823,11 @@ class Step7eSpatialUpdate(ttk.Frame):
                         
                         progress_value = 20 + (60 * (cluster_idx + 1) / total_clusters)
                         self.update_progress(progress_value)
+                        # Free per-cluster intermediates
+                        del Y_local_vals, pixel_stds, dilated_local
+                        if 'cluster_mask' in dir():
+                            del cluster_mask
+                        gc.collect()
                         
                     except Exception as e:
                         self.log(f"Error processing cluster {cluster_idx}: {str(e)}")
@@ -833,16 +846,19 @@ class Step7eSpatialUpdate(ttk.Frame):
                 
                 if zero_count > 0:
                     self.log(f"WARNING: {zero_count} components have 0 active pixels after update")
+
+                # Free video/background/noise arrays before building updated array
+                del Y_cropped
+                if step3b_f is not None:
+                    del step3b_f
+                if step5a_sn_spatial is not None:
+                    del step5a_sn_spatial
+                gc.collect()
+                self.log("Released video / background / noise arrays to free memory")
                 
                 # Create full component array with updates
                 self.log("\nCreating updated component array...")
                 
-                bounds_dict = modified_construct_component_bounds_dict_with_mapping(
-                    step7b_clusters, 
-                    step7c_cluster_data, 
-                    self.component_id_mapping, 
-                    self.log
-                )
                 
                 try:
                     step7e_A_updated = self.modified_create_updated_array(

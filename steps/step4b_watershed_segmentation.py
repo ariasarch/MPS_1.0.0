@@ -462,13 +462,19 @@ class Step4bWatershedSegmentation(ttk.Frame):
                     continue
                 
                 # Apply watershed segmentation
-                labels, coordinates = watershed_component(
-                    comp, min_distance, threshold_rel, sigma, min_size
-                )
-                
+                try:
+                    labels, coordinates = watershed_component(
+                        comp, min_distance, threshold_rel, sigma, min_size
+                    )
+                except Exception as e:
+                    self.log(f"Segmentation EXCEPTION for component {i}: {e}")
+                    self.log(f"  comp shape={comp.shape}, sum={np.nansum(comp):.4f}, max={np.nanmax(comp):.4f}, nonzero={np.sum(comp > 0)}")
+                    continue
+
                 # If segmentation failed, skip
                 if labels is None:
-                    self.log(f"Segmentation failed for component {i}, skipping")
+                    nonzero = np.sum(comp > 0)
+                    self.log(f"Segmentation failed for component {i}, skipping (nonzero_px={nonzero}, max={np.nanmax(comp):.6f}, has_nan={np.any(np.isnan(comp))})")
                     continue
                 
                 # Count regions
