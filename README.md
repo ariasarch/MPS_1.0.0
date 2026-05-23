@@ -1,7 +1,48 @@
-# Miniscope Processing Pipeline Guide
+# Miniscope Processing Suite (MPS)
 
-## Overview
-This guide walks through the complete miniscope calcium imaging processing pipeline. 
+**MPS is a no-code, end-to-end pipeline for preprocessing, source extraction, and curation of long-duration one-photon (miniscope) calcium imaging data.** It runs as a standalone graphical application — no coding, Git, or environment setup required — and is engineered to process multi-hour recordings on a single standard workstation.
+
+## About
+
+Miniscope calcium imaging lets researchers record the activity of individual neurons in freely behaving animals. Turning the raw video into curated neural traces, however, normally requires scripting, environment management, and considerable computational expertise - and existing pipelines struggle with long recordings, where memory demands cause runs to fail or stall before completing.
+
+MPS addresses both problems. It exposes a full CNMF-based extraction pipeline — motion correction, background subtraction, source extraction, deconvolution, and quality control — through a stepwise graphical interface, and it uses out-of-core, memory-bounded processing so that recordings of several hours can be analyzed on ordinary laboratory hardware. MPS is intended for experimental neuroscientists who need to analyze miniscope recordings, including long-duration sessions, without maintaining dedicated computational infrastructure.
+
+This README also serves as the complete pipeline walkthrough: every step of the GUI is documented in the [Pipeline Steps](#pipeline-steps) section below.
+
+## Installation
+
+Most users should install MPS using the signed, platform-specific installers from the dedicated installer site:
+
+**→ https://ariasarch.github.io/MPS_Installer/**
+
+- **macOS** (12 or later, Apple Silicon or Intel) — download the ZIP or DMG.
+- **Windows** (10/11, 64-bit) — download the EXE installer (~1 GB of disk space is used during setup).
+
+The installer downloads the MPS payload and provisions a self-contained Python 3.8 environment on first launch. No separate Python installation, package manager, or virtual environment setup is required, and subsequent launches are instant.
+
+### Dependencies
+
+All dependencies are pinned at install time, so the installer above is the recommended path for end users. The complete, exact dependency set is recorded as explicit `conda` lockfiles in this repository:
+
+- [`env_explicit_win-64.txt`](env_explicit_win-64.txt) — Windows
+- [`env_explicit_osx-64.txt`](env_explicit_osx-64.txt) — macOS
+
+Either file can be used to recreate the environment directly:
+
+```
+conda create --name mps --file env_explicit_win-64.txt
+```
+
+The core scientific stack is **Python 3.8** with NumPy, SciPy, pandas, Dask/distributed, xarray, Zarr, scikit-image, scikit-learn, CVXPY (with the ECOS and SCS solvers), FFmpeg, and PyQt5 for the interface. See the lockfiles for the full set and exact pinned versions.
+
+See [System Requirements](#system-requirements) for hardware recommendations.
+
+## Documentation & Resources
+
+- **Pipeline walkthrough** — the [Pipeline Steps](#pipeline-steps) section below documents every GUI step, all of its parameters, and how to interpret its diagnostic output.
+- **Sample dataset & tutorial** — a small example dataset with annotated analysis code, plus a parameter-selection walkthrough, is maintained in a companion repository: **https://github.com/ariasarch/MPS_Sample_Code**. Running MPS on this dataset is the fastest way to verify your installation and to learn parameter behavior on tractable data before processing full recordings.
+- **Citing MPS** — see [Citation](#citation) below.
 
 ## Quick Start
 1. **Initial Setup**
@@ -18,6 +59,9 @@ This guide walks through the complete miniscope calcium imaging processing pipel
      - Run automation → Run all steps or Run from current step
 
 ## Table of Contents
+- [About](#about)
+- [Installation](#installation)
+- [Documentation & Resources](#documentation--resources)
 - [Getting Started](#getting-started)
 - [Pipeline Steps](#pipeline-steps)
   - [Step 1: Project Configuration](#step-1-project-configuration)
@@ -33,6 +77,9 @@ This guide walks through the complete miniscope calcium imaging processing pipel
 - [Common Issues and Solutions](#common-issues-and-solutions)
 - [Interpreting Your Results](#interpreting-your-results)
 - [Advanced Features](#advanced-features)
+- [License](#license)
+- [Citation](#citation)
+- [Contributing and Support](#contributing-and-support)
 
 ## Getting Started
 
@@ -714,12 +761,29 @@ The key insight is that neural signals have both spatial structure (the shape of
 
 Remember: perfect is the enemy of good. The goal is biologically meaningful signals, not mathematical perfection. When in doubt, preserve more components rather than fewer - you can always exclude them in downstream analysis.
 
+## License
+
+MPS is released as open-source software; see the [`LICENSE`](LICENSE) file for the full terms.
+
+## Citation
+
+If you use MPS in your research, please cite the accompanying paper. A full citation and DOI will be added here once it is published.
+
+<!-- Will replace with the published citation, e.g.:
+Peden-Asarch A., Weinstock M., Coffey K. R., Neumaier J. F. (YEAR). Miniscope Processing Suite (MPS):
+A no-code, scalable pipeline for long-duration one-photon calcium imaging.
+Journal of Open Source Software, VOL(ISSUE), DOI. -->
+
 ## Contributing and Support
 
-For issues, questions, or contributions:
-1. Check the troubleshooting section first
-2. Review intermediate outputs to identify where problems occur
-3. Save your parameter file and share it when reporting issues
-4. Include system specifications (RAM, CPU, GPU) when reporting performance issues
+Contributions, bug reports, and questions are all welcome. Full details are in [`CONTRIBUTING.md`](CONTRIBUTING.md); in brief:
+
+- **Questions and help** — start a thread in [GitHub Discussions](https://github.com/ariasarch/MPS_1.0.0/discussions). Many problems are already addressed in [Common Issues and Solutions](#common-issues-and-solutions) above.
+- **Bug reports** — open an issue in the [issue tracker](https://github.com/ariasarch/MPS_1.0.0/issues). A report is most actionable when it includes:
+  1. The newest log file from the `logs` folder in your MPS directory.
+  2. Your saved parameter file (File → Save parameters), so the run can be reproduced.
+  3. Your system specifications (operating system, RAM, CPU core count) — especially for performance or memory issues.
+  4. Which step failed, and what you expected to happen instead.
+- **Code contributions** — fork the repository, create a feature branch, and open a pull request that references the relevant issue. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers development environment setup and conventions.
 
 Happy processing!
