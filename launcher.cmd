@@ -3,13 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 title MPS Launcher
 
 rem ============================================================
-rem  MPS Launcher (robust)
-rem  - Finds conda incl. Miniforge / Mambaforge / Miniconda / Anaconda,
-rem    via PATH, CONDA_EXE, known roots, or a conda_path.txt override
-rem  - Logs everything from the first line to logs\launcher.log
-rem  - Fails loudly with a clear message if its folder isn't writable
-rem  - Never requires administrator
-rem  NOTE: save this file as ASCII / UTF-8 WITHOUT BOM, CRLF line endings.
+rem  MPS Launcher 
 rem ============================================================
 
 rem ===== config (DEBUG=1 loud, 0 quieter) =====
