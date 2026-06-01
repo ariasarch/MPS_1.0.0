@@ -107,7 +107,7 @@
   "step_parameters": {
     "Step1Setup": ["n_workers", "memory_limit", "video_percent"],
     "Step2aVideoLoading": ["pattern", "downsample", "downsample_strategy", "video_percent"],
-    "Step2bProcessing": ["denoise_method", "ksize", "bg_method", "wnd"],
+    "Step2bProcessing": ["denoise_method", "ksize", "bg_method", "wnd", "processing_order"],
     "Step2cMotionEstimation": ["dim"],
     "Step2dErroneousFrames": ["threshold_factor", "drop_frames", "use_abs_limits", "height_min", "height_max", "width_min", "width_max"],
     "Step2eTransformation": ["fill_value"],
@@ -205,7 +205,8 @@
         "denoise_method": {"source": "results", "default": "median"},
         "ksize":          {"source": "results", "default": 7},
         "bg_method":      {"source": "results", "default": "tophat"},
-        "wnd":            {"source": "results", "default": 15}
+        "wnd":            {"source": "results", "default": 15},
+        "processing_order": {"source": "results", "default": "bg_first"}
       }
     },
     "step2c_motion_estimation": {

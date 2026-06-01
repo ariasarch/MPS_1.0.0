@@ -1023,67 +1023,17 @@ class Step3aCropping(ttk.Frame):
             return chunks
     
     def _calculate_spatial_chunk_size(self, height, width, min_chunk_size=32, max_chunk_size=256):
-        """
-        Calculate a uniform spatial chunk size that evenly divides both height and width
+        target_size = min(height, width) // 15
+        spatial_chunks = max(min_chunk_size, min(target_size, max_chunk_size))
         
-        Parameters:
-        -----------
-        height : int
-            Height of the array
-        width : int
-            Width of the array
-        min_chunk_size : int
-            Minimum allowed chunk size (default: 32)
-        max_chunk_size : int
-            Maximum allowed chunk size (default: 256)
-        """
-        # Find all factors of height
-        height_factors = [i for i in range(1, height + 1) if height % i == 0]
-        # Find all factors of width  
-        width_factors = [i for i in range(1, width + 1) if width % i == 0]
-        
-        # Find common factors
-        common_factors = sorted(set(height_factors) & set(width_factors))
-        
-        # Filter to only include factors within our min/max range
-        valid_factors = [f for f in common_factors if min_chunk_size <= f <= max_chunk_size]
-        
-        if not valid_factors:
-            # If no factors in the desired range, try to find the closest one
-            if common_factors:
-                # Find the factor closest to our target range
-                if max(common_factors) < min_chunk_size:
-                    # All factors are too small, use the largest
-                    spatial_chunks = max(common_factors)
-                    self.log(f"Warning: No chunk size >= {min_chunk_size} found, using largest factor: {spatial_chunks}")
-                else:
-                    # Find the smallest factor that's >= min_chunk_size
-                    spatial_chunks = min(f for f in common_factors if f >= min_chunk_size)
-                    # But cap it at max_chunk_size if needed
-                    if spatial_chunks > max_chunk_size:
-                        # Try to find largest factor <= max_chunk_size
-                        smaller_factors = [f for f in common_factors if f <= max_chunk_size]
-                        if smaller_factors:
-                            spatial_chunks = max(smaller_factors)
-                        else:
-                            spatial_chunks = min_chunk_size
-                    self.log(f"Using adjusted chunk size: {spatial_chunks}")
-            else:
-                # No common factors at all? This should be impossible unless dimensions are 1
-                spatial_chunks = min_chunk_size
-                self.log(f"Warning: No common factors found, using minimum: {spatial_chunks}")
-        else:
-            # Choose one that's around 1/10th to 1/20th of the dimension size
-            target_size = min(height, width) // 15
-            target_size = max(min_chunk_size, min(target_size, max_chunk_size))
-            
-            # Find the closest valid factor to our target
-            spatial_chunks = min(valid_factors, key=lambda x: abs(x - target_size))
+        # Try to find a factor of both, but don't require it
+        for candidate in range(spatial_chunks, min_chunk_size - 1, -1):
+            if height % candidate == 0 and width % candidate == 0:
+                spatial_chunks = candidate
+                break
         
         self.log(f"Calculated optimal spatial chunk size: {spatial_chunks}")
         self.log(f"  Image dimensions: {height}x{width}")
-        self.log(f"  Valid chunk factors: {valid_factors[:10]}{'...' if len(valid_factors) > 10 else ''}")
-        
         return spatial_chunks
 
     def on_show_frame(self):

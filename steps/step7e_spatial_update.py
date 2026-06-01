@@ -445,8 +445,13 @@ class Step7eSpatialUpdate(ttk.Frame):
 
                     # Load video data
                     Y_cropped = self.load_video_data()
-                    # NOTE: load_video_data() already handles fillna(0)
-                    self.log(f"Loaded cropped video data with shape {Y_cropped.shape}")
+                    # Guard against NaN/Inf in the loaded video. Both ops are lazy on a
+                    # dask-backed xarray: they append nodes to the task graph and are
+                    # applied chunk-by-chunk when downstream code pulls slices. No full
+                    # materialization, no extra memory cost.
+                    Y_cropped = Y_cropped.fillna(0.0)
+                    Y_cropped = Y_cropped.where(~np.isinf(Y_cropped), 0.0)
+                    self.log(f"Loaded cropped video data with shape {Y_cropped.shape} (NaN/Inf -> 0.0 applied lazily)")
 
                     # Downcast to float32 to halve video memory footprint
                     if Y_cropped.dtype == np.float64:
@@ -469,7 +474,6 @@ class Step7eSpatialUpdate(ttk.Frame):
                     self.log("\nData range check:")
                     self.log(f"  step7a_dilated range: [{step7a_dilated.min().values}, {step7a_dilated.max().values}]")
                     self.log(f"  step6e_C_filtered range: [{step6e_C_filtered.min().values}, {step6e_C_filtered.max().values}]")
-                    self.log(f"  Y_cropped range: [{Y_cropped.min().values}, {Y_cropped.max().values}]")
                     
                     # Check if n_frames is greater than available frames
                     if n_frames > Y_cropped.sizes['frame']:
@@ -1224,23 +1228,11 @@ class Step7eSpatialUpdate(ttk.Frame):
             if 'step3a_Y_hw_cropped' in step3a_results:
                 print("Found step3a_Y_hw_cropped in step3a results")
                 Y_cropped = step3a_results['step3a_Y_hw_cropped']
-                # Check for and replace NaNs
-                nan_count = np.isnan(Y_cropped.values).sum()
-                if nan_count > 0:
-                    print(f"Found {nan_count} NaNs in data, replacing with zeros")
-                    Y_cropped = Y_cropped.fillna(0)
-                return Y_cropped
         
         # Also check top-level results for step3a arrays
         if 'step3a_Y_hw_cropped' in self.controller.state.get('results', {}):
             print("Found step3a_Y_hw_cropped at top level of results")
             Y_cropped = self.controller.state['results']['step3a_Y_hw_cropped']
-            # Check for and replace NaNs
-            nan_count = np.isnan(Y_cropped.values).sum()
-            if nan_count > 0:
-                print(f"Found {nan_count} NaNs in data, replacing with zeros")
-                Y_cropped = Y_cropped.fillna(0)
-            return Y_cropped
         
         # Get cache path from controller state
         cache_path = self.controller.state.get('cache_path', '')
@@ -1264,13 +1256,6 @@ class Step7eSpatialUpdate(ttk.Frame):
                 print(f"Successfully loaded from Zarr with zarr engine in {load_time:.2f} seconds")
                 print(f"Shape: {Y_cropped.shape}")
                 
-                # Check for and replace NaNs with zeros
-                nan_count = np.isnan(Y_cropped.values).sum()
-                if nan_count > 0:
-                    print(f"Found {nan_count} NaNs in data, replacing with zeros")
-                    Y_cropped = Y_cropped.fillna(0)
-                    print("NaN replacement complete")
-                    
                 return Y_cropped
             except Exception as e:
                 print(f"Error using explicit zarr engine: {str(e)}")
@@ -1309,13 +1294,6 @@ class Step7eSpatialUpdate(ttk.Frame):
                         dims=['frame', 'height', 'width'],
                         coords=coords
                     )
-                    
-                    # Check for and replace NaNs with zeros
-                    nan_count = np.isnan(Y_cropped.values).sum()
-                    if nan_count > 0:
-                        print(f"Found {nan_count} NaNs in data, replacing with zeros")
-                        Y_cropped = Y_cropped.fillna(0)
-                        print("NaN replacement complete")
                     
                     load_time = time.time() - start_time
                     print(f"Successfully loaded via zarr manually in {load_time:.2f} seconds")
@@ -1386,13 +1364,6 @@ class Step7eSpatialUpdate(ttk.Frame):
                                 'width': np.arange(arr.shape[2])
                             }
                         )
-                    
-                    # Check for and replace NaNs with zeros
-                    nan_count = np.isnan(Y_cropped.values).sum()
-                    if nan_count > 0:
-                        print(f"Found {nan_count} NaNs in data, replacing with zeros")
-                        Y_cropped = Y_cropped.fillna(0)
-                        print("NaN replacement complete")
                     
                     load_time = time.time() - start_time
                     print(f"Successfully loaded from {path} in {load_time:.2f} seconds")

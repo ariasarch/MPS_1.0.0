@@ -239,196 +239,172 @@ def solve_pixel_multi_lasso(
     return final_coeffs_denormalized, solution_stats
 
 def process_component_multi_lasso(
-    Y_local: xr.DataArray,
-    C_local: xr.DataArray,
-    dilated_mask: np.ndarray,  # NEW: Add dilated mask parameter
-    sn_local: Optional[xr.DataArray] = None,
-    background: Optional[np.ndarray] = None,
-    penalties: Optional[List[float]] = None,
-    min_std: float = 0.1,
-    progress_interval: int = 100,
-    activity_threshold: float = 1e-8,
-    log_function=print
-) -> Tuple[np.ndarray, Dict]:
+    Y_local,
+    C_local,
+    dilated_mask,
+    sn_local=None,
+    background=None,
+    penalties=None,
+    min_std=0.1,
+    progress_interval=100,
+    activity_threshold=1e-8,
+    log_function=print,
+):
     """
-    Process single component with multi-LASSO approach using sparse processing.
-    Only processes pixels where dilated_mask == True.
+    Vectorized spatial update for one component.
     """
-    # Convert inputs to numpy arrays
-    Y_vals = Y_local.values
-    C_vals = C_local.values
+    import time
+    import numpy as np
+
+    t0 = time.time()
+
+    Y_vals = Y_local.values                                   # (T, H, W)
+    C_vals = np.asarray(C_local.values, dtype=np.float64)     # (T,)
     height, width = Y_local.sizes['height'], Y_local.sizes['width']
-    
-    # Validate dilated mask dimensions
+
     if dilated_mask is None:
-        log_function("FATAL ERROR: dilated_mask is None!")
-        raise ValueError("dilated_mask cannot be None - sparse processing requires a valid mask")
+        raise ValueError("dilated_mask cannot be None")
     if dilated_mask.shape != (height, width):
-        raise ValueError(f"Dilated mask shape {dilated_mask.shape} doesn't match Y_local shape ({height}, {width})")
-    
-    # Get sparse pixel coordinates where mask is True
-    mask_indices = np.where(dilated_mask)
-    sparse_y_coords = mask_indices[0]
-    sparse_x_coords = mask_indices[1] 
-    total_masked_pixels = len(sparse_y_coords)
-    
-    # Log sparse processing info
+        raise ValueError(
+            f"dilated_mask shape {dilated_mask.shape} != ({height}, {width})"
+        )
+
+    ys, xs = np.where(dilated_mask)
+    n_masked = len(ys)
     total_pixels = height * width
-    log_function(f"Sparse processing: {total_masked_pixels}/{total_pixels} pixels "
-                f"({total_masked_pixels/total_pixels*100:.1f}% of region)")
-    log_function(f"Y_local shape: {Y_vals.shape}, C_local shape: {C_vals.shape}")
-    log_function(f"Dilated mask coverage: {np.sum(dilated_mask)}/{dilated_mask.size} pixels")
-    
-    # If penalties not provided, generate logarithmically spaced values
-    if penalties is None:
-        penalties = np.logspace(-6, -2, 10)
-        
-    log_function(f"Using penalties: {penalties}")
-    
-    # Prepare regressors
-    if background is not None:
-        regressors = np.column_stack([C_vals, background])
-        log_function(f"Using component + background, regressor shape: {regressors.shape}")
-    else:
-        regressors = C_vals.reshape(-1, 1)
-        log_function(f"Using component only, regressor shape: {regressors.shape}")
-        
-    # Initialize output (full size, but only masked pixels will be processed)
-    A_new = np.zeros((height, width))
-    processing_stats = {
+    n_frames = Y_vals.shape[0]
+
+    log_function(
+        f"Vectorized solve: {n_masked}/{total_pixels} pixels "
+        f"({n_masked / total_pixels * 100:.1f}%), {n_frames} frames"
+    )
+
+    A_new = np.zeros((height, width), dtype=np.float32)
+    stats = {
         'active_pixels': 0,
         'skipped_pixels': 0,
-        'masked_pixels': total_masked_pixels,
+        'masked_pixels': n_masked,
         'total_region_pixels': total_pixels,
-        'background_pixels_skipped': total_pixels - total_masked_pixels,
-        'support_frequency_map': np.zeros((height, width)),
-        'residual_map': np.zeros((height, width)),
+        'background_pixels_skipped': total_pixels - n_masked,
+        'support_frequency_map': np.zeros((height, width), dtype=np.float32),
+        'residual_map': np.zeros((height, width), dtype=np.float32),
         'solution_sparsity': [],
         'std_below_threshold': 0,
         'nonfinite_traces': 0,
-        'low_coefficients': 0
+        'low_coefficients': 0,
     }
-    
-    # Get pixel STD distribution for debugging (only for masked pixels)
-    masked_stds = []
-    for i in range(total_masked_pixels):
-        y, x = sparse_y_coords[i], sparse_x_coords[i]
-        pixel_trace = Y_vals[:, y, x]
-        masked_stds.append(np.std(pixel_trace))
-    
-    # Log STD distribution for masked pixels only
-    if masked_stds:
-        masked_stds = np.array(masked_stds)
-        log_function(f"Masked pixel STD distribution:")
-        log_function(f"  Min: {np.min(masked_stds):.6f}")
-        log_function(f"  25th percentile: {np.percentile(masked_stds, 25):.6f}")
-        log_function(f"  Median: {np.median(masked_stds):.6f}")
-        log_function(f"  75th percentile: {np.percentile(masked_stds, 75):.6f}")
-        log_function(f"  Max: {np.max(masked_stds):.6f}")
-        log_function(f"  Pixels below min_std ({min_std}): {np.sum(masked_stds < min_std)} / {len(masked_stds)}")
-    
-    # Process each MASKED pixel only (SPARSE PROCESSING)
-    pixels_processed = 0
-    start_time = time.time()
-    all_coeffs = []
-    
-    for i in range(total_masked_pixels):
-        y, x = sparse_y_coords[i], sparse_x_coords[i]
-        pixels_processed += 1
-        
-        # Get pixel trace
-        pixel_trace = Y_vals[:, y, x]
-        
-        # Basic validation
-        pixel_std = np.std(pixel_trace)
-        is_finite = np.all(np.isfinite(pixel_trace))
-        
-        if pixel_std < min_std:
-            processing_stats['skipped_pixels'] += 1
-            processing_stats['std_below_threshold'] += 1
-            continue
-            
-        if not is_finite:
-            processing_stats['skipped_pixels'] += 1
-            processing_stats['nonfinite_traces'] += 1
-            continue
-        
-        # Debug log for random pixels (to avoid too much output)
-        do_detailed_log = (np.random.random() < 0.01)  # Log ~1% of pixels
-        temp_log_func = log_function if do_detailed_log else lambda x: None
-        
-        if do_detailed_log:
-            temp_log_func(f"\nDetailed log for masked pixel ({y}, {x}):")
-            temp_log_func(f"  STD: {pixel_std:.6f}")
-            temp_log_func(f"  Trace range: [{np.min(pixel_trace):.6f}, {np.max(pixel_trace):.6f}]")
-            
-        # Solve multi-LASSO using the specified threshold
-        coeffs, stats = solve_pixel_multi_lasso(
-            pixel_trace,
-            regressors,
-            penalties,
-            threshold=activity_threshold,
-            log_function=temp_log_func
-        )
-        
-        # Store component coefficient (first coefficient)
-        coef = coeffs[0]
-        all_coeffs.append(coef)
-        
-        if coef > activity_threshold:
-            A_new[y, x] = coef  # Store at original spatial coordinates
-            processing_stats['active_pixels'] += 1
-            processing_stats['support_frequency_map'][y, x] = stats['support_frequency'][0]
-            processing_stats['residual_map'][y, x] = np.mean(stats['residuals'])
-            processing_stats['solution_sparsity'].append(stats['nonzero_counts'])
-        else:
-            processing_stats['low_coefficients'] += 1
-            
-            if do_detailed_log:
-                temp_log_func(f"  Coefficient {coef:.8f} below threshold {activity_threshold}")
-        
-        # Progress updates (based on masked pixels processed)
-        if pixels_processed % progress_interval == 0 or pixels_processed == total_masked_pixels:
-            elapsed = time.time() - start_time
-            rate = pixels_processed / elapsed
-            remaining = (total_masked_pixels - pixels_processed) / rate if rate > 0 else 0
-            
-            log_function(
-                f"Processed {pixels_processed}/{total_masked_pixels} masked pixels "
-                f"({pixels_processed/total_masked_pixels*100:.1f}%) - "
-                f"Active: {processing_stats['active_pixels']} - "
-                f"Rate: {rate:.1f} px/s - "
-                f"ETA: {remaining:.1f}s"
-            )
-                
-    processing_stats['total_time'] = time.time() - start_time
-    processing_stats['processing_rate'] = total_masked_pixels / processing_stats['total_time']
-    
-    # Log coefficient distribution
-    if all_coeffs:
-        all_coeffs = np.array(all_coeffs)
-        log_function(f"\nCoefficient distribution (masked pixels only):")
-        log_function(f"  Min: {np.min(all_coeffs):.8f}")
-        log_function(f"  25th percentile: {np.percentile(all_coeffs, 25):.8f}")
-        log_function(f"  Median: {np.median(all_coeffs):.8f}")
-        log_function(f"  75th percentile: {np.percentile(all_coeffs, 75):.8f}")
-        log_function(f"  Max: {np.max(all_coeffs):.8f}")
-        log_function(f"  Coeffs below threshold ({activity_threshold}): {np.sum(all_coeffs < activity_threshold)} / {len(all_coeffs)}")
-    
-    # Log detailed processing stats
-    log_function("\nSparse processing statistics:")
-    log_function(f"  Total region pixels: {total_pixels}")
-    log_function(f"  Masked pixels: {total_masked_pixels} ({total_masked_pixels/total_pixels*100:.1f}%)")
-    log_function(f"  Background pixels skipped: {processing_stats['background_pixels_skipped']} ({processing_stats['background_pixels_skipped']/total_pixels*100:.1f}%)")
-    log_function(f"  Masked pixels processed: {total_masked_pixels - processing_stats['skipped_pixels']}")
-    log_function(f"  Skipped masked pixels: {processing_stats['skipped_pixels']} ({processing_stats['skipped_pixels']/total_masked_pixels*100:.1f}%)")
-    log_function(f"    - STD below threshold: {processing_stats['std_below_threshold']}")
-    log_function(f"    - Non-finite traces: {processing_stats['nonfinite_traces']}")
-    log_function(f"  Active pixels found: {processing_stats['active_pixels']}")
-    log_function(f"  Coefficients below threshold: {processing_stats['low_coefficients']}")
-    log_function(f"  Processing speedup: {total_pixels/total_masked_pixels:.1f}x faster than full processing")
 
-    return A_new, processing_stats
+    if n_masked == 0:
+        stats['total_time'] = time.time() - t0
+        stats['processing_rate'] = 0.0
+        return A_new, stats
+
+    # ALL masked pixel traces into one (T, n_masked) matrix.
+    Y_pix = Y_vals[:, ys, xs].astype(np.float64)
+
+    # Per-pixel normalization (same as before, just vectorized).
+    pmean = Y_pix.mean(axis=0, keepdims=True)
+    pstd  = Y_pix.std(axis=0, keepdims=True)
+    finite = np.all(np.isfinite(Y_pix), axis=0)
+    valid  = (pstd[0] >= min_std) & finite
+
+    stats['std_below_threshold'] = int(np.sum(pstd[0] < min_std))
+    stats['nonfinite_traces']    = int(np.sum(~finite))
+    stats['skipped_pixels']      = int(np.sum(~valid))
+
+    if not np.any(valid):
+        stats['total_time'] = time.time() - t0
+        stats['processing_rate'] = n_masked / max(stats['total_time'], 1e-9)
+        log_function("All masked pixels skipped (low std / non-finite)")
+        return A_new, stats
+
+    Y_norm = (Y_pix - pmean) / (pstd + 1e-8)  # (T, n_masked)
+
+    # Build regressor matrix.
+    if background is not None:
+        B = np.asarray(background, dtype=np.float64)
+        if B.ndim == 1:
+            B = B.reshape(-1, 1)
+        if B.shape[0] != n_frames:
+            B = B[:n_frames]
+        X = np.column_stack([C_vals.reshape(-1, 1), B])
+    else:
+        X = C_vals.reshape(-1, 1)
+
+    X_norms = np.linalg.norm(X, axis=0)
+    X_norm  = X / (X_norms[None, :] + 1e-8)    # unit-norm columns, (T, K)
+    K = X_norm.shape[1]
+
+    # Shared across all pixels and all penalties. Computed ONCE.
+    XtY = X_norm.T @ Y_norm                    # (K, n_masked)
+    XtX = X_norm.T @ X_norm                    # (K, K), diag ~= 1
+
+    if penalties is None:
+        penalties = np.logspace(-6, -2, 10)
+    penalties = np.asarray(penalties, dtype=np.float64)
+    n_pen = len(penalties)
+
+    # Non-negative LASSO via closed-form / CD,
+    # all penalties, all pixels. Objective matches sklearn's Lasso:
+    #   (1/2T) ||y - Xa||^2  +  alpha * ||a||_1,  a >= 0
+    # Coordinate-wise NN soft-threshold (exact when K=1, converges in a
+    # few sweeps for K=2+):
+    #   a_k <- max(0, X_k^T y - sum_{j!=k} (X_k^T X_j) a_j - T*alpha) / (X_k^T X_k)
+    coeffs_all = np.zeros((n_pen, K, n_masked), dtype=np.float64)
+    n_iter = 1 if K == 1 else 10
+    for pi, alpha in enumerate(penalties):
+        thresh = n_frames * alpha
+        a = np.zeros((K, n_masked), dtype=np.float64)
+        for _ in range(n_iter):
+            for k in range(K):
+                contrib = XtX[k, :] @ a                     # (n_masked,)
+                partial = XtY[k] - contrib + XtX[k, k] * a[k]
+                a[k] = np.maximum(0.0, partial - thresh) / (XtX[k, k] + 1e-12)
+        coeffs_all[pi] = a
+
+    # Residuals per (penalty, pixel), vectorized.
+    # ||Y - Xa||^2  =  Y.Y  -  2 a^T (XtY)  +  a^T (XtX) a
+    Y_sq = np.sum(Y_norm * Y_norm, axis=0)        # (n_masked,)
+    residuals = np.zeros((n_pen, n_masked), dtype=np.float64)
+    for pi in range(n_pen):
+        a = coeffs_all[pi]
+        term2 = 2.0 * np.sum(a * XtY, axis=0)
+        term3 = np.sum(a * (XtX @ a), axis=0)
+        residuals[pi] = np.sqrt(np.maximum(Y_sq - term2 + term3, 0.0))
+
+    # Weighted average across penalties (inverse-residual weights, as before).
+    weights = 1.0 / (residuals + 1e-8)
+    weights /= np.sum(weights, axis=0, keepdims=True)              # (n_pen, n_masked)
+    final_norm = np.einsum('pn,pkn->kn', weights, coeffs_all)      # (K, n_masked)
+
+    # Threshold in normalized space (matches old behavior), then denormalize
+    # the component coefficient (regressor 0).
+    final_norm = np.where(final_norm >= activity_threshold, final_norm, 0.0)
+    final_coefs = final_norm[0] * pstd[0] / (X_norms[0] + 1e-8)
+    final_coefs = np.where(valid, final_coefs, 0.0)
+
+    active_mask = final_coefs > activity_threshold
+    A_new[ys[active_mask], xs[active_mask]] = final_coefs[active_mask].astype(np.float32)
+
+    # Stats maps (same keys as before).
+    support_freq = np.mean(coeffs_all[:, 0, :] > 0.0, axis=0)      # (n_masked,)
+    stats['support_frequency_map'][ys, xs] = support_freq.astype(np.float32)
+    stats['residual_map'][ys, xs] = np.mean(residuals, axis=0).astype(np.float32)
+    stats['active_pixels']     = int(active_mask.sum())
+    stats['low_coefficients']  = int(np.sum(valid & ~active_mask))
+    stats['solution_sparsity'] = []  # per-pixel-per-penalty list is unused downstream
+    stats['total_time'] = time.time() - t0
+    stats['processing_rate'] = n_masked / max(stats['total_time'], 1e-9)
+
+    log_function(
+        f"Done in {stats['total_time']:.2f}s: "
+        f"{stats['active_pixels']} active, "
+        f"{stats['skipped_pixels']} skipped, "
+        f"{stats['low_coefficients']} below thresh. "
+        f"Rate: {stats['processing_rate']:.0f} px/s"
+    )
+
+    return A_new, stats
 
 def process_all_clusters_multi_lasso(
     Y_cropped: xr.DataArray,

@@ -426,142 +426,109 @@ class Step4dTemporalSignals(ttk.Frame):
                         except Exception as e:
                             self.log(f"Error converting data format: {str(e)}")
         
-            
-            # Get client for memory management
-            try:
-                from dask.distributed import get_client
-                client = get_client()
-                has_client = True
-                self.log("Connected to Dask client")
-            except (ImportError, ValueError):
-                has_client = False
-                self.log("No Dask client available, continuing without distributed computing")
-            
             # Define extraction function
-            def extract_temporal_signals(components, Y_cropped, batch_size, frame_chunk_size, 
+            def extract_temporal_signals(components, Y_cropped, batch_size, frame_chunk_size,
                                         clear_cache, memory_efficient):
                 """
-                Extract temporal signals with better memory management
-                
-                Parameters:
-                -----------
-                components : list of dicts
-                    Merged components with spatial masks
-                Y_cropped : xarray.DataArray
-                    Cropped video data
-                batch_size : int
-                    Number of components to process in each batch
-                frame_chunk_size : int
-                    Number of frames to process in each chunk
-                clear_cache : bool
-                    Whether to clear cache between batches
-                memory_efficient : bool
-                    Whether to use memory-efficient mode
-                """
-                self.log("Starting temporal signal extraction...")
-                
-                # Process in smaller batches
-                results = []
-                total_components = len(components)
-                
-                for batch_idx in range(0, total_components, batch_size):
-                    # Clear worker memory before each batch
-                    if clear_cache and has_client:
-                        client = get_client()
-                        client.cancel(list(client.futures))
-                        self.log(f"Cleared client cache for batch {batch_idx//batch_size + 1}")
-                    
-                    batch = components[batch_idx:batch_idx + batch_size]
-                    batch_results = []
-                    
-                    for i, comp in enumerate(batch):
-                        try:
-                            # Calculate progress
-                            comp_idx = batch_idx + i
-                            progress_pct = int(100 * (comp_idx + 1) / total_components)
-                            self.update_progress(progress_pct)
-                            
-                            # Get mask info
-                            spatial = comp['spatial']
-                            rows, cols = np.where(spatial > 0)
-                            if len(rows) == 0:
-                                self.log(f"Component {comp_idx} has no non-zero pixels, skipping")
-                                continue
-                            
-                            # Get bounds    
-                            row_min, row_max = rows.min(), rows.max()
-                            col_min, col_max = cols.min(), cols.max()
-                            
-                            # Crop and normalize mask
-                            cropped_mask = spatial[row_min:row_max+1, col_min:col_max+1]
-                            mask_sum = float(np.sum(cropped_mask))
-                            if mask_sum == 0:
-                                self.log(f"Component {comp_idx} has zero mask sum, skipping")
-                                continue
-                            cropped_mask_normalized = cropped_mask / mask_sum
-                            
-                            # Process video in temporal chunks
-                            Y_region = Y_cropped.isel(
-                                height=slice(row_min, row_max+1),
-                                width=slice(col_min, col_max+1)
-                            )
-                            
-                            # Split into chunks and process sequentially
-                            chunks = []
-                            for chunk_start in range(0, Y_region.sizes['frame'], frame_chunk_size):
-                                chunk_end = min(chunk_start + frame_chunk_size, Y_region.sizes['frame'])
-                                
-                                chunk = Y_region.isel(frame=slice(chunk_start, chunk_end))
-                                chunk_result = (chunk * cropped_mask_normalized).sum(
-                                    dim=['height', 'width']
-                                )
-                                
-                                # Compute result
-                                computed_result = chunk_result.compute()
-                                chunks.append(computed_result)
-                                
-                                if memory_efficient:
-                                    # Release references to intermediate data
-                                    del chunk
-                                    del chunk_result
-                            
-                            # Combine chunks
-                            temporal = xr.concat(chunks, dim='frame')
-                            
-                            # Store results
-                            comp_result = comp.copy()
-                            comp_result['temporal'] = temporal
-                            comp_result['step4d_signal_stats'] = {
-                                'mean': float(temporal.mean()),
-                                'std': float(temporal.std()),
-                                'max': float(temporal.max()),
-                                'min': float(temporal.min())
-                            }
-                            batch_results.append(comp_result)
-                            
-                            if (comp_idx + 1) % 10 == 0 or (comp_idx + 1) == total_components:
-                                self.log(f"Processed component {comp_idx + 1}/{total_components}")
-                            
-                        except Exception as e:
-                            self.log(f"Error processing component {batch_idx + i}: {str(e)}")
-                            self.log(traceback.format_exc())
-                            continue
-                            
-                    results.extend(batch_results)
-                    
-                    # Log batch progress
-                    batch_num = batch_idx//batch_size + 1
-                    total_batches = (total_components - 1)//batch_size + 1
-                    self.log(f"Completed batch {batch_num}/{total_batches}")
-                    
-                    if memory_efficient:
-                        # Release references to intermediate data
-                        del batch
-                        del batch_results
-                    
-                self.log(f"Extraction complete! Processed {len(results)} components")
-                return results
+                Extract temporal signals via one streamed sparse matmul.
             
+                    C[t, k] = sum_p ( A_norm[k, p] * Y[t, p] )
+            
+                where A_norm is each component's spatial footprint divided by its sum.
+                Replaces the old per-component / per-chunk .compute() loop (which did
+                N_components * N_frame_chunks scheduler roundtrips) with a single dask
+                computation streamed over frame-chunks.
+                """
+                import numpy as np
+                import xarray as xr
+                import scipy.sparse as sp
+                import dask.array as da
+            
+                n_components = len(components)
+                H = Y_cropped.sizes['height']
+                W = Y_cropped.sizes['width']
+                n_pixels = H * W
+                n_frames = Y_cropped.sizes['frame']
+            
+                self.log(f"Building sparse A from {n_components} components "
+                        f"(video: {n_frames} frames, {H}x{W}={n_pixels} pixels)...")
+            
+                # ---- 1. Build sparse A: (n_valid, n_pixels), rows = normalized footprints.
+                rows, cols, vals, valid_indices = [], [], [], []
+                for k, comp in enumerate(components):
+                    spatial = np.asarray(comp['spatial'])
+                    mask_sum = float(spatial.sum())
+                    if mask_sum == 0:
+                        self.log(f"  Skipping component {k}: zero mass")
+                        continue
+                    flat = spatial.ravel()
+                    nz = np.flatnonzero(flat)
+                    rows.append(np.full(nz.size, len(valid_indices), dtype=np.int32))
+                    cols.append(nz.astype(np.int32))
+                    vals.append((flat[nz] / mask_sum).astype(np.float32))
+                    valid_indices.append(k)
+            
+                if not valid_indices:
+                    self.log("No valid components to extract.")
+                    return []
+            
+                A = sp.csr_matrix(
+                    (np.concatenate(vals),
+                    (np.concatenate(rows), np.concatenate(cols))),
+                    shape=(len(valid_indices), n_pixels),
+                    dtype=np.float32,
+                )
+                density = 100.0 * A.nnz / (A.shape[0] * A.shape[1])
+                self.log(f"A: shape {A.shape}, nnz={A.nnz} ({density:.4f}% dense)")
+                self.update_progress(5)
+            
+                # ---- 2. Wrap Y as a dask array chunked only along the frame axis.
+                Y_data = Y_cropped.data
+                if isinstance(Y_data, da.Array):
+                    Y_dask = Y_data.rechunk((frame_chunk_size, H, W))
+                else:
+                    Y_dask = da.from_array(np.asarray(Y_data), chunks=(frame_chunk_size, H, W))
+                Y_flat = Y_dask.reshape(n_frames, n_pixels)   # (frames, pixels)
+            
+                # ---- 3. Stream matmul over frame-chunks. One .compute() total.
+                self.log(f"Streaming sparse matmul in frame-chunks of {frame_chunk_size}...")
+            
+                def _matmul_block(Y_block):
+                    Y_block = np.ascontiguousarray(Y_block, dtype=np.float32)  
+                    return np.asarray(A @ Y_block.T).T.astype(np.float32)
+            
+                C_dask = Y_flat.map_blocks(
+                    _matmul_block,
+                    dtype=np.float32,
+                    chunks=(Y_flat.chunks[0], (len(valid_indices),)),
+                )
+            
+                self.update_progress(10)
+                C = C_dask.compute()                           # (n_frames, n_valid)
+                self.update_progress(95)
+                self.log(f"Matmul done. C: {C.shape}, {C.nbytes / 1e6:.1f} MB")
+            
+                # ---- 4. Repackage per component, matching the old return shape.
+                results = []
+                for i, k in enumerate(valid_indices):
+                    trace = C[:, i]
+                    comp_result = components[k].copy()
+                    comp_result['temporal'] = xr.DataArray(
+                        trace, dims=['frame'], name=f'comp_{k}'
+                    )
+                    comp_result['step4d_signal_stats'] = {
+                        'mean': float(trace.mean()),
+                        'std':  float(trace.std()),
+                        'max':  float(trace.max()),
+                        'min':  float(trace.min()),
+                    }
+                    results.append(comp_result)
+            
+                self.update_progress(100)
+                self.log(f"Extraction complete! {len(results)}/{n_components} components "
+                        f"in a single pass.")
+                return results
+
             # Run temporal signal extraction
             self.log("Running temporal signal extraction...")
             step4d_components_with_temporal = extract_temporal_signals(

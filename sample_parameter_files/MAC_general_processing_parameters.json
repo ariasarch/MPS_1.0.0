@@ -17,13 +17,16 @@
         },
         "step2a_video_loading": {
             "pattern": ".*\\.avi$",
-            "downsample": {
-                "frame": 1,
-                "height": 1,
-                "width": 1
-            },
+            "downsample": { "frame": 1, "height": 1, "width": 1 },
             "downsample_strategy": "subset",
-            "video_percent": 100
+            "video_percent": 100,
+            "line_splitting": {
+                "mode": "basic",
+                "trend_sigma": 20.0,
+                "signal_zone_pct": 0.05,
+                "column_crop": [0.20, 0.80],
+                "threshold": null
+            }
         },
         "step2b_processing": {
             "denoise_method": "median",

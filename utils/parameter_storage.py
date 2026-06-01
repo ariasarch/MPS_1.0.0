@@ -210,6 +210,17 @@ class ParameterStorage:
 
             step_params[output_key] = built
 
+        # ── Nest line splitting params into step2a output ─────────────────
+        if "step2a_video_loading" in step_params:
+            ls_results = results.get("step2a", {})
+            step_params["step2a_video_loading"]["line_splitting"] = {
+                "mode":            ls_results.get("ls_mode", "basic"),
+                "trend_sigma":     ls_results.get("ls_trend_sigma", 20.0),
+                "signal_zone_pct": ls_results.get("ls_signal_zone_pct", 0.05),
+                "column_crop":     list(ls_results.get("ls_column_crop", [0.20, 0.80])),
+                "threshold":       ls_results.get("ls_threshold", None),
+            }
+
         print(f"Final parameter keys: {list(step_params.keys())}")
         return step_params
 

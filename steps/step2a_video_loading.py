@@ -88,24 +88,76 @@ class Step2aVideoLoading(ttk.Frame):
         self.ds_strategy_combo['values'] = ('subset', 'mean')
         self.ds_strategy_combo.grid(row=2, column=1, padx=10, pady=10, sticky="w")
 
-        # Line splitting
+        # ── Line splitting detection section ──────────────────────────────────
         ttk.Label(self.control_frame, text="Line Splitting Detection:").grid(row=3, column=0, padx=10, pady=10, sticky="w")
         self.line_splitting_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
             self.control_frame,
             text="Detect and remove line splitting frames",
-            variable=self.line_splitting_var
+            variable=self.line_splitting_var,
+            command=self._toggle_ls_controls
         ).grid(row=3, column=1, padx=10, pady=10, sticky="w")
+
+        # Line splitting mode selector
+        ttk.Label(self.control_frame, text="Detection Mode:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        self.ls_mode_var = tk.StringVar(value="basic")
+        self.ls_mode_combo = ttk.Combobox(self.control_frame, textvariable=self.ls_mode_var, width=15,
+                                          state="readonly")
+        self.ls_mode_combo['values'] = ('basic', 'advanced')
+        self.ls_mode_combo.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.ls_mode_combo.bind("<<ComboboxSelected>>", lambda e: self._toggle_ls_advanced())
+
+        # ── Advanced LS parameters (collapsible) ──────────────────────────────
+        self.ls_advanced_frame = ttk.LabelFrame(self.control_frame, text="Advanced LS Parameters")
+        self.ls_advanced_frame.grid(row=5, column=0, columnspan=3, padx=10, pady=5, sticky="ew")
+
+        ttk.Label(self.ls_advanced_frame, text="Trend Sigma:").grid(row=0, column=0, padx=5, pady=4, sticky="w")
+        self.ls_trend_sigma_var = tk.DoubleVar(value=20.0)
+        ttk.Entry(self.ls_advanced_frame, textvariable=self.ls_trend_sigma_var, width=8).grid(
+            row=0, column=1, padx=5, pady=4, sticky="w")
+        ttk.Label(self.ls_advanced_frame, text="Gaussian smoothing σ for row detrending",
+                  foreground="gray").grid(row=0, column=2, padx=5, pady=4, sticky="w")
+
+        ttk.Label(self.ls_advanced_frame, text="Signal Zone %:").grid(row=1, column=0, padx=5, pady=4, sticky="w")
+        self.ls_signal_zone_var = tk.DoubleVar(value=0.05)
+        ttk.Entry(self.ls_advanced_frame, textvariable=self.ls_signal_zone_var, width=8).grid(
+            row=1, column=1, padx=5, pady=4, sticky="w")
+        ttk.Label(self.ls_advanced_frame, text="Fraction of max mean below which rows are ignored",
+                  foreground="gray").grid(row=1, column=2, padx=5, pady=4, sticky="w")
+
+        ttk.Label(self.ls_advanced_frame, text="Column Crop Start:").grid(row=2, column=0, padx=5, pady=4, sticky="w")
+        self.ls_col_crop_start_var = tk.DoubleVar(value=0.20)
+        ttk.Entry(self.ls_advanced_frame, textvariable=self.ls_col_crop_start_var, width=8).grid(
+            row=2, column=1, padx=5, pady=4, sticky="w")
+        ttk.Label(self.ls_advanced_frame, text="Fractional start of column crop (e.g. 0.20)",
+                  foreground="gray").grid(row=2, column=2, padx=5, pady=4, sticky="w")
+
+        ttk.Label(self.ls_advanced_frame, text="Column Crop End:").grid(row=3, column=0, padx=5, pady=4, sticky="w")
+        self.ls_col_crop_end_var = tk.DoubleVar(value=0.80)
+        ttk.Entry(self.ls_advanced_frame, textvariable=self.ls_col_crop_end_var, width=8).grid(
+            row=3, column=1, padx=5, pady=4, sticky="w")
+        ttk.Label(self.ls_advanced_frame, text="Fractional end of column crop (e.g. 0.80)",
+                  foreground="gray").grid(row=3, column=2, padx=5, pady=4, sticky="w")
+
+        ttk.Label(self.ls_advanced_frame, text="Threshold:").grid(row=4, column=0, padx=5, pady=4, sticky="w")
+        self.ls_threshold_var = tk.StringVar(value="auto")
+        ttk.Entry(self.ls_advanced_frame, textvariable=self.ls_threshold_var, width=8).grid(
+            row=4, column=1, padx=5, pady=4, sticky="w")
+        ttk.Label(self.ls_advanced_frame, text="'auto' for gap method, or a float for manual threshold",
+                  foreground="gray").grid(row=4, column=2, padx=5, pady=4, sticky="w")
+
+        # Start with advanced panel hidden
+        self.ls_advanced_frame.grid_remove()
 
         # Run button
         self.run_button = ttk.Button(self.control_frame, text="Load Videos", command=self.run_loading)
-        self.run_button.grid(row=4, column=0, columnspan=2, pady=20, padx=10)
+        self.run_button.grid(row=6, column=0, columnspan=2, pady=20, padx=10)
 
         # Status + progress
         self.status_var = tk.StringVar(value="Ready to load videos")
-        ttk.Label(self.control_frame, textvariable=self.status_var).grid(row=5, column=0, columnspan=2, pady=10)
+        ttk.Label(self.control_frame, textvariable=self.status_var).grid(row=7, column=0, columnspan=2, pady=10)
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=6, column=0, columnspan=2, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=8, column=0, columnspan=2, pady=10, padx=10, sticky="ew")
 
         # ── Right panel: log ──────────────────────────────────────────────────
         self.log_frame = ttk.LabelFrame(self.scrollable_frame, text="Processing Log")
@@ -129,6 +181,24 @@ class Step2aVideoLoading(ttk.Frame):
         self.scrollable_frame.grid_rowconfigure(3, weight=2)
 
         self.controller.register_step_button('Step2aVideoLoading', self.run_button)
+
+    # ── UI toggle helpers ─────────────────────────────────────────────────────
+
+    def _toggle_ls_controls(self):
+        """Show/hide mode selector and advanced panel based on main checkbox."""
+        if self.line_splitting_var.get():
+            self.ls_mode_combo.config(state="readonly")
+            self._toggle_ls_advanced()
+        else:
+            self.ls_mode_combo.config(state="disabled")
+            self.ls_advanced_frame.grid_remove()
+
+    def _toggle_ls_advanced(self):
+        """Show advanced param panel only when mode is 'advanced'."""
+        if self.ls_mode_var.get() == "advanced" and self.line_splitting_var.get():
+            self.ls_advanced_frame.grid()
+        else:
+            self.ls_advanced_frame.grid_remove()
 
     # ── UI helpers ────────────────────────────────────────────────────────────
 
@@ -168,6 +238,18 @@ class Step2aVideoLoading(ttk.Frame):
             "cache_path": self.controller.state.get('cache_path', ''),
         }
 
+        # Parse advanced LS params
+        ls_threshold_raw = self.ls_threshold_var.get().strip().lower()
+        ls_threshold = None if ls_threshold_raw in ("auto", "") else float(ls_threshold_raw)
+
+        ls_params = {
+            "mode": self.ls_mode_var.get(),
+            "trend_sigma": self.ls_trend_sigma_var.get(),
+            "signal_zone_pct": self.ls_signal_zone_var.get(),
+            "column_crop": (self.ls_col_crop_start_var.get(), self.ls_col_crop_end_var.get()),
+            "threshold": ls_threshold,
+        }
+
         thread = threading.Thread(
             target=self._load_videos_thread,
             args=(
@@ -176,6 +258,7 @@ class Step2aVideoLoading(ttk.Frame):
                 100,
                 self.controller.state.get('cache_path', ''),
                 self.line_splitting_var.get(),
+                ls_params,
             )
         )
         thread.daemon = True
@@ -192,11 +275,103 @@ class Step2aVideoLoading(ttk.Frame):
                 self.width_ds_var.set(params['downsample'].get('width', 1))
             if 'downsample_strategy' in params:
                 self.ds_strategy_var.set(params['downsample_strategy'])
+            # Advanced LS params from file
+            ls = params.get('line_splitting', {})
+            if isinstance(ls, dict):
+                if 'mode' in ls:
+                    self.ls_mode_var.set(ls['mode'])
+                if 'trend_sigma' in ls:
+                    self.ls_trend_sigma_var.set(ls['trend_sigma'])
+                if 'signal_zone_pct' in ls:
+                    self.ls_signal_zone_var.set(ls['signal_zone_pct'])
+                if 'column_crop' in ls and isinstance(ls['column_crop'], (list, tuple)) and len(ls['column_crop']) == 2:
+                    self.ls_col_crop_start_var.set(ls['column_crop'][0])
+                    self.ls_col_crop_end_var.set(ls['column_crop'][1])
+                if 'threshold' in ls:
+                    val = ls['threshold']
+                    self.ls_threshold_var.set("auto" if val is None else str(val))
+            self._toggle_ls_controls()
             self.log("Parameters loaded from file")
+
+    # ── Line splitting detection functions ────────────────────────────────────
+
+    @staticmethod
+    def _detect_ls_basic(xarray_data):
+        """
+        Basic detection: flags frames whose left-edge (20 px) mean brightness
+        exceeds 2 standard deviations above the overall mean.
+        """
+        left_edge = xarray_data.isel(width=slice(0, 20))
+        left_edge_means = left_edge.mean(dim=["height", "width"]).compute()
+        overall_mean = left_edge_means.mean().item()
+        overall_std = left_edge_means.std().item()
+        threshold = overall_mean + 2 * overall_std
+        artifact_indices = np.where(left_edge_means > threshold)[0].tolist()
+        return artifact_indices, None, threshold
+
+    @staticmethod
+    def _detect_ls_advanced(data_np, trend_sigma, signal_zone_pct, column_crop, threshold=None, log_fn=None):
+        """
+        Advanced detection: Gaussian-detrended row-profile residual std scoring
+        with automatic gap-based thresholding.
+
+        Returns (artifact_frame_indices, scores_array, threshold_used).
+        """
+        from scipy.ndimage import gaussian_filter1d
+
+        if log_fn is None:
+            log_fn = print
+
+        n, H, W = data_np.shape
+        log_fn(f"Advanced LS — input shape: {data_np.shape} ({data_np.nbytes / 1e9:.2f} GB)")
+
+        # Determine signal zone (rows with meaningful fluorescence)
+        row_mean = data_np.mean(axis=(0, 2)).astype(np.float32)
+        signal = np.where(row_mean > row_mean.max() * signal_zone_pct)[0]
+        row_min = int(signal[0]) if len(signal) else 0
+        row_max = int(signal[-1]) if len(signal) else H
+
+        col_min = int(W * column_crop[0])
+        col_max = int(W * column_crop[1])
+
+        log_fn(f"  Signal zone: rows {row_min}–{row_max}, cols {col_min}–{col_max}")
+
+        # Compute scores: stdev of detrended row profile per frame
+        cropped = data_np[:, row_min:row_max, col_min:col_max].astype(np.float32)
+        mean_row_intensity = cropped.mean(axis=2)                              # (n, rows)
+        trend = gaussian_filter1d(mean_row_intensity, sigma=trend_sigma, axis=1)
+        scores = (mean_row_intensity - trend).std(axis=1)                      # (n,)
+
+        # Auto-threshold via gap method
+        if threshold is None:
+            sorted_scores = np.sort(scores)
+            cutoff = int(len(sorted_scores) * 0.99)
+            sorted_trimmed = sorted_scores[:cutoff]
+            gap_idx = int(np.argmax(np.diff(sorted_trimmed)))
+            threshold = float((sorted_trimmed[gap_idx] + sorted_trimmed[gap_idx + 1]) / 2)
+            log_fn(f"  Auto threshold: {threshold:.4f} "
+                   f"(gap {sorted_trimmed[gap_idx]:.4f} → {sorted_trimmed[gap_idx + 1]:.4f})")
+        else:
+            log_fn(f"  Manual threshold: {threshold:.4f}")
+
+        artifact_frames = np.where(scores > threshold)[0]
+
+        n_artifact = len(artifact_frames)
+        pct = n_artifact / n * 100
+        log_fn(f"  Total: {n}  |  Clean: {n - n_artifact} ({100 - pct:.1f}%)  |  Artifact: {n_artifact} ({pct:.1f}%)")
+
+        if n_artifact > 0 and len(scores[scores <= threshold]) > 0:
+            log_fn(f"  Clean score range:    {scores[scores <= threshold].min():.3f} – "
+                   f"{scores[scores <= threshold].max():.3f}")
+            log_fn(f"  Artifact score range: {scores[scores > threshold].min():.3f} – "
+                   f"{scores[scores > threshold].max():.3f}")
+
+        return artifact_frames.tolist(), scores, float(threshold)
 
     # ── Core loading thread ───────────────────────────────────────────────────
 
-    def _load_videos_thread(self, input_dir, param_load_videos, video_percent, cache_path, detect_line_splitting):
+    def _load_videos_thread(self, input_dir, param_load_videos, video_percent, cache_path,
+                            detect_line_splitting, ls_params):
         """
         Loads videos using OpenCV frame-by-frame reading with chunked zarr writes.
 
@@ -325,14 +500,6 @@ class Step2aVideoLoading(ttk.Frame):
                     f = nb_from_header
 
                 return {"width": w, "height": h, "frames": f, "fps": fps, "duration": duration}
-
-            def detect_line_splitting_frames_fn(xarray_data):
-                left_edge = xarray_data.isel(width=slice(0, 20))
-                left_edge_means = left_edge.mean(dim=["height", "width"]).compute()
-                overall_mean = left_edge_means.mean().item()
-                overall_std = left_edge_means.std().item()
-                threshold = overall_mean + 2 * overall_std
-                return np.where(left_edge_means > threshold)[0].tolist()
 
             # ── Dask cluster ──────────────────────────────────────────────────
             self.log("Initializing Dask cluster...")
@@ -484,6 +651,7 @@ class Step2aVideoLoading(ttk.Frame):
                 os.path.join(cache_path, "line_splitting_frames.txt"),
                 os.path.join(cache_path, "frame_index_map.txt"),
                 os.path.join(cache_path, "corrupted_files.json"),
+                os.path.join(cache_path, "ls_scores.npy"),
             ]
 
             for _fp in _files_to_clear:
@@ -693,10 +861,43 @@ class Step2aVideoLoading(ttk.Frame):
 
             # ── Line splitting detection ──────────────────────────────────────
             line_splitting_frames = []
+            ls_scores = None
+            ls_threshold_used = None
+
             if detect_line_splitting:
-                self.log("Detecting line splitting frames...")
+                ls_mode = ls_params.get("mode", "basic")
+                self.log(f"\nLine splitting detection — mode: {ls_mode}")
+
                 try:
-                    line_splitting_frames = detect_line_splitting_frames_fn(step2a_varr)
+                    if ls_mode == "advanced":
+                        # Advanced requires numpy array in memory
+                        self.log("Computing array into memory for advanced LS detection...")
+                        data_np = step2a_varr.values  # forces compute
+                        self.log(f"  Array loaded: {data_np.shape} ({data_np.nbytes / 1e9:.2f} GB)")
+
+                        artifact_indices, ls_scores, ls_threshold_used = self._detect_ls_advanced(
+                            data_np,
+                            trend_sigma=ls_params.get("trend_sigma", 20.0),
+                            signal_zone_pct=ls_params.get("signal_zone_pct", 0.05),
+                            column_crop=ls_params.get("column_crop", (0.20, 0.80)),
+                            threshold=ls_params.get("threshold", None),
+                            log_fn=self.log,
+                        )
+                        line_splitting_frames = artifact_indices
+
+                        # Save scores for diagnostics
+                        try:
+                            np.save(os.path.join(cache_path, "ls_scores.npy"), ls_scores)
+                            self.log("  Saved ls_scores.npy")
+                        except Exception as e:
+                            self.log(f"  Could not save ls_scores.npy: {e}")
+
+                    else:
+                        # Basic mode (original left-edge detector)
+                        self.log("Running basic left-edge detection...")
+                        line_splitting_frames, _, ls_threshold_used = self._detect_ls_basic(step2a_varr)
+                        self.log(f"  Threshold: {ls_threshold_used:.4f}")
+                        self.log(f"  Artifact frames: {len(line_splitting_frames)}")
 
                     if line_splitting_frames:
                         self.log(f"Found {len(line_splitting_frames)} line splitting frames")
@@ -766,13 +967,20 @@ class Step2aVideoLoading(ttk.Frame):
 
             # ── Preview ───────────────────────────────────────────────────────
             self.log("Creating preview...")
-            self.after_idle(lambda: self.create_preview(step2a_varr))
+            self.after_idle(lambda: self.create_preview(step2a_varr, ls_scores, ls_threshold_used,
+                                                        line_splitting_frames))
 
             # ── Store results ─────────────────────────────────────────────────
             self.controller.state.setdefault("results", {})["step2a"] = {
                 "step2a_varr": step2a_varr,
                 "step2a_chk": step2a_chk,
                 "line_splitting_frames": line_splitting_frames,
+                "ls_scores": ls_scores,
+                "ls_threshold": ls_threshold_used,
+                "ls_mode": ls_params.get("mode", "basic"),
+                "ls_trend_sigma": ls_params.get("trend_sigma", 20.0),
+                "ls_signal_zone_pct": ls_params.get("signal_zone_pct", 0.05),
+                "ls_column_crop": list(ls_params.get("column_crop", (0.20, 0.80))),
             }
 
             self.after_idle(lambda: self.status_var.set("Video loading complete"))
@@ -794,42 +1002,180 @@ class Step2aVideoLoading(ttk.Frame):
 
     # ── Preview ───────────────────────────────────────────────────────────────
 
-    def create_preview(self, step2a_varr):
+    def create_preview(self, step2a_varr, ls_scores=None, ls_threshold=None,
+                       line_splitting_frames=None):
         try:
             self.fig.clear()
-            axs = self.fig.subplots(2, 2)
 
-            frame = step2a_varr.isel(frame=0).compute()
-            im1 = axs[0, 0].imshow(frame, cmap="gray")
-            axs[0, 0].set_title("First Frame")
-            self.fig.colorbar(im1, ax=axs[0, 0])
-
-            axs[0, 1].hist(frame.values.flatten(), bins=50)
-            axs[0, 1].set_title("Intensity Distribution")
-            axs[0, 1].set_xlabel("Pixel Value")
-            axs[0, 1].set_ylabel("Count")
-
-            mean_frame = step2a_varr.isel(frame=slice(0, 100)).mean("frame").compute()
-            im2 = axs[1, 0].imshow(mean_frame, cmap="gray")
-            axs[1, 0].set_title("Mean Frame (first 100)")
-            self.fig.colorbar(im2, ax=axs[1, 0])
-
-            axs[1, 1].axis("off")
-            axs[1, 1].text(
-                0.1, 0.5,
-                (
-                    f"Array Information:\n"
-                    f"Shape: {step2a_varr.shape}\n"
-                    f"Data Type: {step2a_varr.dtype}\n"
-                    f"Dimensions: {step2a_varr.dims}\n"
-                    f"Chunks: {step2a_varr.chunks}\n"
-                ),
-                transform=axs[1, 1].transAxes,
-                verticalalignment="center",
-            )
+            # If advanced LS was run and produced scores, show the 6-panel diagnostic
+            if ls_scores is not None and len(ls_scores) > 0 and ls_threshold is not None:
+                self._create_advanced_ls_preview(step2a_varr, ls_scores, ls_threshold,
+                                                 line_splitting_frames)
+            else:
+                self._create_basic_preview(step2a_varr)
 
             self.fig.tight_layout()
             self.canvas_fig.draw()
 
         except Exception as e:
             self.log(f"Error creating preview: {str(e)}")
+
+    def _create_basic_preview(self, step2a_varr):
+        """Original 2x2 preview for basic mode or when no scores available."""
+        axs = self.fig.subplots(2, 2)
+
+        frame = step2a_varr.isel(frame=0).compute()
+        im1 = axs[0, 0].imshow(frame, cmap="gray")
+        axs[0, 0].set_title("First Frame")
+        self.fig.colorbar(im1, ax=axs[0, 0])
+
+        axs[0, 1].hist(frame.values.flatten(), bins=50)
+        axs[0, 1].set_title("Intensity Distribution")
+        axs[0, 1].set_xlabel("Pixel Value")
+        axs[0, 1].set_ylabel("Count")
+
+        mean_frame = step2a_varr.isel(frame=slice(0, 100)).mean("frame").compute()
+        im2 = axs[1, 0].imshow(mean_frame, cmap="gray")
+        axs[1, 0].set_title("Mean Frame (first 100)")
+        self.fig.colorbar(im2, ax=axs[1, 0])
+
+        axs[1, 1].axis("off")
+        axs[1, 1].text(
+            0.1, 0.5,
+            (
+                f"Array Information:\n"
+                f"Shape: {step2a_varr.shape}\n"
+                f"Data Type: {step2a_varr.dtype}\n"
+                f"Dimensions: {step2a_varr.dims}\n"
+                f"Chunks: {step2a_varr.chunks}\n"
+            ),
+            transform=axs[1, 1].transAxes,
+            verticalalignment="center",
+        )
+
+    def _create_advanced_ls_preview(self, step2a_varr, scores, threshold, artifact_frames):
+        """
+        6-panel diagnostic preview matching the standalone script output:
+        score distribution, score over time, clean example frame + row profile,
+        artifact example frame + row profile.
+        """
+        import matplotlib.gridspec as gridspec
+        from scipy.ndimage import gaussian_filter1d
+
+        n_total = len(scores)
+        art_set = set(artifact_frames) if artifact_frames else set()
+        clean_set = set(range(n_total)) - art_set
+
+        clean_idx = np.array(sorted(clean_set))
+        art_idx = np.array(sorted(art_set))
+
+        gs = gridspec.GridSpec(2, 4, figure=self.fig, hspace=0.45, wspace=0.35)
+
+        # ── Score distribution ────────────────────────────────────────────────
+        ax = self.fig.add_subplot(gs[0, :2])
+        if len(clean_idx) > 0:
+            ax.hist(scores[clean_idx], bins=50, color="#00d4ff", alpha=0.7,
+                    edgecolor="none", label=f"Clean ({len(clean_set)})")
+        if len(art_idx) > 0:
+            ax.hist(scores[art_idx], bins=50, color="#ff6b35", alpha=0.7,
+                    edgecolor="none", label=f"Artifact ({len(art_set)})")
+        ax.axvline(threshold, color="#ff4444", lw=2, ls="--",
+                   label=f"threshold={threshold:.3f}")
+        ax.set_title("Score Distribution")
+        ax.set_xlabel("Line splitting score")
+        ax.set_ylabel("Frames")
+        ax.legend(fontsize=7)
+
+        # ── Score over time ───────────────────────────────────────────────────
+        ax = self.fig.add_subplot(gs[0, 2:])
+        ax.plot(scores, color="#00d4ff", lw=0.6, alpha=0.8)
+        ax.axhline(threshold, color="#ff4444", lw=1.5, ls="--",
+                   label=f"threshold={threshold:.3f}")
+        if len(art_idx) > 0:
+            ax.fill_between(range(n_total), 0, scores.max() * 1.1,
+                            where=scores > threshold, color="#ff6b35", alpha=0.15,
+                            label="Flagged")
+        ax.set_title("Score Over Time")
+        ax.set_xlabel("Frame")
+        ax.set_ylabel("Line splitting score")
+        ax.set_ylim(0, scores.max() * 1.1)
+        ax.legend(fontsize=7, ncol=2)
+
+        # ── Example frames + row profiles (bottom row) ───────────────────────
+        # Try to load original data from zarr for frame display (pre-removal)
+        cache_path = self.controller.state.get('cache_path', '')
+        tmp_zarr = os.path.join(cache_path, "step2a_stream_tmp.zarr")
+
+        has_examples = False
+        if os.path.exists(tmp_zarr) and len(art_idx) > 0 and len(clean_idx) > 0:
+            try:
+                import zarr as _zarr
+                z_orig = _zarr.open(tmp_zarr, mode="r")
+
+                # Pick representative frames
+                clean_frame_idx = int(clean_idx[np.argmax(scores[clean_idx])])
+                art_frame_idx = int(art_idx[np.argsort(scores[art_idx])[len(art_idx) // 2]])
+
+                f_clean = z_orig[clean_frame_idx].astype(np.float32)
+                f_art = z_orig[art_frame_idx].astype(np.float32)
+                H, W = f_clean.shape
+                has_examples = True
+
+                vmax = int(np.percentile(f_clean, 99))
+
+                # Clean frame
+                ax = self.fig.add_subplot(gs[1, 0])
+                ax.imshow(f_clean, cmap="gray", vmin=0, vmax=vmax, aspect="auto")
+                ax.set_title(f"Clean f{clean_frame_idx}\n(score={scores[clean_frame_idx]:.2f})",
+                             fontsize=8)
+                ax.set_xticks([]); ax.set_yticks([])
+
+                # Artifact frame
+                ax = self.fig.add_subplot(gs[1, 2])
+                ax.imshow(f_art, cmap="gray", vmin=0, vmax=vmax, aspect="auto")
+                ax.set_title(f"Artifact f{art_frame_idx}\n(score={scores[art_frame_idx]:.2f})",
+                             fontsize=8)
+                ax.set_xticks([]); ax.set_yticks([])
+
+                # Row profiles
+                ls_params_col_crop = (self.ls_col_crop_start_var.get(),
+                                      self.ls_col_crop_end_var.get())
+                cs = int(W * ls_params_col_crop[0])
+                ce = int(W * ls_params_col_crop[1])
+                trend_sigma = self.ls_trend_sigma_var.get()
+
+                both = np.stack([f_clean, f_art])[:, :, cs:ce]
+                profs = both.mean(axis=2)
+                trends = gaussian_filter1d(profs, sigma=trend_sigma, axis=1)
+                rows = np.arange(H)
+
+                for col_plot_idx, (gs_col, color, label) in enumerate([
+                    (1, "#00d4ff", f"Row profile — clean f{clean_frame_idx}"),
+                    (3, "#ff6b35", f"Row profile — artifact f{art_frame_idx}"),
+                ]):
+                    ax = self.fig.add_subplot(gs[1, gs_col])
+                    ax.plot(profs[col_plot_idx], rows, color=color, lw=0.8, alpha=0.8, label="raw")
+                    ax.plot(trends[col_plot_idx], rows, color="#ff4444", lw=1.2, ls="--", label="trend")
+                    ax.set_ylim(len(rows), 0)
+                    ax.set_title(label, fontsize=7)
+                    ax.set_xlabel("Mean intensity", fontsize=7)
+                    ax.set_ylabel("Row", fontsize=7)
+                    ax.legend(fontsize=6)
+
+            except Exception as e:
+                self.log(f"Could not generate example frame panels: {e}")
+                has_examples = False
+
+        if not has_examples:
+            # Fallback: show array info in bottom row
+            ax = self.fig.add_subplot(gs[1, :])
+            ax.axis("off")
+            info_text = (
+                f"Array Information (after LS removal):\n"
+                f"Shape: {step2a_varr.shape}\n"
+                f"Data Type: {step2a_varr.dtype}\n"
+                f"Frames removed: {len(art_set)}\n"
+                f"Threshold: {threshold:.4f}\n"
+            )
+            ax.text(0.1, 0.5, info_text, transform=ax.transAxes,
+                    verticalalignment="center", fontsize=10)

@@ -4,21 +4,29 @@
 #define MyAppExeName "launcher.cmd"
 
 [Setup]
-AppId={{A3D9D4F3-6A9C-4B11-9F2C-EXAMPLE000001}}
+AppId={{014D43F6-96A5-4665-93FD-DE1EDA61E20E}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 
-; Installs under Program Files (OK, because we will write env/logs to LocalAppData instead)
+; --- Per-user install, no elevation ------------------------------------------
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
+
+; --- Force 64-bit install location -------------------------------------------
+; Without this, a 32-bit installer process resolves {autopf} to
+; "Program Files (x86)" on 64-bit Windows. Lock it to 64-bit.
+; (If using Inno Setup < 6.3, replace "x64compatible" with "x64".)
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 
 OutputBaseFilename={#MyAppName}_Setup_{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 
-; Installer icon + Add/Remove Programs icon
 SetupIconFile=icons\neumaierlabdesign.ico
 UninstallDisplayIcon={app}\icons\neumaierlabdesign.ico
 
@@ -29,13 +37,14 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &Desktop icon"; GroupDescription: "Additional icons:"; Flags: checkedonce
 
 [Files]
-; Copy everything EXCEPT Python bytecode
+; Copy everything EXCEPT Python bytecode and any runtime state that the
+; launcher creates on first run (env/, logs/, conda_path.txt). Also exclude
+; the .iss itself in case it's sitting in the source tree.
 Source: "*"; DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; \
-    Excludes: "*\__pycache__\*;__pycache__\*;*.pyc;*.pyo"
+    Excludes: "*\__pycache__\*;__pycache__\*;*.pyc;*.pyo;env\*;logs\*;conda_path.txt;*.iss"
 
 [Icons]
-; Use cmd.exe explicitly for maximum reliability with .cmd
 Name: "{group}\{#MyAppName}"; \
   Filename: "{sys}\cmd.exe"; \
   Parameters: "/c ""{app}\{#MyAppExeName}"""; \
@@ -50,9 +59,13 @@ Name: "{autodesktop}\{#MyAppName}"; \
   IconFilename: "{app}\icons\neumaierlabdesign.ico"
 
 [Run]
-; Offer to launch after install
 Filename: "{sys}\cmd.exe"; \
   Parameters: "/c ""{app}\{#MyAppExeName}"""; \
   Description: "Launch {#MyAppName}"; \
   WorkingDir: "{app}"; \
   Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\env"
+Type: filesandordirs; Name: "{app}\logs"
+Type: files;          Name: "{app}\conda_path.txt"
