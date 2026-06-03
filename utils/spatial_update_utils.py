@@ -8,47 +8,6 @@ from sklearn.linear_model import LassoLars
 from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
 
-# def get_component_ids(cluster_item, component_id_mapping=None, log_function=print):
-#     """Safely extract component IDs from a cluster item, handling different formats"""
-#     try:
-#         # Case 1: It's a regular Python list
-#         if isinstance(cluster_item, list):
-#             components = cluster_item
-#         # Case 2: It's an xarray DataArray
-#         elif hasattr(cluster_item, 'values'):
-#             if cluster_item.ndim == 0:  # 0-dimensional array
-#                 item_value = cluster_item.values.item()
-#                 if isinstance(item_value, list):
-#                     components = item_value
-#                 else:
-#                     components = [item_value]  # Single value in a list
-#             else:
-#                 components = cluster_item.values.tolist()
-#         # Case 3: It's some other iterable
-#         else:
-#             components = list(cluster_item)
-            
-#         # Convert indices to actual component IDs if needed
-#         if component_id_mapping is not None:
-#             mapped_components = []
-#             for item in components:
-#                 # Check if this is an index that needs to be mapped to a component ID
-#                 if isinstance(item, (int, np.integer)) and item in component_id_mapping:
-#                     mapped_components.append(component_id_mapping[item])
-#                     log_function(f"Mapped index {item} to component ID {component_id_mapping[item]}")
-#                 else:
-#                     mapped_components.append(item)
-#             return mapped_components
-#         else:
-#             return components
-            
-#     except Exception as e:
-#         log_function(f"Error extracting components: {str(e)}")
-#         if hasattr(e, "__traceback__"):
-#             import traceback
-#             log_function(traceback.format_exc())
-#         return []  # Return empty list on error
-
 def get_component_ids(cluster_item, component_id_mapping=None, log_function=print):
     """Safely extract component IDs from a cluster item, handling different formats"""
     try:
@@ -818,3 +777,125 @@ def create_updated_component_array(
     )
     
     return A_updated
+
+def process_cluster_multi_lasso(Y_local, C_cluster, comp_ids, dilated_mask,
+                                orig_sizes, background=None, penalties=None,
+                                min_std=0.1, activity_threshold=1e-8,
+                                max_growth_factor=3, log_function=print):
+    """
+    Competitive spatial update for one cluster.
+ 
+    Y_local      : xr.DataArray (frame, height, width) — local tile
+    C_cluster    : np.ndarray   (n_comp, n_frames)     — traces, row k <-> comp_ids[k]
+    comp_ids     : list                                — component ids, same order as C rows
+    dilated_mask : np.ndarray   (height, width) bool   — pixels to solve
+    orig_sizes   : dict comp_id -> int                 — original active-pixel count (for growth cap)
+    background   : np.ndarray   (n_frames,) or (n_frames, k) or None
+ 
+    Returns
+    -------
+    results : dict comp_id -> np.ndarray (height, width) float32 footprint
+    stats   : dict comp_id -> {'active_pixels': int}, plus '_meta'
+    """
+    import time
+    t0 = time.time()
+ 
+    Y_vals = Y_local.values                                   # (T, H, W)
+    height, width = Y_local.sizes['height'], Y_local.sizes['width']
+    n_frames = Y_vals.shape[0]
+    n_comp = C_cluster.shape[0]
+ 
+    if dilated_mask.shape != (height, width):
+        raise ValueError(f"dilated_mask {dilated_mask.shape} != ({height}, {width})")
+ 
+    ys, xs = np.where(dilated_mask)
+    n_masked = len(ys)
+    results = {cid: np.zeros((height, width), dtype=np.float32) for cid in comp_ids}
+    stats = {cid: {'active_pixels': 0} for cid in comp_ids}
+    if n_masked == 0:
+        stats['_meta'] = {'total_time': time.time() - t0, 'n_masked': 0}
+        return results, stats
+ 
+    Y_pix = Y_vals[:, ys, xs].astype(np.float64)              # (T, n_masked)
+    pmean = Y_pix.mean(axis=0, keepdims=True)
+    pstd = Y_pix.std(axis=0, keepdims=True)
+    finite = np.all(np.isfinite(Y_pix), axis=0)
+    valid = (pstd[0] >= min_std) & finite
+    if not np.any(valid):
+        log_function("All masked pixels skipped (low std / non-finite)")
+        stats['_meta'] = {'total_time': time.time() - t0, 'n_masked': n_masked}
+        return results, stats
+    Y_norm = (Y_pix - pmean) / (pstd + 1e-8)
+ 
+    # Regressors: ALL cluster component traces (+ optional background).
+    cols = [C_cluster.T]                                       # (T, n_comp)
+    if background is not None:
+        B = np.asarray(background, dtype=np.float64)
+        if B.ndim == 1:
+            B = B.reshape(-1, 1)
+        if B.shape[0] != n_frames:
+            B = B[:n_frames]
+        cols.append(B)
+    X = np.column_stack(cols).astype(np.float64)              # (T, K)
+    X_norms = np.linalg.norm(X, axis=0)
+    X_norm = X / (X_norms[None, :] + 1e-8)
+    K = X_norm.shape[1]
+ 
+    XtY = X_norm.T @ Y_norm                                   # (K, n_masked)
+    XtX = X_norm.T @ X_norm                                   # (K, K)
+ 
+    if penalties is None:
+        penalties = np.logspace(-6, -2, 10)
+    penalties = np.asarray(penalties, dtype=np.float64)
+    n_pen = len(penalties)
+ 
+    # Non-negative multi-penalty coordinate descent (same kernel as the
+    # single-component path, generalized to K regressors).
+    coeffs_all = np.zeros((n_pen, K, n_masked), dtype=np.float64)
+    n_iter = 1 if K == 1 else 10
+    for pi, alpha in enumerate(penalties):
+        thresh = n_frames * alpha
+        a = np.zeros((K, n_masked), dtype=np.float64)
+        for _ in range(n_iter):
+            for k in range(K):
+                partial = XtY[k] - (XtX[k, :] @ a) + XtX[k, k] * a[k]
+                a[k] = np.maximum(0.0, partial - thresh) / (XtX[k, k] + 1e-12)
+        coeffs_all[pi] = a
+ 
+    Y_sq = np.sum(Y_norm * Y_norm, axis=0)
+    residuals = np.zeros((n_pen, n_masked), dtype=np.float64)
+    for pi in range(n_pen):
+        a = coeffs_all[pi]
+        residuals[pi] = np.sqrt(np.maximum(
+            Y_sq - 2.0 * np.sum(a * XtY, axis=0) + np.sum(a * (XtX @ a), axis=0), 0.0))
+    weights = 1.0 / (residuals + 1e-8)
+    weights /= np.sum(weights, axis=0, keepdims=True)
+    final_norm = np.einsum('pn,pkn->kn', weights, coeffs_all)  # (K, n_masked)
+    final_norm = np.where(final_norm >= activity_threshold, final_norm, 0.0)
+ 
+    # Component columns are 0..n_comp-1 (background, if present, is the last col).
+    for k, cid in enumerate(comp_ids):
+        coefs = final_norm[k] * pstd[0] / (X_norms[k] + 1e-8)
+        coefs = np.where(valid, coefs, 0.0)
+        active = coefs > activity_threshold
+        A_new = np.zeros((height, width), dtype=np.float32)
+        A_new[ys[active], xs[active]] = coefs[active].astype(np.float32)
+ 
+        # Per-component growth cap (same rule as before, now per joint result).
+        n_active = int(active.sum())
+        cap = int(orig_sizes.get(cid, n_active) * max_growth_factor)
+        if cap > 0 and n_active > cap:
+            flat = A_new.flatten()
+            nz = np.nonzero(flat)[0]
+            keep = nz[np.argsort(-flat[nz])][:cap]
+            keep_mask = np.zeros_like(flat, dtype=bool)
+            keep_mask[keep] = True
+            A_new = (flat * keep_mask).reshape(A_new.shape)
+            n_active = cap
+ 
+        results[cid] = A_new
+        stats[cid]['active_pixels'] = n_active
+ 
+    stats['_meta'] = {'total_time': time.time() - t0, 'n_masked': n_masked,
+                      'processing_rate': n_masked / max(time.time() - t0, 1e-9)}
+    return results, stats
