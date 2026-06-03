@@ -292,417 +292,446 @@ class Step7fMergingValidation(ttk.Frame):
         thread.start()
     
     def _merging_thread(self, apply_smoothing, sigma, handle_overlaps, min_size, max_size, save_both):
-        """Thread function for component merging"""
-        try:
-            # Import required modules
-            self.log("Importing required modules...")
-            
-            # Add the utility directory to the path if needed
-            module_base_path = Path(__file__).parent.parent
-            if str(module_base_path) not in sys.path:
-                sys.path.append(str(module_base_path))
-            
-            # Try to import required libraries
+            """Thread function for component merging"""
             try:
-                import numpy as np
-                import xarray as xr
-                import matplotlib.pyplot as plt
-                from scipy.ndimage import gaussian_filter
-                
-                # Try to import save_files utility
+                # Import required modules
+                self.log("Importing required modules...")
+    
+                # Add the utility directory to the path if needed
+                module_base_path = Path(__file__).parent.parent
+                if str(module_base_path) not in sys.path:
+                    sys.path.append(str(module_base_path))
+    
+                # Try to import required libraries
                 try:
-                    from saving_utilities import save_files
-                    self.log("Successfully imported save_files utility")
-                    use_save_files = True
-                except ImportError:
-                    self.log("Warning: save_files utility not found")
-                    use_save_files = False
-                
-                self.log("Successfully imported all required modules")
-            except ImportError as e:
-                self.log(f"Error importing modules: {str(e)}")
-                self.status_var.set(f"Error: Required library not found")
-                return
-            
-            # Load required data
-            self.log("\nLoading required data...")
-            
-            try:
-                # First try to load from step7e results, then try top level if not found
-                if 'step7e_A_updated' in self.controller.state['results'].get('step7e', {}):
-                    step7e_A_updated = self.controller.state['results']['step7e']['step7e_A_updated']
-                    self.log(f"Loaded updated spatial components from step7e")
-                elif 'step7e_A_updated' in self.controller.state['results']:
-                    # Load from top level (more likely based on debug output)
-                    step7e_A_updated = self.controller.state['results']['step7e_A_updated']
-                    self.log(f"Loaded updated spatial components from top level results")
-                else:
-                    # Try to load from files
-                    cache_path = self.controller.state.get('cache_path', '')
-                    if not cache_path:
-                        raise ValueError("Cache path not set, cannot load from files")
-                    
-                    # Try zarr first
-                    zarr_path = os.path.join(cache_path, 'step7e_A_updated.zarr')
-                    if os.path.exists(zarr_path):
-                        self.log(f"Loading step7e_A_updated from Zarr file: {zarr_path}")
-                        try:
-                            step7e_A_updated = xr.open_dataarray(zarr_path)
-                            self.log(f"Successfully loaded step7e_A_updated from Zarr")
-                        except Exception as e:
-                            self.log(f"Error loading from Zarr: {str(e)}")
-                            raise ValueError("Could not load step7e_A_updated from Zarr")
+                    import numpy as np
+                    import xarray as xr
+                    import matplotlib.pyplot as plt
+                    from scipy.ndimage import gaussian_filter
+    
+                    # Try to import save_files utility
+                    try:
+                        from saving_utilities import save_files
+                        self.log("Successfully imported save_files utility")
+                        use_save_files = True
+                    except ImportError:
+                        self.log("Warning: save_files utility not found")
+                        use_save_files = False
+    
+                    self.log("Successfully imported all required modules")
+                except ImportError as e:
+                    self.log(f"Error importing modules: {str(e)}")
+                    self.status_var.set(f"Error: Required library not found")
+                    return
+    
+                # Load required data
+                self.log("\nLoading required data...")
+    
+                try:
+                    # First try to load from step7e results, then try top level if not found
+                    if 'step7e_A_updated' in self.controller.state['results'].get('step7e', {}):
+                        step7e_A_updated = self.controller.state['results']['step7e']['step7e_A_updated']
+                        self.log(f"Loaded updated spatial components from step7e")
+                    elif 'step7e_A_updated' in self.controller.state['results']:
+                        step7e_A_updated = self.controller.state['results']['step7e_A_updated']
+                        self.log(f"Loaded updated spatial components from top level results")
                     else:
-                        # Try numpy
-                        np_path = os.path.join(cache_path, 'step7e_A_updated.npy')
-                        if os.path.exists(np_path):
-                            self.log(f"Loading step7e_A_updated from NumPy file: {np_path}")
+                        # Try to load from files
+                        cache_path = self.controller.state.get('cache_path', '')
+                        if not cache_path:
+                            raise ValueError("Cache path not set, cannot load from files")
+    
+                        # Try zarr first
+                        zarr_path = os.path.join(cache_path, 'step7e_A_updated.zarr')
+                        if os.path.exists(zarr_path):
+                            self.log(f"Loading step7e_A_updated from Zarr file: {zarr_path}")
                             try:
-                                # Load numpy and convert to xarray
-                                A_values = np.load(np_path)
-                                # Need to load original for coordinates
-                                step7a_dilated = self.load_spatial_components('step7a_dilated')
-                                step7e_A_updated = xr.DataArray(
-                                    A_values,
-                                    dims=step7a_dilated.dims,
-                                    coords=step7a_dilated.coords,
-                                    name="step7e_A_updated"
-                                )
-                                self.log(f"Successfully loaded step7e_A_updated from NumPy")
+                                step7e_A_updated = xr.open_dataarray(zarr_path)
+                                self.log(f"Successfully loaded step7e_A_updated from Zarr")
                             except Exception as e:
-                                self.log(f"Error loading from NumPy: {str(e)}")
-                                raise ValueError("Could not load step7e_A_updated from NumPy")
+                                self.log(f"Error loading from Zarr: {str(e)}")
+                                raise ValueError("Could not load step7e_A_updated from Zarr")
                         else:
-                            raise ValueError("Could not find step7e_A_updated in state or files")
-                
-                self.log(f"Updated spatial components shape: {step7e_A_updated.shape}")
-                
-                # Try to load step7e_multi_lasso_results from various sources
-                step7e_multi_lasso_results = None
-                
-                # Method 1: From state (step7e results)
-                if step7e_multi_lasso_results is None and 'step7e_multi_lasso_results' in self.controller.state['results'].get('step7e', {}):
-                    step7e_multi_lasso_results = self.controller.state['results']['step7e']['step7e_multi_lasso_results']
-                    self.log(f"Loaded step7e_multi_lasso_results from step7e results")
-                
-                # Method 2: From state (top level)
-                if step7e_multi_lasso_results is None and 'step7e_multi_lasso_results' in self.controller.state['results']:
-                    step7e_multi_lasso_results = self.controller.state['results']['step7e_multi_lasso_results']
-                    self.log(f"Loaded step7e_multi_lasso_results from top level results")
-                
-                # Method 3: From pickle file
-                if step7e_multi_lasso_results is None:
-                    cache_path = self.controller.state.get('cache_path', '')
-                    if cache_path:
-                        pickle_path = os.path.join(cache_path, 'step7e_multi_lasso_results.pkl')
-                        if os.path.exists(pickle_path):
-                            try:
-                                self.log(f"Loading step7e_multi_lasso_results from pickle: {pickle_path}")
-                                with open(pickle_path, 'rb') as f:
-                                    step7e_multi_lasso_results = pickle.load(f)
-                                self.log(f"Successfully loaded step7e_multi_lasso_results from pickle")
-                            except Exception as e:
-                                self.log(f"Error loading from pickle: {str(e)}")
-                                self.log(traceback.format_exc())
-                        else:
-                            self.log(f"Pickle file not found: {pickle_path}")
-                
-                # Method 4: From component files directory
-                if step7e_multi_lasso_results is None:
-                    cache_path = self.controller.state.get('cache_path', '')
-                    if cache_path:
-                        multi_lasso_dir = os.path.join(cache_path, 'step7e_multi_lasso_results')
-                        if os.path.exists(multi_lasso_dir):
-                            try:
-                                self.log(f"Found step7e_multi_lasso_results directory: {multi_lasso_dir}")
-                                
-                                # Initialize structure
-                                step7e_multi_lasso_results = {
-                                    'A_new': {},
-                                    'processing_stats': {},
-                                    'cluster_info': {}
-                                }
-                                
-                                # Load A_new components
-                                a_new_dir = os.path.join(multi_lasso_dir, 'A_new')
-                                if os.path.exists(a_new_dir):
-                                    for file in os.listdir(a_new_dir):
-                                        if file.endswith('.npy') and file.startswith('component_'):
-                                            # Extract component ID from filename
-                                            comp_id_str = file.replace('component_', '').replace('.npy', '')
-                                            # Try to convert to int
-                                            try:
-                                                comp_id = int(comp_id_str)
-                                            except ValueError:
-                                                comp_id = comp_id_str
-                                            # Load the component
-                                            step7e_multi_lasso_results['A_new'][comp_id] = np.load(os.path.join(a_new_dir, file))
-                                    self.log(f"Loaded {len(step7e_multi_lasso_results['A_new'])} components from directory")
-                                
-                                # Load processing_stats
-                                stats_path = os.path.join(multi_lasso_dir, 'processing_stats.json')
-                                if os.path.exists(stats_path):
-                                    with open(stats_path, 'r') as f:
-                                        stats_json = json.load(f)
-                                        # Convert string keys back to integers
-                                        for comp_id_str, stats in stats_json.items():
-                                            try:
-                                                comp_id = int(comp_id_str)
-                                            except ValueError:
-                                                comp_id = comp_id_str
-                                            step7e_multi_lasso_results['processing_stats'][comp_id] = stats
-                                    self.log(f"Loaded processing_stats from {stats_path}")
-                                
-                                # Load cluster_info
-                                cluster_info_path = os.path.join(multi_lasso_dir, 'cluster_info.json')
-                                if os.path.exists(cluster_info_path):
-                                    with open(cluster_info_path, 'r') as f:
-                                        cluster_info_json = json.load(f)
-                                        # Convert string keys back to integers
-                                        for cluster_idx_str, info in cluster_info_json.items():
-                                            try:
-                                                cluster_idx = int(cluster_idx_str)
-                                            except ValueError:
-                                                cluster_idx = cluster_idx_str
-                                                
-                                            # Convert components back to integers
-                                            try:
-                                                components = [int(c) for c in info['components']]
-                                            except ValueError:
-                                                components = info['components']
-                                                
-                                            # Reconstruct bounds
-                                            bounds = {}
-                                            if 'bounds' in info and info['bounds']:
-                                                bounds = {
-                                                    'height': slice(info['bounds']['height_start'], info['bounds']['height_stop']),
-                                                    'width': slice(info['bounds']['width_start'], info['bounds']['width_stop'])
+                            # Try numpy
+                            np_path = os.path.join(cache_path, 'step7e_A_updated.npy')
+                            if os.path.exists(np_path):
+                                self.log(f"Loading step7e_A_updated from NumPy file: {np_path}")
+                                try:
+                                    # Load numpy and convert to xarray
+                                    A_values = np.load(np_path)
+                                    # Need to load original for coordinates
+                                    step7a_dilated = self.load_spatial_components('step7a_dilated')
+                                    step7e_A_updated = xr.DataArray(
+                                        A_values,
+                                        dims=step7a_dilated.dims,
+                                        coords=step7a_dilated.coords,
+                                        name="step7e_A_updated"
+                                    )
+                                    self.log(f"Successfully loaded step7e_A_updated from NumPy")
+                                except Exception as e:
+                                    self.log(f"Error loading from NumPy: {str(e)}")
+                                    raise ValueError("Could not load step7e_A_updated from NumPy")
+                            else:
+                                raise ValueError("Could not find step7e_A_updated in state or files")
+    
+                    self.log(f"Updated spatial components shape: {step7e_A_updated.shape}")
+    
+                    # Try to load step7e_multi_lasso_results from various sources
+                    step7e_multi_lasso_results = None
+    
+                    # Method 1: From state (step7e results)
+                    if step7e_multi_lasso_results is None and 'step7e_multi_lasso_results' in self.controller.state['results'].get('step7e', {}):
+                        step7e_multi_lasso_results = self.controller.state['results']['step7e']['step7e_multi_lasso_results']
+                        self.log(f"Loaded step7e_multi_lasso_results from step7e results")
+    
+                    # Method 2: From state (top level)
+                    if step7e_multi_lasso_results is None and 'step7e_multi_lasso_results' in self.controller.state['results']:
+                        step7e_multi_lasso_results = self.controller.state['results']['step7e_multi_lasso_results']
+                        self.log(f"Loaded step7e_multi_lasso_results from top level results")
+    
+                    # Method 3: From pickle file
+                    if step7e_multi_lasso_results is None:
+                        cache_path = self.controller.state.get('cache_path', '')
+                        if cache_path:
+                            pickle_path = os.path.join(cache_path, 'step7e_multi_lasso_results.pkl')
+                            if os.path.exists(pickle_path):
+                                try:
+                                    self.log(f"Loading step7e_multi_lasso_results from pickle: {pickle_path}")
+                                    with open(pickle_path, 'rb') as f:
+                                        step7e_multi_lasso_results = pickle.load(f)
+                                    self.log(f"Successfully loaded step7e_multi_lasso_results from pickle")
+                                except Exception as e:
+                                    self.log(f"Error loading from pickle: {str(e)}")
+                                    self.log(traceback.format_exc())
+                            else:
+                                self.log(f"Pickle file not found: {pickle_path}")
+    
+                    # Method 4: From component files directory
+                    if step7e_multi_lasso_results is None:
+                        cache_path = self.controller.state.get('cache_path', '')
+                        if cache_path:
+                            multi_lasso_dir = os.path.join(cache_path, 'step7e_multi_lasso_results')
+                            if os.path.exists(multi_lasso_dir):
+                                try:
+                                    self.log(f"Found step7e_multi_lasso_results directory: {multi_lasso_dir}")
+    
+                                    # Initialize structure
+                                    step7e_multi_lasso_results = {
+                                        'A_new': {},
+                                        'processing_stats': {},
+                                        'cluster_info': {}
+                                    }
+    
+                                    # Load A_new components
+                                    a_new_dir = os.path.join(multi_lasso_dir, 'A_new')
+                                    if os.path.exists(a_new_dir):
+                                        for file in os.listdir(a_new_dir):
+                                            if file.endswith('.npy') and file.startswith('component_'):
+                                                # Extract component ID from filename
+                                                comp_id_str = file.replace('component_', '').replace('.npy', '')
+                                                # Try to convert to int
+                                                try:
+                                                    comp_id = int(comp_id_str)
+                                                except ValueError:
+                                                    comp_id = comp_id_str
+                                                # Load the component
+                                                step7e_multi_lasso_results['A_new'][comp_id] = np.load(os.path.join(a_new_dir, file))
+                                        self.log(f"Loaded {len(step7e_multi_lasso_results['A_new'])} components from directory")
+    
+                                    # Load processing_stats
+                                    stats_path = os.path.join(multi_lasso_dir, 'processing_stats.json')
+                                    if os.path.exists(stats_path):
+                                        with open(stats_path, 'r') as f:
+                                            stats_json = json.load(f)
+                                            # Convert string keys back to integers
+                                            for comp_id_str, stats in stats_json.items():
+                                                try:
+                                                    comp_id = int(comp_id_str)
+                                                except ValueError:
+                                                    comp_id = comp_id_str
+                                                step7e_multi_lasso_results['processing_stats'][comp_id] = stats
+                                        self.log(f"Loaded processing_stats from {stats_path}")
+    
+                                    # Load cluster_info
+                                    cluster_info_path = os.path.join(multi_lasso_dir, 'cluster_info.json')
+                                    if os.path.exists(cluster_info_path):
+                                        with open(cluster_info_path, 'r') as f:
+                                            cluster_info_json = json.load(f)
+                                            # Convert string keys back to integers
+                                            for cluster_idx_str, info in cluster_info_json.items():
+                                                try:
+                                                    cluster_idx = int(cluster_idx_str)
+                                                except ValueError:
+                                                    cluster_idx = cluster_idx_str
+    
+                                                # Convert components back to integers
+                                                try:
+                                                    components = [int(c) for c in info['components']]
+                                                except ValueError:
+                                                    components = info['components']
+    
+                                                # Reconstruct bounds
+                                                bounds = {}
+                                                if 'bounds' in info and info['bounds']:
+                                                    bounds = {
+                                                        'height': slice(info['bounds']['height_start'], info['bounds']['height_stop']),
+                                                        'width': slice(info['bounds']['width_start'], info['bounds']['width_stop'])
+                                                    }
+    
+                                                # Store in result
+                                                step7e_multi_lasso_results['cluster_info'][cluster_idx] = {
+                                                    'components': components,
+                                                    'bounds': bounds
                                                 }
-                                                
-                                            # Store in result
-                                            step7e_multi_lasso_results['cluster_info'][cluster_idx] = {
-                                                'components': components,
-                                                'bounds': bounds
-                                            }
-                                            
-                                            # Add processing_time if available
-                                            if 'processing_time' in info:
-                                                step7e_multi_lasso_results['cluster_info'][cluster_idx]['processing_time'] = info['processing_time']
-                                    
-                                    self.log(f"Loaded cluster_info from {cluster_info_path}")
-                                
-                                self.log(f"Successfully reconstructed step7e_multi_lasso_results from directory structure")
-                                
-                            except Exception as e:
-                                self.log(f"Error reconstructing from directory: {str(e)}")
-                                self.log(traceback.format_exc())
-                                step7e_multi_lasso_results = None
-                
-                # If all methods failed, create a placeholder
-                if step7e_multi_lasso_results is None:
-                    self.log("Warning: step7e_multi_lasso_results not found - creating placeholder")
-                    # Create placeholder with empty A_new dictionary
-                    step7e_multi_lasso_results = {
-                        'A_new': {},
-                        'processing_stats': {},
-                        'cluster_info': {}
-                    }
-                
-                # Check if A_new is populated
-                if 'A_new' in step7e_multi_lasso_results:
-                    self.log(f"Found {len(step7e_multi_lasso_results['A_new'])} components in step7e_multi_lasso_results")
-                else:
-                    self.log("Warning: step7e_multi_lasso_results does not contain A_new dictionary")
-                    step7e_multi_lasso_results['A_new'] = {}
-                
-                # Load cluster data from step7c
-                step7b_clusters, cluster_data = self.load_cluster_data()
-                self.log(f"Loaded {len(step7b_clusters)} step7b_clusters and their bounds")
-                
-                # Load original step7a_dilated components from step7a
-                step7a_dilated = self.load_spatial_components('step7a_dilated')
-                self.log(f"Loaded step7a_dilated spatial components with shape {step7a_dilated.shape}")
-                
-            except Exception as e:
-                self.log(f"Error loading required data: {str(e)}")
-                self.log(traceback.format_exc())
-                self.status_var.set(f"Error: {str(e)}")
-                return
-            
-            self.update_progress(20)
-            
-            if len(step7e_multi_lasso_results['A_new']) == 0 and step7e_A_updated is not None:
-                self.log("\nA_new is empty but step7e_A_updated is available. Will use step7e_A_updated directly.")
-                step7e_multi_lasso_results['direct_mode'] = True
-            
-            # Perform merging - first raw, then smoothed if requested
-            self.log("\nPerforming component merging...")
-            
-            try:
-                # Get original shape
-                original_shape = (step7a_dilated.sizes['height'], step7a_dilated.sizes['width'])
-                self.log(f"Original shape: {original_shape}")
-                
-                # Raw merging (no smoothing)
-                self.log("Creating raw merged components...")
-                merged_raw = self.merge_components_simple(
-                    A_new=step7e_multi_lasso_results['A_new'],
-                    cluster_data=cluster_data,
-                    original_shape=original_shape,
-                    step7a_dilated=step7a_dilated,
-                    step7e_A_updated=step7e_A_updated,  # Pass the full updated array as fallback
-                    smooth=False,
-                    sigma=sigma,
-                    handle_overlaps=handle_overlaps
-                )
-                self.log(f"Successfully created raw merged components with shape {merged_raw.shape}")
-                
-                # Create smoothed version if requested
-                if apply_smoothing:
-                    self.log("Creating smoothed merged components...")
-                    merged_smooth = self.merge_components_simple(
+    
+                                                # Add processing_time if available
+                                                if 'processing_time' in info:
+                                                    step7e_multi_lasso_results['cluster_info'][cluster_idx]['processing_time'] = info['processing_time']
+    
+                                        self.log(f"Loaded cluster_info from {cluster_info_path}")
+    
+                                    self.log(f"Successfully reconstructed step7e_multi_lasso_results from directory structure")
+    
+                                except Exception as e:
+                                    self.log(f"Error reconstructing from directory: {str(e)}")
+                                    self.log(traceback.format_exc())
+                                    step7e_multi_lasso_results = None
+    
+                    # If all methods failed, create a placeholder
+                    if step7e_multi_lasso_results is None:
+                        self.log("Warning: step7e_multi_lasso_results not found - creating placeholder")
+                        # Create placeholder with empty A_new dictionary
+                        step7e_multi_lasso_results = {
+                            'A_new': {},
+                            'processing_stats': {},
+                            'cluster_info': {}
+                        }
+    
+                    # Check if A_new is populated
+                    if 'A_new' in step7e_multi_lasso_results:
+                        self.log(f"Found {len(step7e_multi_lasso_results['A_new'])} components in step7e_multi_lasso_results")
+                    else:
+                        self.log("Warning: step7e_multi_lasso_results does not contain A_new dictionary")
+                        step7e_multi_lasso_results['A_new'] = {}
+    
+                    # Load cluster data from step7c
+                    step7b_clusters, cluster_data = self.load_cluster_data()
+                    self.log(f"Loaded {len(step7b_clusters)} step7b_clusters and their bounds")
+    
+                    # Load original step7a_dilated components from step7a
+                    step7a_dilated = self.load_spatial_components('step7a_dilated')
+                    self.log(f"Loaded step7a_dilated spatial components with shape {step7a_dilated.shape}")
+    
+                except Exception as e:
+                    self.log(f"Error loading required data: {str(e)}")
+                    self.log(traceback.format_exc())
+                    self.status_var.set(f"Error: {str(e)}")
+                    return
+    
+                self.update_progress(20)
+    
+                if len(step7e_multi_lasso_results['A_new']) == 0 and step7e_A_updated is not None:
+                    self.log("\nA_new is empty but step7e_A_updated is available. Will use step7e_A_updated directly.")
+                    step7e_multi_lasso_results['direct_mode'] = True
+    
+                # Perform merging - first raw, then smoothed if requested
+                self.log("\nPerforming component merging...")
+    
+                try:
+                    # Get original shape
+                    original_shape = (step7a_dilated.sizes['height'], step7a_dilated.sizes['width'])
+                    self.log(f"Original shape: {original_shape}")
+    
+                    # Raw merging (no smoothing)
+                    self.log("Creating raw merged components...")
+                    merged_raw = self.merge_components_simple(
                         A_new=step7e_multi_lasso_results['A_new'],
                         cluster_data=cluster_data,
                         original_shape=original_shape,
                         step7a_dilated=step7a_dilated,
                         step7e_A_updated=step7e_A_updated,  # Pass the full updated array as fallback
-                        smooth=True,
+                        smooth=False,
                         sigma=sigma,
                         handle_overlaps=handle_overlaps
                     )
-                    self.log(f"Successfully created smoothed merged components with shape {merged_smooth.shape}")
-                else:
-                    merged_smooth = None
-                    self.log("Skipping smoothed components as per user settings")
-                
-            except Exception as e:
-                self.log(f"Error during merging: {str(e)}")
-                self.log(traceback.format_exc())
-                self.status_var.set(f"Error: {str(e)}")
-                return
-            
-            self.update_progress(60)
-            
-            # Apply size filtering if needed
-            if min_size > 0 or max_size > 0:
-                self.log(f"\nFiltering components by size (minimum {min_size} pixels, maximum {max_size} pixels)...")
-                
-                try:
-                    # Filter raw components
-                    raw_filtered, raw_stats = self.filter_components_by_size(merged_raw, min_size, max_size)
-                    self.log(f"Raw components filtering: {raw_stats}")
-                    
-                    # Filter smoothed components if available
-                    if merged_smooth is not None:
-                        smooth_filtered, smooth_stats = self.filter_components_by_size(merged_smooth, min_size, max_size)
-                        self.log(f"Smoothed components filtering: {smooth_stats}")
+                    self.log(f"Successfully created raw merged components with shape {merged_raw.shape}")
+    
+                    # Create smoothed version if requested
+                    if apply_smoothing:
+                        self.log("Creating smoothed merged components...")
+                        merged_smooth = self.merge_components_simple(
+                            A_new=step7e_multi_lasso_results['A_new'],
+                            cluster_data=cluster_data,
+                            original_shape=original_shape,
+                            step7a_dilated=step7a_dilated,
+                            step7e_A_updated=step7e_A_updated,  # Pass the full updated array as fallback
+                            smooth=True,
+                            sigma=sigma,
+                            handle_overlaps=handle_overlaps
+                        )
+                        self.log(f"Successfully created smoothed merged components with shape {merged_smooth.shape}")
                     else:
-                        smooth_filtered = None
-                        smooth_stats = {}
-                        
+                        merged_smooth = None
+                        self.log("Skipping smoothed components as per user settings")
+    
+                    # Collapse spatially-overlapping, temporally-correlated duplicates
+                    try:
+                        C_da = (self.controller.state['results'].get('step6e', {}).get('step6e_C_filtered')
+                                or self.controller.state['results'].get('step6e_C_filtered'))
+                        if C_da is None:
+                            self.log("Merge skipped: step6e_C_filtered not found for correlation test")
+                        else:
+                            A_ids = merged_raw.coords['unit_id'].values
+                            C_ids = C_da.coords['unit_id'].values
+                            if len(A_ids) != len(C_ids):
+                                self.log(f"WARNING: A has {len(A_ids)} units vs C {len(C_ids)} - "
+                                         f"positional C/A pairing for the merge is unreliable; "
+                                         f"merge may be approximate")
+                            n = min(len(A_ids), len(C_ids))
+                            C_sel = C_da.isel(unit_id=slice(0, n))
+                            C_np = (C_sel.transpose('unit_id', 'frame').values
+                                    if 'frame' in C_sel.dims else C_sel.values)   # (n, T)
+                            groups = self.compute_merge_groups(
+                                merged_raw.isel(unit_id=slice(0, n)), C_np,
+                                overlap_thr=0.3, corr_thr=0.8, max_merged_size=max_size)
+                            merged_raw = self.apply_merge_groups(
+                                merged_raw.isel(unit_id=slice(0, n)), groups)
+                            if merged_smooth is not None:
+                                merged_smooth = self.apply_merge_groups(
+                                    merged_smooth.isel(unit_id=slice(0, n)), groups)
+                            self.log(f"Post-merge component count: {len(merged_raw.unit_id)}")
+                    except Exception as e:
+                        self.log(f"Merge step failed, keeping unmerged footprints: {str(e)}")
+                        self.log(traceback.format_exc())
+    
                 except Exception as e:
-                    self.log(f"Error during size filtering: {str(e)}")
+                    self.log(f"Error during merging: {str(e)}")
                     self.log(traceback.format_exc())
-                    # Continue with unfiltered components
+                    self.status_var.set(f"Error: {str(e)}")
+                    return
+    
+                self.update_progress(60)
+    
+                # Apply size filtering if needed
+                if min_size > 0 or max_size > 0:
+                    self.log(f"\nFiltering components by size (minimum {min_size} pixels, maximum {max_size} pixels)...")
+    
+                    try:
+                        # Filter raw components
+                        raw_filtered, raw_stats = self.filter_components_by_size(merged_raw, min_size, max_size)
+                        self.log(f"Raw components filtering: {raw_stats}")
+    
+                        # Filter smoothed components if available
+                        if merged_smooth is not None:
+                            smooth_filtered, smooth_stats = self.filter_components_by_size(merged_smooth, min_size, max_size)
+                            self.log(f"Smoothed components filtering: {smooth_stats}")
+                        else:
+                            smooth_filtered = None
+                            smooth_stats = {}
+    
+                    except Exception as e:
+                        self.log(f"Error during size filtering: {str(e)}")
+                        self.log(traceback.format_exc())
+                        # Continue with unfiltered components
+                        raw_filtered = merged_raw
+                        smooth_filtered = merged_smooth
+                        raw_stats = {}
+                        smooth_stats = {}
+                else:
+                    # Skip filtering
+                    self.log("Skipping size filtering (min_size <= 0)")
                     raw_filtered = merged_raw
                     smooth_filtered = merged_smooth
                     raw_stats = {}
                     smooth_stats = {}
-            else:
-                # Skip filtering
-                self.log("Skipping size filtering (min_size ≤ 0)")
-                raw_filtered = merged_raw
-                smooth_filtered = merged_smooth
-                raw_stats = {}
-                smooth_stats = {}
-            
-            # Decide which version to store as primary
-            if apply_smoothing:
-                # Use smoothed version as primary if smoothing is enabled
-                step7f_merged_final = smooth_filtered if smooth_filtered is not None else merged_smooth
-                self.log("Using smoothed version as the primary merged result")
-            else:
-                # Use raw version as primary
-                step7f_merged_final = raw_filtered if raw_filtered is not None else merged_raw
-                self.log("Using raw version as the primary merged result")
-            
-            # Add name to the data array
-            step7f_merged_final = step7f_merged_final.rename("step7f_A_merged")
-            
-            # Save results to state
-            self.log("\nSaving results to state...")
-            self.controller.state['results']['step7f'] = {
-                'step7f_A_merged': step7f_merged_final,
-                'step7f_A_merged_raw': raw_filtered if save_both else None,
-                'step7f_A_merged_smooth': smooth_filtered if save_both and apply_smoothing else None,
-                'step7f_parameters': {
-                    'apply_smoothing': apply_smoothing,
-                    'sigma': sigma,
-                    'handle_overlaps': handle_overlaps,
-                    'min_size': min_size,
-                    'max_size': max_size
-                },
-                'step7f_filtering_stats': {
-                    'raw': raw_stats,
-                    'smooth': smooth_stats
+    
+                # Decide which version to store as primary
+                if apply_smoothing:
+                    # Use smoothed version as primary if smoothing is enabled
+                    step7f_merged_final = smooth_filtered if smooth_filtered is not None else merged_smooth
+                    self.log("Using smoothed version as the primary merged result")
+                else:
+                    # Use raw version as primary
+                    step7f_merged_final = raw_filtered if raw_filtered is not None else merged_raw
+                    self.log("Using raw version as the primary merged result")
+    
+                # Add name to the data array
+                step7f_merged_final = step7f_merged_final.rename("step7f_A_merged")
+    
+                # Save results to state
+                self.log("\nSaving results to state...")
+                self.controller.state['results']['step7f'] = {
+                    'step7f_A_merged': step7f_merged_final,
+                    'step7f_A_merged_raw': raw_filtered if save_both else None,
+                    'step7f_A_merged_smooth': smooth_filtered if save_both and apply_smoothing else None,
+                    'step7f_parameters': {
+                        'apply_smoothing': apply_smoothing,
+                        'sigma': sigma,
+                        'handle_overlaps': handle_overlaps,
+                        'min_size': min_size,
+                        'max_size': max_size
+                    },
+                    'step7f_filtering_stats': {
+                        'raw': raw_stats,
+                        'smooth': smooth_stats
+                    }
                 }
-            }
-            
-            # Store at top level for easier access
-            self.controller.state['results']['step7f_A_merged'] = step7f_merged_final
-            if save_both:
-                if raw_filtered is not None:
-                    self.controller.state['results']['step7f_A_merged_raw'] = raw_filtered
-                if smooth_filtered is not None and apply_smoothing:
-                    self.controller.state['results']['step7f_A_merged_smooth'] = smooth_filtered
-            
-            # Auto-save parameters
-            if hasattr(self.controller, 'auto_save_parameters'):
-                self.controller.auto_save_parameters()
-            
-            # Save to files
-            self._save_merged_components(
-                step7f_merged_final, 
-                raw_filtered if save_both else None,
-                smooth_filtered if save_both and apply_smoothing else None,
-                use_save_files
-            )
-            
-            self.update_progress(80)
-            
-            # Prepare data for visualization in main thread
-            # IMPORTANT: Store all necessary data as instance variables
-            self.step7a_dilated_for_viz = step7a_dilated
-            self.step7f_merged_final_for_viz = step7f_merged_final
-            self.raw_filtered_for_viz = raw_filtered if save_both else None
-            self.smooth_filtered_for_viz = smooth_filtered if save_both and apply_smoothing else None
-            
-            # Create visualizations in main thread
-            self.after_idle(lambda: self.create_visualizations())
-            
-            if len(step7f_merged_final.unit_id) > 0:
-                self.after_idle(lambda: self.enable_component_inspection(step7f_merged_final.unit_id.values))
-            
-            # Update progress and status
-            self.update_progress(100)
-            self.status_var.set("Merging and validation complete")
-            self.log("\nComponent merging and validation completed successfully")
-
-            # Mark as complete
-            self.processing_complete = True
-
-            # Notify controller for autorun
-            self.controller.after(0, lambda: self.controller.on_step_complete(self.__class__.__name__))
-            
-        except Exception as e:
-            self.status_var.set(f"Error: {str(e)}")
-            self.log(f"Error in merging thread: {str(e)}")
-            self.log(traceback.format_exc())
-
-            # Stop autorun if configured
-            if self.controller.state.get('autorun_stop_on_error', True):
-                self.controller.autorun_enabled = False
-                self.controller.autorun_indicator.config(text="")
+    
+                # Store at top level for easier access
+                self.controller.state['results']['step7f_A_merged'] = step7f_merged_final
+                if save_both:
+                    if raw_filtered is not None:
+                        self.controller.state['results']['step7f_A_merged_raw'] = raw_filtered
+                    if smooth_filtered is not None and apply_smoothing:
+                        self.controller.state['results']['step7f_A_merged_smooth'] = smooth_filtered
+    
+                # Auto-save parameters
+                if hasattr(self.controller, 'auto_save_parameters'):
+                    self.controller.auto_save_parameters()
+    
+                # Save to files
+                self._save_merged_components(
+                    step7f_merged_final,
+                    raw_filtered if save_both else None,
+                    smooth_filtered if save_both and apply_smoothing else None,
+                    use_save_files
+                )
+    
+                self.update_progress(80)
+    
+                # Prepare data for visualization in main thread
+                # Store all necessary data as instance variables
+                self.step7a_dilated_for_viz = step7a_dilated
+                self.step7f_merged_final_for_viz = step7f_merged_final
+                self.raw_filtered_for_viz = raw_filtered if save_both else None
+                self.smooth_filtered_for_viz = smooth_filtered if save_both and apply_smoothing else None
+    
+                # Create visualizations in main thread
+                self.after_idle(lambda: self.create_visualizations())
+    
+                if len(step7f_merged_final.unit_id) > 0:
+                    self.after_idle(lambda: self.enable_component_inspection(step7f_merged_final.unit_id.values))
+    
+                # Update progress and status
+                self.update_progress(100)
+                self.status_var.set("Merging and validation complete")
+                self.log("\nComponent merging and validation completed successfully")
+    
+                # Mark as complete
+                self.processing_complete = True
+    
+                # Notify controller for autorun
+                self.controller.after(0, lambda: self.controller.on_step_complete(self.__class__.__name__))
+    
+            except Exception as e:
+                self.status_var.set(f"Error: {str(e)}")
+                self.log(f"Error in merging thread: {str(e)}")
+                self.log(traceback.format_exc())
+    
+                # Stop autorun if configured
+                if self.controller.state.get('autorun_stop_on_error', True):
+                    self.controller.autorun_enabled = False
+                    self.controller.autorun_indicator.config(text="")
 
     def on_show_frame(self):
         """Called when this frame is shown - load parameters if available"""
