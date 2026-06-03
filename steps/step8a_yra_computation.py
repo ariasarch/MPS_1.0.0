@@ -421,48 +421,9 @@ class Step8aYRAComputation(ttk.Frame):
             self.update_progress(40)
             
             try:
-                # Compute A*C to reconstruct the signal
-                self.log("Computing A*C reconstruction...")
-                
-                # Ensure C has the right shape (frames x components)
-                if C_matrix.shape[0] != frame_count:
-                    # C is (components x frames), need to transpose
-                    C_transposed = C_matrix.T.values
-                else:
-                    C_transposed = C_matrix.values
-                
-                # A_reshaped is (components x pixels)
-                # C_transposed is (frames x components)
-                # AC should be (frames x pixels)
-                AC_reconstruction = np.dot(C_transposed, A_reshaped)
-                
-                self.log(f"AC reconstruction shape: {AC_reconstruction.shape}")
-                
-                # Compute residual: YrA = Y - AC
-                YrA_reshaped = Y_reshaped - AC_reconstruction
-                
-                self.log(f"YrA residual shape: {YrA_reshaped.shape}")
-                
-                # Now project onto components to get per-component residuals
-                # YrA_per_component = YrA * A^T
-                YrA_values = np.dot(YrA_reshaped, A_reshaped.T)
-                
+                self.log("Computing YrA = A^T (Y - B)")
+                YrA_values = np.dot(Y_reshaped, A_reshaped.T)   # (frames, units)
                 self.log(f"Updated YrA shape: {YrA_values.shape}")
-                
-                # Create XArray DataArray with proper coordinates
-                frame_coords = step3a_Y_hw_cropped.coords['frame'].values
-                unit_coords = A_matrix.coords['unit_id'].values
-                
-                YrA_array = xr.DataArray(
-                    YrA_values,
-                    dims=['frame', 'unit_id'],
-                    coords={
-                        'frame': frame_coords,
-                        'unit_id': unit_coords
-                    },
-                    name='step8a_YrA_updated'
-                )
-                
                 self.log(f"Created XArray DataArray with coordinates")
                                 
             except Exception as e:
