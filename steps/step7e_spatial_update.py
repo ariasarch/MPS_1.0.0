@@ -20,7 +20,8 @@ from spatial_update_utils import (
     create_updated_component_array,
     modified_construct_component_bounds_dict_with_mapping,
     get_component_ids,
-    process_component_multi_lasso
+    process_component_multi_lasso, 
+    process_cluster_multi_lasso
 )
 
 class Step7eSpatialUpdate(ttk.Frame):
