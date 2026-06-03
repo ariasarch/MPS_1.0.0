@@ -728,95 +728,42 @@ class Step7eSpatialUpdate(ttk.Frame):
                                 self.log(f"  Has NaNs: {np.isnan(nan_pixel_trace).any()}")
                                 self.log(f"  Has Infs: {np.isinf(nan_pixel_trace).any()}")
                                 self.log(f"  All identical values: {np.all(nan_pixel_trace == nan_pixel_trace[0])}")
-                        
-                        # Process each component in the cluster
+
+                        # COMPETITIVE CLUSTER UPDATE (all cluster traces as regressors)
+                        cluster_comp_ids, cluster_traces, cluster_orig_sizes = [], [], {}
+                        temporal_ids_present = step6e_C_filtered.coords['unit_id'].values
                         for comp_id in components:
-                            comp_start = time.time()
-                            self.log(f"\nProcessing component {comp_id}")
-                            
-                            try:
-                                spatial_id = int(comp_id) if isinstance(comp_id, float) else int(comp_id)
-
-                                # ── REMAP SPATIAL ID -> TEMPORAL ID ──────────────
-                                if self.spatial_to_temporal:
-                                    temporal_id = self.spatial_to_temporal.get(spatial_id)
-                                    if temporal_id is None:
-                                        self.log(f"Spatial component {spatial_id} has no temporal mapping, skipping")
-                                        continue
-                                else:
-                                    temporal_id = spatial_id  # fallback: assume IDs match
-
-                                temporal_unit_ids = step6e_C_filtered.coords['unit_id'].values
-                                if temporal_id not in temporal_unit_ids:
-                                    self.log(f"Temporal ID {temporal_id} (from spatial {spatial_id}) not in C_filtered, skipping")
-                                    continue
-
-                                self.log(f"Mapped spatial {spatial_id} -> temporal {temporal_id}")
-                                C_local = step6e_C_filtered.sel(unit_id=temporal_id)
-                                # ─────────────────────────────────────────────────
-
-                                # Limit to the same number of frames as Y_local
-                                if n_frames > 0:
-                                    C_local = C_local.isel(frame=slice(0, n_frames))
-                                
-                                # Log temporal trace stats
-                                C_vals = C_local.values
-                                self.log(f"Component {comp_id} temporal trace:")
-                                self.log(f"  Shape: {C_vals.shape}")
-                                self.log(f"  Range: [{np.min(C_vals)}, {np.max(C_vals)}]")
-                                self.log(f"  Mean: {np.mean(C_vals):.6f}, STD: {np.std(C_vals):.6f}")
-                                
-                                # Get original component mask for reference
-                                try:
-                                    orig_comp = dilated_local.sel(unit_id=comp_id).compute().values
-                                    orig_pixels = np.sum(orig_comp > 0)
-                                    self.log(f"Original component has {orig_pixels} active pixels")
-                                    if orig_pixels == 0:
-                                        self.log("WARNING: Original component has 0 active pixels")
-                                except Exception as e:
-                                    self.log(f"Error checking original component: {str(e)}")
-                                    orig_pixels = 0
-                                
-                                # Process this component
-                                self.log(f"Starting multi-LASSO processing...")
-                                A_multi, stats_multi = process_component_multi_lasso(
-                                    Y_local=Y_local,
-                                    C_local=C_local,
-                                    dilated_mask=dilated_mask,
-                                    sn_local=sn_local,
-                                    background=f_local,
-                                    penalties=penalties,
-                                    min_std=min_std,
-                                    progress_interval=progress_interval,
-                                    log_function=lambda *args, **kwargs: None
-                                )
-                                self.log(f"Multi-LASSO processing complete")
-                                
-                                # Count active pixels in result
-                                active_pixels = np.sum(A_multi > 0)
-                                if active_pixels == 0:
-                                    self.log("WARNING: Result has 0 active pixels")
-                                    if np.max(A_multi) > 0:
-                                        self.log(f"  Max coefficient: {np.max(A_multi):.8f}")
-                                        self.log(f"  Possibly below activity threshold")
-                                    else:
-                                        self.log(f"  All coefficients are zero")
-                                
-                                # Store results keyed by spatial_id (comp_id) so downstream
-                                # code (bounds_dict, A_updated indexing) stays consistent
-                                step7e_multi_lasso_results['A_new'][comp_id] = A_multi
-                                step7e_multi_lasso_results['processing_stats'][comp_id] = stats_multi
-                                
-                                total_components_processed += 1
-                                comp_time = time.time() - comp_start
-                                self.log(f"Component {comp_id} completed in {comp_time:.1f}s")
-                                self.log(f"Found {stats_multi['active_pixels']} active pixels")
-                                self.log(f"Processing rate: {stats_multi['processing_rate']:.1f} pixels/sec")
-                                
-                            except Exception as e:
-                                self.log(f"Error processing component {comp_id}: {str(e)}")
-                                self.log(traceback.format_exc())
+                            spatial_id = int(comp_id)
+                            temporal_id = (self.spatial_to_temporal.get(spatial_id)
+                                           if self.spatial_to_temporal else spatial_id)
+                            if temporal_id is None or temporal_id not in temporal_ids_present:
+                                self.log(f"Skipping {spatial_id}: no temporal match")
                                 continue
+                            c = step6e_C_filtered.sel(unit_id=temporal_id)
+                            if n_frames > 0:
+                                c = c.isel(frame=slice(0, n_frames))
+                            cluster_comp_ids.append(comp_id)
+                            cluster_traces.append(np.asarray(c.values, dtype=np.float64).ravel())
+                            try:
+                                oc = dilated_local.sel(unit_id=comp_id).compute().values
+                                cluster_orig_sizes[comp_id] = int(np.sum(oc > 0))
+                            except Exception:
+                                cluster_orig_sizes[comp_id] = 0
+
+                        if not cluster_comp_ids:
+                            continue
+
+                        C_cluster = np.vstack(cluster_traces)          # (n_comp, T)
+                        A_dict, stats_dict = process_cluster_multi_lasso(
+                            Y_local=Y_local, C_cluster=C_cluster, comp_ids=cluster_comp_ids,
+                            dilated_mask=dilated_mask, orig_sizes=cluster_orig_sizes,
+                            background=f_local, penalties=penalties, min_std=min_std,
+                            activity_threshold=1e-8, max_growth_factor=3,
+                            log_function=lambda *a, **k: None)
+                        for comp_id in cluster_comp_ids:
+                            step7e_multi_lasso_results['A_new'][comp_id] = A_dict[comp_id]
+                            step7e_multi_lasso_results['processing_stats'][comp_id] = stats_dict[comp_id]
+                            total_components_processed += 1
                         
                         # Store cluster info
                         step7e_multi_lasso_results['cluster_info'][cluster_idx] = {
