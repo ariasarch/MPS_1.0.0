@@ -1563,3 +1563,89 @@ class Step7fMergingValidation(ttk.Frame):
                 
         except Exception as e:
             print(f"Error during cleanup: {str(e)}")
+
+    def compute_merge_groups(self, A, C, overlap_thr=0.3, corr_thr=0.8,
+                             max_merged_size=5000):
+        """
+        Decide which components to merge. A pair is joined ONLY if both:
+          - spatial overlap (Szymkiewicz-Simpson containment) >= overlap_thr, AND
+          - temporal Pearson correlation                      >= corr_thr.
+        Groups are grown by union-find; a group is rejected (split back to
+        singletons) if its summed footprint would exceed max_merged_size pixels.
+     
+        A : xr.DataArray (unit_id, height, width)
+        C : np.ndarray   (n_units, n_frames), row i aligned to A unit i
+        Returns: list of groups, each a list of integer indices into A's unit axis.
+        """
+        A_vals = A.values
+        U = A_vals.shape[0]
+        masks = A_vals > 0
+        sizes = masks.reshape(U, -1).sum(axis=1)
+     
+        Cz = C - C.mean(axis=1, keepdims=True)
+        Cz = Cz / (np.linalg.norm(Cz, axis=1, keepdims=True) + 1e-12)
+     
+        parent = list(range(U))
+     
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+     
+        n_edges = 0
+        for i in range(U):
+            if sizes[i] == 0:
+                continue
+            mi = masks[i]
+            for j in range(i + 1, U):
+                if sizes[j] == 0:
+                    continue
+                inter = np.logical_and(mi, masks[j]).sum()
+                if inter == 0:
+                    continue
+                overlap = inter / min(sizes[i], sizes[j])      # containment
+                if overlap < overlap_thr:
+                    continue
+                corr = float(np.dot(Cz[i], Cz[j]))
+                if corr < corr_thr:
+                    continue
+                parent[find(j)] = find(i)
+                n_edges += 1
+     
+        raw = {}
+        for i in range(U):
+            raw.setdefault(find(i), []).append(i)
+     
+        groups = []
+        for members in raw.values():
+            if len(members) == 1:
+                groups.append(members)
+                continue
+            summed = (A_vals[members].sum(axis=0) > 0).sum()
+            if summed > max_merged_size:          # too big to be one cell -> keep apart
+                for m in members:
+                    groups.append([m])
+            else:
+                groups.append(sorted(members))
+     
+        self.log(f"Merge groups: {U} -> {len(groups)} components "
+                 f"({U - len(groups)} collapsed across {n_edges} qualifying pairs)")
+        return groups
+     
+     
+    def apply_merge_groups(self, A, groups):
+        """Sum footprints within each group; reindex unit_id to 0..M-1."""
+        A_vals = A.values
+        merged = np.stack([A_vals[g].sum(axis=0) for g in groups], axis=0).astype(A_vals.dtype)
+        return xr.DataArray(
+            merged,
+            dims=['unit_id', 'height', 'width'],
+            coords={
+                'unit_id': np.arange(merged.shape[0]),
+                'height': A.coords['height'].values,
+                'width': A.coords['width'].values,
+            },
+            name='step7f_A_merged',
+        )
+     
