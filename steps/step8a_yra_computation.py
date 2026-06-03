@@ -424,8 +424,17 @@ class Step8aYRAComputation(ttk.Frame):
                 self.log("Computing YrA = A^T (Y - B)")
                 YrA_values = np.dot(Y_reshaped, A_reshaped.T)   # (frames, units)
                 self.log(f"Updated YrA shape: {YrA_values.shape}")
-                self.log(f"Created XArray DataArray with coordinates")
-                                
+
+                frame_coords = step3a_Y_hw_cropped.coords['frame'].values
+                unit_coords = A_matrix.coords['unit_id'].values
+                YrA_array = xr.DataArray(
+                    YrA_values,
+                    dims=['frame', 'unit_id'],
+                    coords={'frame': frame_coords, 'unit_id': unit_coords},
+                    name='step8a_YrA_updated'
+                )
+                self.log("Created XArray DataArray with coordinates")
+
             except Exception as e:
                 self.log(f"Error during updated YrA computation: {str(e)}")
                 self.log(traceback.format_exc())
