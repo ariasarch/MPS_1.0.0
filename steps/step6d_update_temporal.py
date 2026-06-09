@@ -601,14 +601,29 @@ class Step6dUpdateTemporal(ttk.Frame):
                 self.log(f"  Memory limit per worker: {memory_limit}")
                 self.log(f"  Threads per worker: {threads_per_worker}")
                 
-                cluster = LocalCluster(
-                    n_workers=num_workers,
-                    memory_limit=memory_limit,
-                    resources={"MEM": 1},
-                    threads_per_worker=threads_per_worker,
-                    dashboard_address=":8787",
-                )
-                client = Client(cluster)
+                # When driven headless by run_step.py, reuse the Dask client that
+                # already exists (run_step's, or the one step 2a built) instead of
+                # starting a SECOND LocalCluster -- two clusters in one process
+                # collide on :8787 and the chunk gather dies with [Errno 22].
+                # The GUI (MainApplication) is untouched: it still builds its own.
+                cluster = None
+                client = None
+                if type(self.controller).__name__ == "HeadlessController":
+                    try:
+                        from dask.distributed import get_client
+                        client = get_client()
+                        self.log("Headless run: reusing the existing Dask client (no new cluster).")
+                    except Exception:
+                        client = None
+                if client is None:
+                    cluster = LocalCluster(
+                        n_workers=num_workers,
+                        memory_limit=memory_limit,
+                        resources={"MEM": 1},
+                        threads_per_worker=threads_per_worker,
+                        dashboard_address=":8787",
+                    )
+                    client = Client(cluster)
                 self.log(f"Dask Dashboard available at: {client.dashboard_link}")
                 self.controller.state['dask_dashboard_url'] = client.dashboard_link
                 
@@ -692,8 +707,9 @@ class Step6dUpdateTemporal(ttk.Frame):
             except Exception as e:
                 self.log(f"Error in temporal update: {str(e)}")
                 self.log(traceback.format_exc())
-                client.close()
-                cluster.close()
+                if cluster is not None:   # only close a cluster we created ourselves
+                    client.close()
+                    cluster.close()
                 self.status_var.set(f"Error: {str(e)}")
                 return
             
@@ -912,11 +928,12 @@ class Step6dUpdateTemporal(ttk.Frame):
             if hasattr(self.controller, 'auto_save_parameters'):
                 self.controller.auto_save_parameters()
             
-            # Clean up Dask resources
+            # Clean up Dask resources (only a cluster we created ourselves)
             try:
-                client.close()
-                cluster.close()
-                self.log("Closed Dask cluster")
+                if cluster is not None:
+                    client.close()
+                    cluster.close()
+                    self.log("Closed Dask cluster")
             except:
                 pass
             

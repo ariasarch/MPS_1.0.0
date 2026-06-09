@@ -517,13 +517,26 @@ class Step8bFinalTemporalUpdate(ttk.Frame):
             self.log("\nInitializing Dask cluster...")
             
             try:
-                cluster = LocalCluster(
-                    n_workers=4,
-                    threads_per_worker=2,
-                    memory_limit='8GB',  # Reduced from 200GB to more reasonable value
-                    dashboard_address=":8787"
-                )
-                client = Client(cluster)
+                # Headless (run_step) reuses the existing Dask client instead of
+                # starting a SECOND LocalCluster (two clusters in one process collide
+                # on :8787). The GUI (MainApplication) is unchanged -- builds its own.
+                cluster = None
+                client = None
+                if type(self.controller).__name__ == "HeadlessController":
+                    try:
+                        from dask.distributed import get_client
+                        client = get_client()
+                        self.log("Headless run: reusing the existing Dask client (no new cluster).")
+                    except Exception:
+                        client = None
+                if client is None:
+                    cluster = LocalCluster(
+                        n_workers=4,
+                        threads_per_worker=2,
+                        memory_limit='8GB',  # Reduced from 200GB to more reasonable value
+                        dashboard_address=":8787"
+                    )
+                    client = Client(cluster)
                 self.log(f"Dask Dashboard available at: {client.dashboard_link}")
                 
                 # Store dashboard link in controller state
@@ -627,7 +640,7 @@ class Step8bFinalTemporalUpdate(ttk.Frame):
                 self.log(f"Error in temporal update: {str(e)}")
                 self.log(traceback.format_exc())
                 self.status_var.set(f"Error: {str(e)}")
-                if client:
+                if cluster is not None:   # only close a cluster we created ourselves
                     client.close()
                     cluster.close()
                 return
@@ -780,8 +793,8 @@ class Step8bFinalTemporalUpdate(ttk.Frame):
                 self.log(f"Error saving results: {str(e)}")
                 self.log(traceback.format_exc())
             
-            # Close Dask client if used
-            if client is not None:
+            # Close Dask client if used (only a cluster we created ourselves)
+            if cluster is not None:
                 try:
                     client.close()
                     cluster.close()
