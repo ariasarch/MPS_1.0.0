@@ -19,24 +19,46 @@ class Step3aCropping(ttk.Frame):
         self.controller = controller
         self.processing_complete = False
         
-        # Create a canvas with scrollbars for the entire frame
+        # Create a canvas with BOTH vertical and horizontal scrollbars for the
+        # whole page, so wide content (the parameter panel + plots) is reachable
+        # by scrolling sideways instead of being clipped.
         self.main_canvas = tk.Canvas(self)
         self.main_scrollbar_y = ttk.Scrollbar(self, orient="vertical", command=self.main_canvas.yview)
+        self.main_scrollbar_x = ttk.Scrollbar(self, orient="horizontal", command=self.main_canvas.xview)
         self.main_scrollable_frame = ttk.Frame(self.main_canvas)
-        
+
         self.main_scrollable_frame.bind(
             "<Configure>",
             lambda e: self.main_canvas.configure(
                 scrollregion=self.main_canvas.bbox("all")
             )
         )
-        
-        self.main_canvas.create_window((0, 0), window=self.main_scrollable_frame, anchor="nw")
-        self.main_canvas.configure(yscrollcommand=self.main_scrollbar_y.set)
-        
-        # Position the canvas and scrollbar
-        self.main_canvas.pack(side="left", fill="both", expand=True)
+
+        self._main_window = self.main_canvas.create_window(
+            (0, 0), window=self.main_scrollable_frame, anchor="nw")
+        self.main_canvas.configure(
+            yscrollcommand=self.main_scrollbar_y.set,
+            xscrollcommand=self.main_scrollbar_x.set,
+        )
+
+        # Grow the inner frame to fill the viewport when there is spare room (so no
+        # empty/dead space appears to the right of the log or below the content),
+        # but keep its larger natural size when content overflows so the
+        # scrollbars actually engage.
+        def _fit_main_window(event):
+            req_w = self.main_scrollable_frame.winfo_reqwidth()
+            req_h = self.main_scrollable_frame.winfo_reqheight()
+            self.main_canvas.itemconfigure(
+                self._main_window,
+                width=max(req_w, event.width),
+                height=max(req_h, event.height),
+            )
+        self.main_canvas.bind("<Configure>", _fit_main_window)
+
+        # Position: vertical scrollbar on the right, horizontal on the bottom.
         self.main_scrollbar_y.pack(side="right", fill="y")
+        self.main_scrollbar_x.pack(side="bottom", fill="x")
+        self.main_canvas.pack(side="left", fill="both", expand=True)
         
         # Title
         self.title_label = ttk.Label(
@@ -54,10 +76,12 @@ class Step3aCropping(ttk.Frame):
         )
         self.description.grid(row=1, column=0, columnspan=2, pady=10, padx=10, sticky="w")
         
-        # Left panel (controls)
+        # Left panel (controls). The whole page scrolls (vertical + horizontal via
+        # the main canvas above), so this stays a normal grid panel -- no nested
+        # canvas, which previously fought the layout and clipped widgets.
         self.control_frame = ttk.LabelFrame(self.main_scrollable_frame, text="Cropping Parameters")
         self.control_frame.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
-        
+
         # Crop size options
         ttk.Label(self.control_frame, text="Crop Sizing:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
         self.radius_factor_var = tk.DoubleVar(value=0.75)
@@ -116,30 +140,108 @@ class Step3aCropping(ttk.Frame):
         self.x_offset_label.grid(row=1, column=2, padx=10, pady=10, sticky="w")
         ttk.Label(offset_frame, text="(-) Left / (+) Right").grid(row=1, column=3, padx=10, pady=10, sticky="w")
         self.x_offset_scale.configure(command=self.update_x_offset_label)
-        
+
+        # Mask shape controls: keep the square crop, or apply a circular mask
+        # within that crop (everything outside the circle fades to black).
+        mask_frame = ttk.LabelFrame(self.control_frame, text="Mask Shape")
+        mask_frame.grid(row=2, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+
+        self.mask_shape_var = tk.StringVar(value="square")
+        ttk.Radiobutton(
+            mask_frame, text="Square (crop only)",
+            variable=self.mask_shape_var, value="square",
+            command=self.on_mask_shape_change
+        ).grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        ttk.Radiobutton(
+            mask_frame, text="Circle (mask within crop)",
+            variable=self.mask_shape_var, value="circle",
+            command=self.on_mask_shape_change
+        ).grid(row=0, column=1, padx=10, pady=10, sticky="w")
+
+        # Circle radius, as a fraction of the largest circle that fits the crop.
+        # 100% = circle touches the crop edges; smaller values shrink it inward.
+        ttk.Label(mask_frame, text="Circle Size:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        self.circle_radius_factor_var = tk.DoubleVar(value=1.0)
+        self.circle_radius_scale = ttk.Scale(
+            mask_frame,
+            from_=0.1, to=1.0,
+            length=200,
+            variable=self.circle_radius_factor_var,
+            orient="horizontal",
+            command=self.update_circle_radius_label
+        )
+        self.circle_radius_scale.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+        self.circle_radius_label = ttk.Label(mask_frame, text="100%", width=5)
+        self.circle_radius_label.grid(row=1, column=2, padx=10, pady=10, sticky="w")
+        ttk.Label(mask_frame, text="(circle stays inside the square)").grid(
+            row=1, column=3, padx=10, pady=10, sticky="w")
+
+        # Circle controls start disabled because "square" is the default.
+        self.circle_radius_scale.configure(state="disabled")
+
+        # Background removal (optional, CNMF-E style). Suppresses large, diffuse
+        # autofluorescence/neuropil BEFORE the non-negative SVD (3b) and trace
+        # extraction (4d). No-op unless a method other than "none" is selected.
+        self.bg_frame = ttk.LabelFrame(self.control_frame, text="Background Removal (optional)")
+        self.bg_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky="ew")
+
+        ttk.Label(self.bg_frame, text="Method:").grid(row=0, column=0, padx=8, pady=6, sticky="w")
+        self.bg_method_var = tk.StringVar(value="none")
+        self.bg_method_combo = ttk.Combobox(self.bg_frame, textvariable=self.bg_method_var,
+                                             width=10, state="readonly")
+        self.bg_method_combo['values'] = ('none', 'lowrank', 'ring')
+        self.bg_method_combo.grid(row=0, column=1, padx=8, pady=6, sticky="w")
+        ttk.Label(self.bg_frame,
+                  text="none = unchanged | lowrank = remove top background modes | ring = CNMF-E annulus"
+                  ).grid(row=0, column=2, columnspan=3, padx=8, pady=6, sticky="w")
+
+        ttk.Label(self.bg_frame, text="Low-rank: # modes").grid(row=1, column=0, padx=8, pady=6, sticky="w")
+        self.bg_rank_var = tk.IntVar(value=1)
+        ttk.Entry(self.bg_frame, textvariable=self.bg_rank_var, width=6).grid(row=1, column=1, padx=8, pady=6, sticky="w")
+        ttk.Label(self.bg_frame, text="Low-rank: subsample frames").grid(row=1, column=2, padx=8, pady=6, sticky="w")
+        self.bg_subsample_var = tk.IntVar(value=2000)
+        ttk.Entry(self.bg_frame, textvariable=self.bg_subsample_var, width=8).grid(row=1, column=3, padx=8, pady=6, sticky="w")
+
+        ttk.Label(self.bg_frame, text="Low-rank: smooth σ (px)").grid(row=2, column=0, padx=8, pady=6, sticky="w")
+        self.bg_smooth_sigma_var = tk.DoubleVar(value=4.0)
+        ttk.Entry(self.bg_frame, textvariable=self.bg_smooth_sigma_var, width=6).grid(row=2, column=1, padx=8, pady=6, sticky="w")
+        ttk.Label(self.bg_frame, text="(>= a cell radius; keeps modes background-like so neurons survive)").grid(
+            row=2, column=2, columnspan=2, padx=8, pady=6, sticky="w")
+
+        ttk.Label(self.bg_frame, text="Ring: radius (px)").grid(row=3, column=0, padx=8, pady=6, sticky="w")
+        self.bg_ring_radius_var = tk.IntVar(value=12)
+        ttk.Entry(self.bg_frame, textvariable=self.bg_ring_radius_var, width=6).grid(row=3, column=1, padx=8, pady=6, sticky="w")
+        ttk.Label(self.bg_frame, text="Ring: width (px)").grid(row=3, column=2, padx=8, pady=6, sticky="w")
+        self.bg_ring_width_var = tk.IntVar(value=4)
+        ttk.Entry(self.bg_frame, textvariable=self.bg_ring_width_var, width=6).grid(row=3, column=3, padx=8, pady=6, sticky="w")
+
+        self.bg_clip_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(self.bg_frame, text="Clip negatives to 0 (keep non-negative for SVD)",
+                        variable=self.bg_clip_var).grid(row=4, column=0, columnspan=4, padx=8, pady=4, sticky="w")
+
         # Preview and Apply side-by-side
         self.preview_button = ttk.Button(
             self.control_frame,
             text="Preview Crop",
             command=self.preview_crop
         )
-        self.preview_button.grid(row=2, column=0, columnspan=1, pady=20, padx=10)
+        self.preview_button.grid(row=4, column=0, columnspan=1, pady=20, padx=10)
         self.run_button = ttk.Button(
             self.control_frame,
             text="Apply Crop",
             command=self.run_cropping,
-            state="disabled" 
+            state="disabled"
         )
-        self.run_button.grid(row=2, column=1, columnspan=1, pady=20, padx=10)
+        self.run_button.grid(row=4, column=1, columnspan=1, pady=20, padx=10)
 
         # Status
         self.status_var = tk.StringVar(value="Ready to crop")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=4, column=0, columnspan=4, pady=10)
-        
+        self.status_label.grid(row=5, column=0, columnspan=4, pady=10)
+
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=5, column=0, columnspan=4, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=6, column=0, columnspan=4, pady=10, padx=10, sticky="ew")
         
         # Right panel (log)
         self.log_frame = ttk.LabelFrame(self.main_scrollable_frame, text="Processing Log")
@@ -200,22 +302,34 @@ class Step3aCropping(ttk.Frame):
 
 
     def bind_main_mousewheel(self):
-        """Bind mousewheel to scrolling for the main frame"""
+        """Bind mousewheel to scrolling for the main frame (Shift+wheel = sideways)"""
         def _on_mousewheel(event):
             self.main_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            
+
         def _on_mousewheel_linux(event):
             if event.num == 4:  # Scroll up
                 self.main_canvas.yview_scroll(-1, "units")
             elif event.num == 5:  # Scroll down
                 self.main_canvas.yview_scroll(1, "units")
-        
+
+        def _on_shiftwheel(event):
+            self.main_canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _on_shiftwheel_linux(event):
+            if event.num == 4:
+                self.main_canvas.xview_scroll(-1, "units")
+            elif event.num == 5:
+                self.main_canvas.xview_scroll(1, "units")
+
         # Windows and macOS
         self.main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
-        # Linux
+        self.main_canvas.bind_all("<Shift-MouseWheel>", _on_shiftwheel)
+
+        # Linux (vertical + Shift for horizontal)
         self.main_canvas.bind_all("<Button-4>", _on_mousewheel_linux)
         self.main_canvas.bind_all("<Button-5>", _on_mousewheel_linux)
+        self.main_canvas.bind_all("<Shift-Button-4>", _on_shiftwheel_linux)
+        self.main_canvas.bind_all("<Shift-Button-5>", _on_shiftwheel_linux)
 
     def bind_mousewheel_to_plot(self):
         """Bind mousewheel to scrolling in plot canvas"""
@@ -249,7 +363,49 @@ class Step3aCropping(ttk.Frame):
         """Update the x-offset label with fixed width"""
         value = int(self.x_offset_var.get())
         self.x_offset_label.config(text=f"{value:4d} px")  # Fixed width formatting
-    
+
+    def update_circle_radius_label(self, value=None):
+        """Update the circle radius factor label with fixed width"""
+        value = int(float(self.circle_radius_factor_var.get()) * 100)
+        self.circle_radius_label.config(text=f"{value:3d}%")  # Fixed width formatting
+
+    def on_mask_shape_change(self):
+        """Enable circle controls only when the circle mask is selected"""
+        if self.mask_shape_var.get() == "circle":
+            self.circle_radius_scale.configure(state="normal")
+        else:
+            self.circle_radius_scale.configure(state="disabled")
+
+    def _build_circle_mask(self, height, width, circle_radius_factor):
+        """Build a boolean (height x width) mask that is True inside a circle
+        centered in the region. The radius is the largest circle that fits the
+        region scaled by circle_radius_factor, so the circle always stays within
+        the square crop. Returns (mask, (cx, cy, radius))."""
+        cy = (height - 1) / 2.0
+        cx = (width - 1) / 2.0
+        max_radius = min(height, width) / 2.0
+        radius = max(1.0, float(circle_radius_factor) * max_radius)
+        yy, xx = np.ogrid[:height, :width]
+        mask = (yy - cy) ** 2 + (xx - cx) ** 2 <= radius ** 2
+        return mask, (cx, cy, radius)
+
+    def _apply_circle_mask(self, arr, circle_radius_factor):
+        """Zero out everything outside the inscribed circle of a cropped
+        DataArray. Rectangular dimensions are preserved; the corners fade to
+        black (0.0), which keeps every downstream step working unchanged."""
+        import xarray as xr
+        height = arr.sizes['height']
+        width = arr.sizes['width']
+        mask_np, _ = self._build_circle_mask(height, width, circle_radius_factor)
+        if 'height' in arr.coords and 'width' in arr.coords:
+            mask_da = xr.DataArray(
+                mask_np, dims=['height', 'width'],
+                coords={'height': arr.coords['height'], 'width': arr.coords['width']}
+            )
+        else:
+            mask_da = xr.DataArray(mask_np, dims=['height', 'width'])
+        return arr.where(mask_da, other=0.0)
+
     def log(self, message):
         """Add a message to the log text widget"""
         self.log_text.insert(tk.END, f"{message}\n")
@@ -370,14 +526,34 @@ class Step3aCropping(ttk.Frame):
             # Now plot the cleaned data
             im1 = self.ax1.imshow(activity_values, cmap='gray')
             self.ax1.set_title('Full Frame (No Cropping)', fontsize=9)
-            
+
+            # Circular mask overlay/preview, inscribed in the full frame
+            mask_shape = self.mask_shape_var.get()
+            circle_radius_factor = self.circle_radius_factor_var.get()
+            if mask_shape == "circle":
+                _, (mcx, mcy, mradius) = self._build_circle_mask(
+                    final_height, final_width, circle_radius_factor
+                )
+                self.ax1.add_patch(plt.Circle(
+                    (mcx, mcy), mradius, fill=False, edgecolor='yellow', linewidth=2
+                ))
+
             # Remove tick labels to save space
             self.ax1.set_xticks([])
             self.ax1.set_yticks([])
-            
-            # Plot the same full frame in the second plot too
-            im2 = self.ax2.imshow(activity_values, cmap='gray')
-            self.ax2.set_title('Full Frame (100% of frame used)', fontsize=9)
+
+            # Plot the same full frame in the second plot too (masked if circle)
+            display_values = activity_values.copy()
+            if mask_shape == "circle":
+                mask_np, _ = self._build_circle_mask(
+                    display_values.shape[0], display_values.shape[1], circle_radius_factor
+                )
+                display_values[~mask_np] = float(np.min(display_values))
+            im2 = self.ax2.imshow(display_values, cmap='gray')
+            self.ax2.set_title(
+                'Full Frame (circular mask)' if mask_shape == "circle"
+                else 'Full Frame (100% of frame used)', fontsize=9
+            )
             
             # Remove tick labels to save space
             self.ax2.set_xticks([])
@@ -409,8 +585,10 @@ class Step3aCropping(ttk.Frame):
                 'x_offset': 0,
                 'crop_slices': crop_slices,
                 'reduction': 0.0,  # 0% reduction since we're using the full frame
-                'final_height': final_height, 
-                'final_width': final_width
+                'final_height': final_height,
+                'final_width': final_width,
+                'mask_shape': mask_shape,
+                'circle_radius_factor': circle_radius_factor
             }
 
             # Enable the Apply Crop button
@@ -665,7 +843,20 @@ class Step3aCropping(ttk.Frame):
                 linewidth=2
             )
             self.ax1.add_patch(rect)
-            
+
+            # Draw the circular mask (inside the square) when in circle mode
+            mask_shape = self.mask_shape_var.get()
+            circle_radius_factor = self.circle_radius_factor_var.get()
+            if mask_shape == "circle":
+                _, (mcx, mcy, mradius) = self._build_circle_mask(
+                    final_height, final_width, circle_radius_factor
+                )
+                self.ax1.add_patch(plt.Circle(
+                    (crop_slices['width'].start + mcx,
+                     crop_slices['height'].start + mcy),
+                    mradius, fill=False, edgecolor='yellow', linewidth=2
+                ))
+
             # Plot center points
             self.ax1.plot(center_x, center_y, 'r+', markersize=8, label='Crop Center')
             orig_center_y = activity_map.shape[0] // 2
@@ -687,8 +878,17 @@ class Step3aCropping(ttk.Frame):
             if robust_scaling:
                 # Apply same clipping to the cropped view
                 cropped_values = np.clip(cropped_values, p2, p98)
+            # Apply the circular mask to the preview (corners fade to black)
+            if mask_shape == "circle":
+                mask_np, _ = self._build_circle_mask(
+                    cropped_values.shape[0], cropped_values.shape[1], circle_radius_factor
+                )
+                cropped_values[~mask_np] = float(np.min(cropped_values))
             im2 = self.ax2.imshow(cropped_values, cmap='gray')
-            self.ax2.set_title('Cropped Region', fontsize=9)
+            self.ax2.set_title(
+                'Cropped Region (circular mask)' if mask_shape == "circle"
+                else 'Cropped Region', fontsize=9
+            )
             
             # Remove tick labels to save space
             self.ax2.set_xticks([])
@@ -729,9 +929,11 @@ class Step3aCropping(ttk.Frame):
                 'x_offset': x_offset,
                 'crop_slices': crop_slices,
                 'reduction': reduction,
-                'final_height': final_height, 
+                'final_height': final_height,
                 'final_width': final_width,
-                'optimal_chunk_size': optimal_chunk_size
+                'optimal_chunk_size': optimal_chunk_size,
+                'mask_shape': mask_shape,
+                'circle_radius_factor': circle_radius_factor
             }
 
             # Enable the Apply Crop button
@@ -777,7 +979,9 @@ class Step3aCropping(ttk.Frame):
             # Get crop parameters
             crop_info = self.current_crop_info
             crop_slices = crop_info['crop_slices']
-            
+            mask_shape = crop_info.get('mask_shape', 'square')
+            circle_radius_factor = crop_info.get('circle_radius_factor', 1.0)
+
             # Update progress
             self.update_progress(10)
             
@@ -790,7 +994,10 @@ class Step3aCropping(ttk.Frame):
             # Apply crop to step2e_Y_fm_chk
             self.log("Applying crop to Y_fm_chk...")
             step3a_Y_fm_cropped = step2e_Y_fm_chk.isel(crop_slices)
-            
+            if mask_shape == "circle":
+                self.log(f"Applying circular mask (radius factor {circle_radius_factor:.2f}) to Y_fm_chk...")
+                step3a_Y_fm_cropped = self._apply_circle_mask(step3a_Y_fm_cropped, circle_radius_factor)
+
             # Calculate uniform chunk sizes for frame-oriented array
             self.log("Calculating chunk sizes for Y_fm_cropped...")
             frame_chunks = self._get_common_chunk_size(step3a_Y_fm_cropped.chunks[0])
@@ -811,7 +1018,10 @@ class Step3aCropping(ttk.Frame):
             # Apply crop to step2e_Y_hw_chk
             self.log("Applying crop to Y_hw_chk...")
             step3a_Y_hw_cropped = step2e_Y_hw_chk.isel(crop_slices)
-            
+            if mask_shape == "circle":
+                self.log(f"Applying circular mask (radius factor {circle_radius_factor:.2f}) to Y_hw_chk...")
+                step3a_Y_hw_cropped = self._apply_circle_mask(step3a_Y_hw_cropped, circle_radius_factor)
+
             # Apply chunking to Y_hw_cropped
             step3a_Y_hw_cropped = step3a_Y_hw_cropped.chunk({
                 'frame': -1,  # Single chunk for frames
@@ -832,10 +1042,17 @@ class Step3aCropping(ttk.Frame):
 
             step3a_Y_hw_cropped = step3a_Y_hw_cropped.fillna(0.0)
             step3a_Y_hw_cropped = step3a_Y_hw_cropped.where(
-                ~np.isinf(step3a_Y_hw_cropped), 
+                ~np.isinf(step3a_Y_hw_cropped),
                 other=0.0
             )
-            
+
+            # Optional CNMF-E-style background removal (autofluorescence suppression).
+            # Runs on the cropped (and circle-masked, if selected) fm + hw arrays so
+            # SVD seeding and trace extraction stay consistent. No-op unless a
+            # background method other than "none" is chosen.
+            step3a_Y_fm_cropped, step3a_Y_hw_cropped = self._apply_background(
+                step3a_Y_fm_cropped, step3a_Y_hw_cropped)
+
             # Import required saving_utilities
             module_base_path = Path(__file__).parent.parent
             if str(module_base_path) not in sys.path:
@@ -970,6 +1187,21 @@ class Step3aCropping(ttk.Frame):
                 import traceback
                 self.log(traceback.format_exc())
                 
+            # Record every tunable parameter into crop_info, which is the subkey
+            # ParameterStorage reads for step 3a (step_schema -> params_subkey
+            # "crop_info"). Without this the mask/background settings never reach
+            # processing_parameters.json. Read from the widgets so the saved value
+            # matches exactly what was applied.
+            crop_info['mask_shape'] = self.mask_shape_var.get()
+            crop_info['circle_radius_factor'] = float(self.circle_radius_factor_var.get())
+            crop_info['bg_method'] = self.bg_method_var.get()
+            crop_info['bg_rank'] = int(self.bg_rank_var.get())
+            crop_info['bg_subsample'] = int(self.bg_subsample_var.get())
+            crop_info['bg_smooth_sigma'] = float(self.bg_smooth_sigma_var.get())
+            crop_info['bg_ring_radius'] = int(self.bg_ring_radius_var.get())
+            crop_info['bg_ring_width'] = int(self.bg_ring_width_var.get())
+            crop_info['bg_clip'] = bool(self.bg_clip_var.get())
+
             # Update controller state - store in both formats for compatibility
             # Store in nested format
             self.controller.state['results']['step3a'] = {
@@ -1036,6 +1268,169 @@ class Step3aCropping(ttk.Frame):
         self.log(f"  Image dimensions: {height}x{width}")
         return spatial_chunks
 
+    # ------------------------------------------------------------------
+    # Optional background removal (CNMF-E style)
+    # ------------------------------------------------------------------
+    def _apply_background(self, fm, hw):
+        """Estimate and subtract a background from the cropped fm/hw arrays.
+
+        Returns the (possibly cleaned) (fm, hw). On 'none' or any error the
+        originals are returned unchanged so cropping never fails because of this.
+        Also saves before/after/removed mean images for QC (npy + a PNG into
+        cache_data/qc_plots/), which qc_cnmf.py re-renders for step 3a.
+        """
+        method = (self.bg_method_var.get() or "none").strip().lower()
+        if method in ("none", ""):
+            self.log("[bg] Background removal: none (skipped)")
+            return fm, hw
+        try:
+            module_base_path = Path(__file__).parent.parent
+            for sub in (str(module_base_path), str(module_base_path / "utils")):
+                if sub not in sys.path:
+                    sys.path.append(sub)
+            import background_utils as bg
+            import numpy as np
+
+            clip = bool(self.bg_clip_var.get())
+            n_qc = min(1000, fm.sizes["frame"])
+            self.log(f"[bg] method={method}, clip_nonneg={clip}; computing 'before' mean image...")
+            before_mean = fm.isel(frame=slice(0, n_qc)).mean("frame").compute().values
+
+            if method == "lowrank":
+                rank = int(self.bg_rank_var.get())
+                subsample = int(self.bg_subsample_var.get())
+                smooth_sigma = float(self.bg_smooth_sigma_var.get())
+                self.log(f"[bg] Estimating low-rank background "
+                         f"(rank={rank}, subsample={subsample}, smooth_sigma={smooth_sigma})...")
+                m, Vr = bg.estimate_lowrank_basis(fm, rank=rank, subsample_to=subsample,
+                                                  smooth_sigma=smooth_sigma, log=self.log)
+                fm_clean = bg.apply_lowrank(fm, m, Vr, clip_nonneg=clip)
+                hw_clean = bg.apply_lowrank(hw, m, Vr, clip_nonneg=clip)
+            elif method == "ring":
+                rr = int(self.bg_ring_radius_var.get())
+                rw = int(self.bg_ring_width_var.get())
+                self.log(f"[bg] Estimating ring background (radius={rr}, width={rw})...")
+                ring_img = bg.estimate_ring_image(before_mean, ring_radius=rr, ring_width=rw, log=self.log)
+                fm_clean = bg.apply_static_bg(fm, ring_img, clip_nonneg=clip)
+                hw_clean = bg.apply_static_bg(hw, ring_img, clip_nonneg=clip)
+            else:
+                self.log(f"[bg] Unknown method '{method}', skipping")
+                return fm, hw
+
+            self.log("[bg] Computing 'after' mean image...")
+            after_mean = fm_clean.isel(frame=slice(0, n_qc)).mean("frame").compute().values
+            bg_model = before_mean - after_mean
+
+            self.controller.state.setdefault("results", {})["step3a_background"] = {
+                "method": method, "clip_nonneg": clip,
+                "rank": int(self.bg_rank_var.get()),
+                "ring_radius": int(self.bg_ring_radius_var.get()),
+                "ring_width": int(self.bg_ring_width_var.get()),
+            }
+            self._save_background_qc(before_mean, after_mean, bg_model, method)
+            try:
+                self.after_idle(lambda: self.create_background_preview(
+                    before_mean, after_mean, bg_model, method))
+            except Exception:
+                pass
+            self.log("[bg] Background removal applied to cropped fm + hw arrays")
+            return fm_clean, hw_clean
+        except Exception as e:
+            self.log(f"[bg] Background removal FAILED ({e}); continuing WITHOUT it")
+            self.log(traceback.format_exc())
+            return fm, hw
+
+    def _save_background_qc(self, before, after, bg_model, method):
+        """Persist before/after/removed mean images (npy) + a standalone QC PNG."""
+        import numpy as np
+        import json
+        cache_path = self.controller.state.get("cache_path", "")
+        if not cache_path:
+            return
+        try:
+            np.save(os.path.join(cache_path, "step3a_bg_before.npy"), before.astype(np.float32))
+            np.save(os.path.join(cache_path, "step3a_bg_after.npy"), after.astype(np.float32))
+            np.save(os.path.join(cache_path, "step3a_bg_model.npy"), bg_model.astype(np.float32))
+            with open(os.path.join(cache_path, "step3a_bg_info.json"), "w") as f:
+                json.dump({"method": method}, f)
+            self.log(f"[bg] Saved background QC arrays to {cache_path}")
+        except Exception as e:
+            self.log(f"[bg] Could not save background QC arrays: {e}")
+        try:
+            self._render_background_png(before, after, bg_model, method, cache_path)
+        except Exception as e:
+            self.log(f"[bg] Could not render background QC png: {e}")
+
+    def _render_background_png(self, before, after, bg_model, method, cache_path):
+        """Render a before/after/removed PNG into cache_data/qc_plots/ (headless-safe)."""
+        import re
+        import numpy as np
+        from matplotlib.figure import Figure
+        out_dir = os.path.join(cache_path, "qc_plots")
+        os.makedirs(out_dir, exist_ok=True)
+        animal = self.controller.state.get("animal", "?")
+        session = self.controller.state.get("session", "?")
+        prefix = f"{animal}_{session}_step3a_background_"
+        run_tag = 1
+        try:
+            for fn in os.listdir(out_dir):
+                if fn.startswith(prefix):
+                    mm = re.search(r"_run(\d+)\.png$", fn)
+                    if mm:
+                        run_tag = max(run_tag, int(mm.group(1)) + 1)
+        except Exception:
+            pass
+
+        def _rb(img):
+            v = np.nan_to_num(np.asarray(img, dtype=float))
+            lo, hi = np.nanpercentile(v, [2, 98])
+            if hi <= lo:
+                hi = lo + 1.0
+            return np.clip(v, lo, hi)
+
+        fig = Figure(figsize=(13, 4.4), dpi=150)
+        for k, (img, t) in enumerate(zip(
+                (before, after, bg_model),
+                ("Before (mean)", f"After (mean) [{method}]", "Removed background"))):
+            ax = fig.add_subplot(1, 3, k + 1)
+            im = ax.imshow(_rb(img), cmap="gray")
+            ax.set_title(t, fontsize=10)
+            ax.set_xticks([]); ax.set_yticks([])
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        fig.suptitle(f"Step 3a background removal ({method})  {animal}_{session}  [run {run_tag}]",
+                     fontsize=11)
+        out = os.path.join(out_dir, f"{prefix}run{run_tag}.png")
+        fig.savefig(out, dpi=150, facecolor="white", bbox_inches="tight")
+        self.log(f"[bg] Saved background QC figure -> {out}")
+
+    def create_background_preview(self, before, after, bg_model, method):
+        """Show before/after/removed in the step's own canvas (GUI only)."""
+        try:
+            import numpy as np
+            plt.close(self.fig)
+            self.fig = plt.Figure(figsize=(10, 3.6), dpi=100)
+            self.canvas.figure = self.fig
+
+            def _rb(img):
+                v = np.nan_to_num(np.asarray(img, dtype=float))
+                lo, hi = np.nanpercentile(v, [2, 98])
+                if hi <= lo:
+                    hi = lo + 1.0
+                return np.clip(v, lo, hi)
+
+            for k, (img, t) in enumerate(zip(
+                    (before, after, bg_model),
+                    ("Before", f"After [{method}]", "Removed bg"))):
+                ax = self.fig.add_subplot(1, 3, k + 1)
+                ax.imshow(_rb(img), cmap="gray")
+                ax.set_title(t, fontsize=9)
+                ax.set_xticks([]); ax.set_yticks([])
+            self.fig.tight_layout()
+            self.canvas.draw()
+            self.plot_canvas.configure(scrollregion=self.plot_canvas.bbox("all"))
+        except Exception as e:
+            self.log(f"[bg] Could not draw background preview: {e}")
+
     def on_show_frame(self):
         """Called when this frame is shown - load parameters and auto-preview if in autorun"""
         params = self.controller.get_step_parameters('Step3aCropping')
@@ -1050,7 +1445,27 @@ class Step3aCropping(ttk.Frame):
             if 'x_offset' in params:
                 self.x_offset_var.set(params['x_offset'])
                 self.update_x_offset_label()
-            
+            if 'mask_shape' in params:
+                self.mask_shape_var.set(params['mask_shape'])
+                self.on_mask_shape_change()
+            if 'circle_radius_factor' in params:
+                self.circle_radius_factor_var.set(params['circle_radius_factor'])
+                self.update_circle_radius_label()
+            for key, var in (
+                ('bg_method', self.bg_method_var),
+                ('bg_rank', self.bg_rank_var),
+                ('bg_subsample', self.bg_subsample_var),
+                ('bg_smooth_sigma', self.bg_smooth_sigma_var),
+                ('bg_ring_radius', self.bg_ring_radius_var),
+                ('bg_ring_width', self.bg_ring_width_var),
+                ('bg_clip', self.bg_clip_var),
+            ):
+                if key in params:
+                    try:
+                        var.set(params[key])
+                    except Exception:
+                        pass
+
             self.log("Parameters loaded from file")
         
         # If autorun is enabled, automatically generate preview

@@ -341,151 +341,47 @@ class Step4gTemporalMerging(ttk.Frame):
             
             self.update_progress(10)
             
-            # Run merging process
-            self.log("Computing temporal correlations...")
-            
-            # Compute temporal correlation matrix
-            C_array = C_input.compute().values.T  # Shape: (n_components, n_frames)
-            corr_matrix = np.corrcoef(C_array)
-            np.fill_diagonal(corr_matrix, 0)  # Zero out self-correlations
-            
+            # Run merging process -- temporally-aware, order-independent union-find,
+            # shared with step 7f via utils/merging_utils.py. A pair merges only if
+            # BOTH spatial overlap >= threshold AND temporal correlation >= threshold;
+            # oversized groups are split back to singletons (not silently dropped).
+            self.log("Computing temporally-aware merge groups (overlap + correlation)...")
+
+            try:
+                import merging_utils as mu
+            except ImportError:
+                utils_dir = str(Path(__file__).parent.parent / "utils")
+                if utils_dir not in sys.path:
+                    sys.path.append(utils_dir)
+                import merging_utils as mu
+
+            # (U, n_frames) with row i aligned to A unit i. Named C_array so the
+            # existing downstream logging/results that reference len(C_array) work.
+            C_array = C_input.compute().values.T
+            A_vals = A_input.compute().values  # (U, H, W)
+
             self.update_progress(30)
-            
-            # Find pairs above correlation threshold
-            merge_candidates = np.argwhere(corr_matrix > temporal_corr_threshold)
-            # Keep only one pair (i,j) where i < j to avoid duplicates
-            merge_candidates = merge_candidates[merge_candidates[:, 0] < merge_candidates[:, 1]]
-            
-            self.log(f"Found {len(merge_candidates)} potential merge pairs based on temporal correlation")
-            
-            # Function to compute spatial overlap
-            def compute_spatial_overlap(comp1, comp2):
-                mask1 = (comp1 > 0)
-                mask2 = (comp2 > 0)
-                overlap = np.logical_and(mask1, mask2).sum()
-                min_size = min(mask1.sum(), mask2.sum())
-                return overlap / min_size if min_size > 0 else 0
-            
-            # Function to compute component size
-            def compute_component_size(spatial_comp):
-                return np.sum(spatial_comp > 0)
-            
-            self.log("Checking spatial overlap and size constraints, forming merge groups...")
-            
-            # Create merge groups based on temporal, spatial, and size criteria
-            merge_groups = []
-            processed = set()
-            skipped_due_to_size = 0
-            
-            for i, j in merge_candidates:
-                if i in processed or j in processed:
-                    continue
-                    
-                # Check spatial overlap
-                overlap = compute_spatial_overlap(
-                    A_input.isel(unit_id=i).compute().values,
-                    A_input.isel(unit_id=j).compute().values
-                )
-                
-                if overlap >= spatial_overlap_threshold:
-                    # Check if merging would exceed max size
-                    size_i = compute_component_size(A_input.isel(unit_id=i).compute().values)
-                    size_j = compute_component_size(A_input.isel(unit_id=j).compute().values)
-                    
-                    # Estimate merged size (conservative estimate - union of masks)
-                    mask_i = A_input.isel(unit_id=i).compute().values > 0
-                    mask_j = A_input.isel(unit_id=j).compute().values > 0
-                    merged_size_estimate = np.logical_or(mask_i, mask_j).sum()
-                    
-                    if merged_size_estimate > max_size:
-                        skipped_due_to_size += 1
-                        continue
-                    
-                    # Find all components correlated with either i or j
-                    corr_i = set(np.where(corr_matrix[i] > temporal_corr_threshold)[0])
-                    corr_j = set(np.where(corr_matrix[j] > temporal_corr_threshold)[0])
-                    group = corr_i.union(corr_j)
-                    
-                    # Verify spatial overlap and size for all pairs in group
-                    final_group = {i, j}
-                    group_mask = np.logical_or(mask_i, mask_j)
-                    
-                    for k in group:
-                        if k not in final_group and k not in processed:
-                            all_overlap = True
-                            mask_k = A_input.isel(unit_id=k).compute().values > 0
-                            
-                            # Check if adding this component would exceed max size
-                            potential_merged_mask = np.logical_or(group_mask, mask_k)
-                            potential_size = potential_merged_mask.sum()
-                            
-                            if potential_size > max_size:
-                                skipped_due_to_size += 1
-                                continue
-                            
-                            # Check overlap with all existing members
-                            for m in final_group:
-                                overlap = compute_spatial_overlap(
-                                    A_input.isel(unit_id=k).compute().values,
-                                    A_input.isel(unit_id=m).compute().values
-                                )
-                                if overlap < spatial_overlap_threshold:
-                                    all_overlap = False
-                                    break
-                            
-                            if all_overlap:
-                                final_group.add(k)
-                                group_mask = potential_merged_mask
-                    
-                    merge_groups.append(final_group)
-                    processed.update(final_group)
-            
-            # Components that don't need merging
-            remaining = set(range(len(C_array))) - processed
-            merge_groups.extend([{i} for i in remaining])
-            
-            self.update_progress(60)
-            
-            # Create merged components
+
+            merge_groups, merge_info = mu.compute_merge_groups(
+                A_vals, C_array,
+                overlap_thr=spatial_overlap_threshold,
+                corr_thr=temporal_corr_threshold,
+                max_merged_size=max_size,
+                log=self.log,
+            )
+
+            self.update_progress(50)
+
+            step4g_A_merged_array, C_merged_rows, merge_map = mu.apply_merge_groups_AC(
+                A_vals, C_array, merge_groups)
+            step4g_C_merged_array = C_merged_rows.T            # (n_frames, M)
+
             n_merged = len(merge_groups)
+            skipped_due_to_size = merge_info.get("n_split_due_to_size", 0)
+            merged_sizes = [int((step4g_A_merged_array[i] > 0).sum()) for i in range(n_merged)]
+
             self.log(f"Final number of components after merging: {n_merged}")
-            self.log(f"Merges skipped due to size constraint: {skipped_due_to_size}")
-            
-            # Initialize new arrays for merged components
-            A_shapes = list(A_input.shape[1:])
-            C_shapes = list(C_input.shape)
-            step4g_A_merged_array = np.zeros((n_merged, *A_shapes))
-            step4g_C_merged_array = np.zeros((C_shapes[0], n_merged))
-            
-            # Create mapping from original to merged components
-            merge_map = {}
-            merged_sizes = []
-            
-            # Merge components
-            self.log("Merging components...")
-            for new_idx, group in enumerate(merge_groups):
-                group = list(group)
-                for orig_idx in group:
-                    merge_map[orig_idx] = new_idx
-                    
-                if len(group) > 1:
-                    # Weighted sum for spatial components based on temporal power
-                    weights = np.array([np.sum(C_array[idx]**2) for idx in group])
-                    weights = weights / np.sum(weights)
-                    
-                    for idx, weight in zip(group, weights):
-                        step4g_A_merged_array[new_idx] += weight * A_input.isel(unit_id=idx).compute().values
-                    
-                    # Sum temporal components
-                    step4g_C_merged_array[:, new_idx] = np.sum([C_array[idx] for idx in group], axis=0)
-                else:
-                    # Single component, just copy
-                    step4g_A_merged_array[new_idx] = A_input.isel(unit_id=group[0]).compute().values
-                    step4g_C_merged_array[:, new_idx] = C_array[group[0]]
-                
-                # Track merged component size
-                merged_size = compute_component_size(step4g_A_merged_array[new_idx])
-                merged_sizes.append(merged_size)
+            self.log(f"Components kept apart by max-size constraint: {skipped_due_to_size}")
             
             self.update_progress(80)
             
@@ -613,24 +509,15 @@ class Step4gTemporalMerging(ttk.Frame):
             self.status_var.set("Temporal merging complete")
             self.log(f"Temporal merging completed successfully: {n_merged} final components")
 
-            # Save merged A and C matrices to disk
-            try:
-                # Get cache path
-                cache_path = self.controller.state.get('cache_path', '')
-                
-                if has_save_func and cache_path:
-                    # Save matrices
-                    A_saved = save_files(step4g_A_merged.rename("step4g_A_merged"), cache_path, overwrite=True)
-                    C_saved = save_files(step4g_C_merged.rename("step4g_C_merged"), cache_path, overwrite=True)
-                    
-                    self.log(f"Saved merged A and C matrices to: {cache_path}")
-                    print(f"DEBUG: Saved merged A matrix to {cache_path}/step4g_A_merged.zarr")
-                    print(f"DEBUG: Saved merged C matrix to {cache_path}/step4g_C_merged.zarr")
-                else:
-                    self.log("Warning: No cache path or save function available, merged matrices not saved to disk")
-            except Exception as e:
-                self.log(f"Error saving merged matrices to disk: {str(e)}")
-                print(f"ERROR saving merged A/C matrices: {str(e)}")
+            # NOTE: do NOT re-save step4g_A_merged / step4g_C_merged here. They are
+            # already written (zarr + npy + coords) in the save block above. A second
+            # save_files(..., overwrite=True) is destructive: by this point
+            # step4g_A_merged is the LAZY array backed by step4g_A_merged.zarr, and
+            # overwrite=True removes that store before reading from it, so the rewrite
+            # captures all zeros -- corrupting the zarr (and the in-memory handle that
+            # step 4h then reads). The .npy written earlier stayed intact, which is why
+            # steps that read the .npy still worked while the QC plots (which read the
+            # zarr) showed "no non-empty footprints".
 
             # Mark as complete
             self.processing_complete = True

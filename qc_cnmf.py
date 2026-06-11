@@ -69,12 +69,15 @@ COUNTS_FILE        = "component_counts.txt"
 # Pipeline order + the (spatial A, temporal C) variable each step is QC'd with.
 # C may be None for a step that has footprints but no traces yet (spatial only).
 QC_STEPS = [
+    ("3a", "step3a_bg_before",                  "step3a_bg_after"),                     # background before/after (special-cased)
     ("3b", "step3b_A",                          "step3b_C"),
     ("4c", "step4c_merged_components",          None),                                 # spatial only
     ("4d", "step4d_temporal_components_spatial", "step4d_temporal_components_signals"),
     ("4e", "step4e_A_pre_CNMF",                 "step4e_C_pre_CNMF"),
     ("4f", "step4f_A_clean",                    "step4f_C_clean"),
     ("4g", "step4g_A_merged",                   "step4g_C_merged"),
+    ("4h", "step4h_A_clean",                    "step4h_C_clean"),                      # kept (artifact-rejected) set
+    ("4hq", "step4h_A_quarantine",              "step4h_C_quarantine"),                # quarantined set
     ("5b", "step5b_A_filtered",                 "step5b_C_filtered"),
     ("6e", "step6e_A_filtered",                 "step6e_C_filtered"),
     ("7a", "step7a_A_dilated",                  "step6e_C_filtered"),
@@ -479,7 +482,51 @@ def _next_run_tag(out_dir, animal, session, step_id):
     return mx + 1
 
 
+def qc_background_step(cache_path, animal, session, out_dir):
+    """Step 3a background QC: before / after / removed mean images, side by side.
+    Reads the npy artifacts step 3a writes when a background method is applied;
+    skips quietly if background removal was 'none' (no artifacts on disk)."""
+    import matplotlib.pyplot as plt
+    paths = {k: os.path.join(cache_path, "step3a_bg_%s.npy" % k)
+             for k in ("before", "after", "model")}
+    if not all(os.path.isfile(p) for p in paths.values()):
+        _say("  step 3a : skipped (no background model saved; bg removal was 'none' or step not run)")
+        return None
+    before = np.load(paths["before"]); after = np.load(paths["after"]); model = np.load(paths["model"])
+    method = "?"
+    info_p = os.path.join(cache_path, "step3a_bg_info.json")
+    if os.path.isfile(info_p):
+        try:
+            with open(info_p) as f:
+                method = json.load(f).get("method", "?")
+        except Exception:
+            pass
+
+    def _rb(img):
+        v = np.nan_to_num(np.asarray(img, dtype=float))
+        lo, hi = np.nanpercentile(v, [2, 98])
+        if hi <= lo:
+            hi = lo + 1.0
+        return np.clip(v, lo, hi)
+
+    run_tag = _next_run_tag(out_dir, animal, session, "3a")
+    out_path = os.path.join(out_dir, "%s_%s_step3a_background_run%d.png" % (animal, session, run_tag))
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.4), facecolor="white")
+    for ax, img, t in zip(axes, (before, after, model),
+                          ("Before (mean)", "After (mean) [%s]" % method, "Removed background")):
+        im = ax.imshow(_rb(img), cmap="gray")
+        ax.set_title(t, fontsize=10); ax.set_xticks([]); ax.set_yticks([])
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    fig.suptitle("QC background -- %s_%s  step 3a (%s)  [run %d]"
+                 % (animal, session, method, run_tag), fontsize=11, fontweight="bold")
+    _save_figure(fig, out_path)
+    _say("  step 3a : background QC written (method=%s)" % method)
+    return {"step": "3a", "neurons": 0, "dropped": 0, "minutes": 0.0}
+
+
 def qc_one_step(cache_path, animal, session, step_id, out_dir):
+    if step_id == "3a":
+        return qc_background_step(cache_path, animal, session, out_dir)
     A_raw, C_raw, id_override, src_note = _load_step_io(cache_path, step_id)
     if A_raw is None:
         where = "exported_results" if step_id == "8c" else "cache"

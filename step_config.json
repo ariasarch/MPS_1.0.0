@@ -132,7 +132,7 @@
     "Step7cBounds": ["dilation_radius", "padding", "min_size", "intensity_threshold"],
     "Step7dParameterSuggestions": ["n_frames", "component_source", "sample_size"],
     "Step7eSpatialUpdate": ["n_frames", "min_penalty", "max_penalty", "num_penalties", "min_std"],
-    "Step7fMergingValidation": ["apply_smoothing", "sigma", "handle_overlaps", "min_size"],
+    "Step7fMergingValidation": ["apply_smoothing", "sigma", "handle_overlaps", "min_size", "max_size", "overlap_thr", "corr_thr"],
     "Step8aYRAComputation": ["spatial_source", "temporal_source", "subtract_bg", "use_float32", "fix_nans"],
     "Step8bFinalTemporalUpdate": ["p", "sparse_penal", "max_iters", "zero_thres", "normalize", "spatial_source"],
     "Step8cFilterSave": ["min_size", "min_snr", "min_corr"]
@@ -508,6 +508,8 @@
         "handle_overlaps":            {"source": "subkey",  "default": true},
         "min_size":                   {"source": "subkey",  "default": 10},
         "max_size":                   {"source": "subkey",  "default": 5000},
+        "overlap_thr":                {"source": "subkey",  "default": 0.3},
+        "corr_thr":                   {"source": "subkey",  "default": 0.8},
         "raw_components_retained":    {"source": "special", "special": "step7f_raw_retained"},
         "smooth_components_retained": {"source": "special", "special": "step7f_smooth_retained"},
         "raw_percent_filtered":       {"source": "special", "special": "step7f_raw_pct"},

@@ -47,7 +47,9 @@
         "step3a_cropping": {
             "center_radius_factor": 0.75,
             "y_offset": 25,
-            "x_offset": 75
+            "x_offset": 75,
+            "mask_shape": "square",
+            "circle_radius_factor": 1.0
         },
         "step3b_svd": {
             "n_components": 100,

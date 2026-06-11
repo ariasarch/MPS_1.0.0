@@ -77,20 +77,20 @@ class Step7fMergingValidation(ttk.Frame):
             text="Run Merging and Validation",
             command=self.run_merging
         )
-        self.run_button.grid(row=6, column=0, columnspan=3, pady=20, padx=10)
-        
+        self.run_button.grid(row=8, column=0, columnspan=3, pady=20, padx=10)
+
         # Status
         self.status_var = tk.StringVar(value="Ready to merge and validate components")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=7, column=0, columnspan=3, pady=10)
-        
+        self.status_label.grid(row=9, column=0, columnspan=3, pady=10)
+
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=8, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
-        
+        self.progress.grid(row=10, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
+
         # Stats panel
         self.stats_frame = ttk.LabelFrame(self.control_frame, text="Merging Statistics")
-        self.stats_frame.grid(row=9, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.stats_frame.grid(row=11, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Stats text with scrollbar
         stats_scroll = ttk.Scrollbar(self.stats_frame)
@@ -198,6 +198,23 @@ class Step7fMergingValidation(ttk.Frame):
         max_size_entry.grid(row=4, column=1, padx=10, pady=10, sticky="w")
         ttk.Label(self.control_frame, text="Maximum merged component size in pixels").grid(row=4, column=2, padx=10, pady=10, sticky="w")
         
+        # --- Merge criteria (these are what actually collapse duplicate units) ---
+        # Spatial overlap threshold: two components are merge candidates only if
+        # their containment overlap is at least this fraction. Lower => more merging.
+        ttk.Label(self.control_frame, text="Merge Overlap Threshold:").grid(row=5, column=0, padx=10, pady=10, sticky="w")
+        self.overlap_thr_var = tk.DoubleVar(value=0.3)
+        overlap_thr_entry = ttk.Entry(self.control_frame, textvariable=self.overlap_thr_var, width=10)
+        overlap_thr_entry.grid(row=5, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Min spatial overlap (0-1) to merge two units. Lower = more merging").grid(row=5, column=2, padx=10, pady=10, sticky="w")
+
+        # Temporal correlation threshold: merge candidates are only joined if their
+        # temporal traces correlate at least this much. Lower => more merging.
+        ttk.Label(self.control_frame, text="Merge Correlation Threshold:").grid(row=6, column=0, padx=10, pady=10, sticky="w")
+        self.corr_thr_var = tk.DoubleVar(value=0.8)
+        corr_thr_entry = ttk.Entry(self.control_frame, textvariable=self.corr_thr_var, width=10)
+        corr_thr_entry.grid(row=6, column=1, padx=10, pady=10, sticky="w")
+        ttk.Label(self.control_frame, text="Min temporal correlation (0-1) to merge two units. Lower = more merging").grid(row=6, column=2, padx=10, pady=10, sticky="w")
+
         # Save both versions checkbox
         self.save_both_var = tk.BooleanVar(value=True)
         save_both_check = ttk.Checkbutton(
@@ -205,7 +222,7 @@ class Step7fMergingValidation(ttk.Frame):
             text="Save both raw and smoothed versions",
             variable=self.save_both_var
         )
-        save_both_check.grid(row=5, column=0, columnspan=3, padx=10, pady=10, sticky="w")
+        save_both_check.grid(row=7, column=0, columnspan=3, padx=10, pady=10, sticky="w")
     
     def bind_mousewheel(self):
         """Bind mousewheel to scrolling"""
@@ -250,22 +267,34 @@ class Step7fMergingValidation(ttk.Frame):
         handle_overlaps = self.handle_overlaps_var.get()
         min_size = self.min_size_var.get()
         max_size = self.max_size_var.get()
+        overlap_thr = self.overlap_thr_var.get()
+        corr_thr = self.corr_thr_var.get()
         save_both = self.save_both_var.get()
-        
+
         # Validate parameters
         if sigma <= 0 and apply_smoothing:
             self.status_var.set("Error: Smoothing sigma must be positive")
             self.log("Error: Invalid smoothing sigma")
             return
-        
+
         if min_size <= 0:
             self.status_var.set("Error: Minimum component size must be positive")
             self.log("Error: Invalid minimum component size")
             return
-        
+
         if max_size <= min_size:
             self.status_var.set("Error: Maximum size must be greater than minimum size")
             self.log("Error: Maximum size must be greater than minimum size")
+            return
+
+        if not (0.0 <= overlap_thr <= 1.0):
+            self.status_var.set("Error: Merge overlap threshold must be between 0 and 1")
+            self.log("Error: Invalid merge overlap threshold")
+            return
+
+        if not (-1.0 <= corr_thr <= 1.0):
+            self.status_var.set("Error: Merge correlation threshold must be between -1 and 1")
+            self.log("Error: Invalid merge correlation threshold")
             return
         
         # Update status
@@ -281,17 +310,21 @@ class Step7fMergingValidation(ttk.Frame):
         self.log(f"  Handle overlaps: {handle_overlaps}")
         self.log(f"  Minimum component size: {min_size}")
         self.log(f"  Maximum component size: {max_size}")
+        self.log(f"  Merge overlap threshold: {overlap_thr}")
+        self.log(f"  Merge correlation threshold: {corr_thr}")
         self.log(f"  Save both versions: {save_both}")
-        
+
         # Start merging in a separate thread
         thread = threading.Thread(
             target=self._merging_thread,
-            args=(apply_smoothing, sigma, handle_overlaps, min_size, max_size, save_both)
+            args=(apply_smoothing, sigma, handle_overlaps, min_size, max_size, save_both,
+                  overlap_thr, corr_thr)
         )
         thread.daemon = True
         thread.start()
     
-    def _merging_thread(self, apply_smoothing, sigma, handle_overlaps, min_size, max_size, save_both):
+    def _merging_thread(self, apply_smoothing, sigma, handle_overlaps, min_size, max_size, save_both,
+                        overlap_thr=0.3, corr_thr=0.8):
             """Thread function for component merging"""
             try:
                 # Import required modules
@@ -576,8 +609,10 @@ class Step7fMergingValidation(ttk.Frame):
     
                     # Collapse spatially-overlapping, temporally-correlated duplicates
                     try:
-                        C_da = (self.controller.state['results'].get('step6e', {}).get('step6e_C_filtered')
-                                or self.controller.state['results'].get('step6e_C_filtered'))
+                        res = self.controller.state['results']
+                        C_da = res.get('step6e', {}).get('step6e_C_filtered')
+                        if C_da is None:
+                            C_da = res.get('step6e_C_filtered')
                         if C_da is None:
                             self.log("Merge skipped: step6e_C_filtered not found for correlation test")
                         else:
@@ -593,7 +628,7 @@ class Step7fMergingValidation(ttk.Frame):
                                     if 'frame' in C_sel.dims else C_sel.values)   # (n, T)
                             groups = self.compute_merge_groups(
                                 merged_raw.isel(unit_id=slice(0, n)), C_np,
-                                overlap_thr=0.3, corr_thr=0.8, max_merged_size=max_size)
+                                overlap_thr=overlap_thr, corr_thr=corr_thr, max_merged_size=max_size)
                             merged_raw = self.apply_merge_groups(
                                 merged_raw.isel(unit_id=slice(0, n)), groups)
                             if merged_smooth is not None:
@@ -669,7 +704,9 @@ class Step7fMergingValidation(ttk.Frame):
                         'sigma': sigma,
                         'handle_overlaps': handle_overlaps,
                         'min_size': min_size,
-                        'max_size': max_size
+                        'max_size': max_size,
+                        'overlap_thr': overlap_thr,
+                        'corr_thr': corr_thr
                     },
                     'step7f_filtering_stats': {
                         'raw': raw_stats,
@@ -748,7 +785,11 @@ class Step7fMergingValidation(ttk.Frame):
                 self.min_size_var.set(params['min_size'])
             if 'max_size' in params:
                 self.max_size_var.set(params.get('max_size', 5000))
-            
+            if 'overlap_thr' in params:
+                self.overlap_thr_var.set(params['overlap_thr'])
+            if 'corr_thr' in params:
+                self.corr_thr_var.set(params['corr_thr'])
+
             self.log("Parameters loaded from file")
 
     def merge_components_simple(self, A_new, cluster_data, original_shape, step7a_dilated, 
@@ -1423,7 +1464,9 @@ class Step7fMergingValidation(ttk.Frame):
                             'sigma': self.sigma_var.get(),
                             'handle_overlaps': self.handle_overlaps_var.get(),
                             'min_size': self.min_size_var.get(),
-                            'max_size': self.max_size_var.get()
+                            'max_size': self.max_size_var.get(),
+                            'overlap_thr': self.overlap_thr_var.get(),
+                            'corr_thr': self.corr_thr_var.get()
                         }
                     }
                 }

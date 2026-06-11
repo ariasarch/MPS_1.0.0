@@ -15,7 +15,7 @@ _STEP_SCHEMA = _CFG["step_schema"]
 
 # Parameters where intentional False should never be overwritten by preserve logic.
 # All others: an existing True will be preserved over an incoming False.
-_BOOL_NO_PRESERVE = {"completed", "check_nan", "skip_bg"}
+_BOOL_NO_PRESERVE = {"completed", "check_nan", "skip_bg", "bg_clip"}
 
 
 class ParameterStorage:

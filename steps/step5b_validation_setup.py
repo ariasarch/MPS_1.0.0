@@ -344,9 +344,18 @@ class Step5bValidationSetup(ttk.Frame):
                 if input_type == 'merged':
                     # Try loading NumPy files first
                     cache_path = self.controller.state.get('cache_path', '')
-                    A_numpy_path = os.path.join(cache_path, 'step4g_A_merged.npy')
-                    C_numpy_path = os.path.join(cache_path, 'step4g_C_merged.npy')
-                    coords_path = os.path.join(cache_path, 'step_4g_merged_coords.json')
+                    # Prefer step 4h (artifact-rejected "clean" set) when present,
+                    # otherwise fall back to step 4g (merged) for backward compatibility.
+                    h_A = os.path.join(cache_path, 'step4h_A_clean.npy')
+                    h_C = os.path.join(cache_path, 'step4h_C_clean.npy')
+                    h_coords = os.path.join(cache_path, 'step_4h_clean_coords.json')
+                    if os.path.exists(h_A) and os.path.exists(h_C) and os.path.exists(h_coords):
+                        A_numpy_path, C_numpy_path, coords_path = h_A, h_C, h_coords
+                        self.log("Step 5b: using step4h clean (artifact-rejected) components")
+                    else:
+                        A_numpy_path = os.path.join(cache_path, 'step4g_A_merged.npy')
+                        C_numpy_path = os.path.join(cache_path, 'step4g_C_merged.npy')
+                        coords_path = os.path.join(cache_path, 'step_4g_merged_coords.json')
                     
                     # Check if NumPy files exist
                     if os.path.exists(A_numpy_path) and os.path.exists(C_numpy_path) and os.path.exists(coords_path):

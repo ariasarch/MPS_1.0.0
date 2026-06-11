@@ -103,7 +103,7 @@ def find_sessions(root):
 
 # Pipeline order, used to order the columns of the component-count table.
 _STEP_ORDER = ["1", "2a", "2b", "2c", "2d", "2e", "2f", "3a", "3b", "3c",
-               "4a", "4b", "4c", "4d", "4e", "4f", "4g", "5a", "5b",
+               "4a", "4b", "4c", "4d", "4e", "4f", "4g", "4h", "4hq", "5a", "5b",
                "6a", "6b", "6c", "6d", "6e", "7a", "7b", "7c", "7d", "7e", "7f",
                "8a", "8b", "8c"]
 
@@ -139,6 +139,24 @@ def scan_session_log(log_path):
     except Exception:
         pass
     return fails, counts
+
+
+def read_cumulative_counts(session_dir):
+    """Read a session's CUMULATIVE component counts from
+    cache_data/qc_plots/component_counts.txt, which qc_cnmf maintains across all
+    runs. This is what lets a partial-range batch (e.g. --from 5a) still produce
+    a table that includes the earlier steps' counts. Returns {step_id: n}."""
+    path = os.path.join(session_dir, "cache_data", "qc_plots", "component_counts.txt")
+    counts = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = re.match(r"\s*step\s+(\S+)\s*:\s*(\d+)", line)
+                if m:
+                    counts[m.group(1)] = int(m.group(2))
+    except Exception:
+        pass
+    return counts
 
 
 def write_failures_log(run_dir, fail_rows):
@@ -398,7 +416,13 @@ def main(argv=None):
 
         # ----- refresh the two cross-session reports after every session -----
         s_fails, s_counts = scan_session_log(log_path)
-        count_rows.append((label, s_counts))
+        # Merge in the session's CUMULATIVE counts (from qc_plots) so the table
+        # spans the whole pipeline even when this batch ran only part of it
+        # (e.g. --from 5a). This batch's freshly scraped log values take
+        # precedence for the steps it just ran.
+        merged_counts = read_cumulative_counts(sd)
+        merged_counts.update(s_counts)
+        count_rows.append((label, merged_counts))
         if s_fails:
             for step, err in s_fails:
                 fail_rows.append((label, step, err))
