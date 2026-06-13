@@ -135,7 +135,7 @@
     "Step7fMergingValidation": ["apply_smoothing", "sigma", "handle_overlaps", "min_size", "max_size", "overlap_thr", "corr_thr"],
     "Step8aYRAComputation": ["spatial_source", "temporal_source", "subtract_bg", "use_float32", "fix_nans"],
     "Step8bFinalTemporalUpdate": ["p", "sparse_penal", "max_iters", "zero_thres", "normalize", "spatial_source"],
-    "Step8cFilterSave": ["min_size", "min_snr", "min_corr"]
+    "Step8cFilterSave": ["min_size", "min_snr", "min_corr", "similarity_ratio", "drop_min_px", "overlap_thr", "corr_thr", "max_size", "dilate_px"]
   },
   "step_param_key_map": {
     "Step1Setup": "step1_setup",
@@ -555,7 +555,7 @@
     "step8b_filter_export": {
       "results_key": "step8c",
       "presence_check": "results_key",
-      "params_subkey": null,
+      "params_subkey": "mesh_params",
       "fields": {
         "min_size":          {"source": "special", "special": "step8c_min_size"},
         "min_snr":           {"source": "special", "special": "step8c_min_snr"},
@@ -567,7 +567,14 @@
         "export_formats":    {"source": "special", "special": "step8c_export_formats"},
         "include_metadata":  {"source": "literal", "default": true},
         "compression_level": {"source": "literal", "default": 4},
-        "export_time":       {"source": "special", "special": "step8c_export_time"}
+        "export_time":       {"source": "special", "special": "step8c_export_time"},
+        "mesh_enable":       {"source": "subkey", "default": true},
+        "similarity_ratio":  {"source": "subkey", "default": 0.30},
+        "drop_min_px":       {"source": "subkey", "default": 25},
+        "overlap_thr":       {"source": "subkey", "default": 0.30},
+        "corr_thr":          {"source": "subkey", "default": 0.70},
+        "max_size":          {"source": "subkey", "default": 5000},
+        "dilate_px":         {"source": "subkey", "default": 2}
       }
     }
   },

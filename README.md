@@ -529,6 +529,32 @@ The culmination of the entire pipeline - this step performs final quality filter
 - **Min Signal-to-Noise Ratio**: Minimum SNR threshold
 - **Min Correlation**: Minimum correlation coefficient
 
+**Final Merge & Cleanup (trim → clean → merge → cut):**
+
+After the quality filters above, Step 8c runs a final footprint merge-and-cleanup pass (enabled by default — uncheck **Enable final merge & cleanup** to skip it) before export. It catches duplicate, over-segmented, or implausibly meshed components that survived the earlier merging steps. Four operations run in order — trim, clean, merge, cut — controlled by these knobs (defaults shown):
+
+```python
+{
+    "similarity_ratio": 0.30,   # CLEAN: blob survives only if >= this fraction of the largest blob
+    "drop_min_px":      25,     # CLEAN: discard any blob smaller than this (pixels)
+    "overlap_thr":      0.30,   # MERGE: spatial containment a pair needs before the corr test
+    "corr_thr":         0.70,   # MERGE: trace correlation required to merge a pair
+    "max_size":         5000,   # MERGE: refuse to build a merged union larger than this (pixels)
+    "dilate_px":        2,      # CUT: black-wall gap radius between touching cells (0 = off)
+}
+```
+
+- **`similarity_ratio` (0.30)**: In the clean step, watershed first splits each footprint at its intensity peaks; a resulting blob is kept only if its area is at least this fraction of the largest blob in that component. This is what stops watershed from over-splitting — small sub-blobs drop out. Lower it to keep/split more, raise it to drop more.
+- **`drop_min_px` (25)**: Size floor for the clean step (≈ a 5×5 patch). When a footprint breaks into several blobs, any blob below this many pixels is dropped — but a footprint always keeps at least its largest blob, so a lone small component is not deleted here (use **Min Component Size** above for that).
+- **`overlap_thr` (0.30)**: The spatial gate in the merge step — two cells must share at least this fraction of the *smaller* footprint (containment) before their traces are compared. Raise it if genuinely distinct neighbors are being merged.
+- **`corr_thr` (0.70)**: The master merge dial — two spatially overlapping cells are merged only if their temporal traces correlate at least this strongly. Raise it to merge only near-identical traces, lower it to merge more.
+- **`max_size` (5000)**: Safety cap on the merge step — if combining a group would produce a footprint larger than this many pixels, the merge is refused and the members stay separate. It does **not** delete large cells; it prevents runaway unions.
+- **`dilate_px` (2)**: Controls the cut step, a cosmetic "black wall" between touching cells. It never grows a footprint — it only *removes* pixels within `dilate_px` of the interface between two cells, leaving a ~`2 × dilate_px`-wide black gap so meshed cells separate cleanly. Set to `0` to disable.
+
+The halo trim that precedes these (keep pixels above 25% of each footprint's peak) is fixed and not exposed. Because this pass splits and merges components, the exported `unit_id`s are renumbered, and the spike trains (S) are reduced together with the temporal traces (C) so the three stay aligned.
+
+> **Tuning:** If real neurons disappear after a run, loosen the thresholds (lower `similarity_ratio` and `corr_thr`); if duplicate or meshed cells persist, tighten them. Because this is the last step before export, it is quick to re-run with different settings.
+
 **Export Options:**
 - **Zarr format**: Efficient for large-scale analysis with chunked storage
 - **NumPy format**: Compatible with most Python analysis pipelines

@@ -590,6 +590,7 @@ _PARAM_ALIASES_BY_STEP = {
     "Step4gTemporalMerging": {"temporal_corr_threshold": "temporal_corr",
                               "spatial_overlap_threshold": "spatial_overlap",
                               "input_type": "input"},
+    "Step4hArtifactRejection": {"combine_quarantine": "combine"},
     "Step5bValidationSetup": {"input_type": "input"},
 }
 _PRE_RUN_HOOKS = {"Step3aCropping": ("preview_crop",)}          # step 3a preview

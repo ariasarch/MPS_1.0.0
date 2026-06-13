@@ -80,20 +80,20 @@ class Step8cFilterSave(ttk.Frame):
             text="Run Final Filtering and Export",
             command=self.run_filtering_export
         )
-        self.run_button.grid(row=7, column=0, columnspan=3, pady=20, padx=10)
+        self.run_button.grid(row=8, column=0, columnspan=3, pady=20, padx=10)
         
         # Status
         self.status_var = tk.StringVar(value="Ready to perform final filtering and export")
         self.status_label = ttk.Label(self.control_frame, textvariable=self.status_var)
-        self.status_label.grid(row=8, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=9, column=0, columnspan=3, pady=10)
         
         # Progress bar
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=9, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=10, column=0, columnspan=3, pady=10, padx=10, sticky="ew")
         
         # Stats panel
         self.stats_frame = ttk.LabelFrame(self.control_frame, text="Export Statistics")
-        self.stats_frame.grid(row=10, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.stats_frame.grid(row=11, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
         
         # Stats text with scrollbar
         stats_scroll = ttk.Scrollbar(self.stats_frame)
@@ -306,7 +306,48 @@ class Step8cFilterSave(ttk.Frame):
         export_name_entry = ttk.Entry(self.control_frame, textvariable=self.export_name_var, width=30)
         export_name_entry.grid(row=6, column=1, columnspan=2, padx=10, pady=10, sticky="w")
         ttk.Label(self.control_frame, text="(Leave blank for auto-generated name)").grid(row=6, column=2, padx=10, pady=0, sticky="w")
-    
+
+        # Final Merge & Cleanup (mesh pipeline) parameters
+        mesh_frame = ttk.LabelFrame(self.control_frame, text="Final Merge & Cleanup")
+        mesh_frame.grid(row=7, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+
+        self.mesh_enable_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            mesh_frame,
+            text="Enable final merge & cleanup (trim → clean → merge → cut)",
+            variable=self.mesh_enable_var
+        ).grid(row=0, column=0, columnspan=3, padx=10, pady=5, sticky="w")
+
+        ttk.Label(mesh_frame, text="Similarity Ratio:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.similarity_ratio_var = tk.DoubleVar(value=0.30)
+        ttk.Entry(mesh_frame, textvariable=self.similarity_ratio_var, width=10).grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(mesh_frame, text="(blob survival floor, fraction of largest)").grid(row=1, column=2, padx=5, pady=5, sticky="w")
+
+        ttk.Label(mesh_frame, text="Drop Min Pixels:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.drop_min_px_var = tk.IntVar(value=25)
+        ttk.Entry(mesh_frame, textvariable=self.drop_min_px_var, width=10).grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(mesh_frame, text="(discard blobs smaller than this)").grid(row=2, column=2, padx=5, pady=5, sticky="w")
+
+        ttk.Label(mesh_frame, text="Overlap Threshold:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        self.overlap_thr_var = tk.DoubleVar(value=0.30)
+        ttk.Entry(mesh_frame, textvariable=self.overlap_thr_var, width=10).grid(row=3, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(mesh_frame, text="(spatial containment before corr test)").grid(row=3, column=2, padx=5, pady=5, sticky="w")
+
+        ttk.Label(mesh_frame, text="Correlation Threshold:").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        self.corr_thr_var = tk.DoubleVar(value=0.70)
+        ttk.Entry(mesh_frame, textvariable=self.corr_thr_var, width=10).grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(mesh_frame, text="(trace corr required to merge a pair)").grid(row=4, column=2, padx=5, pady=5, sticky="w")
+
+        ttk.Label(mesh_frame, text="Max Merge Size:").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        self.max_size_var = tk.IntVar(value=5000)
+        ttk.Entry(mesh_frame, textvariable=self.max_size_var, width=10).grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(mesh_frame, text="pixels (refuse unions larger than this)").grid(row=5, column=2, padx=5, pady=5, sticky="w")
+
+        ttk.Label(mesh_frame, text="Boundary Cut (px):").grid(row=6, column=0, padx=10, pady=5, sticky="w")
+        self.dilate_px_var = tk.IntVar(value=2)
+        ttk.Entry(mesh_frame, textvariable=self.dilate_px_var, width=10).grid(row=6, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(mesh_frame, text="(black wall between touching cells; 0 = off)").grid(row=6, column=2, padx=5, pady=5, sticky="w")
+
     def bind_mousewheel(self):
         """Bind mousewheel to scrolling"""
         def _on_mousewheel(event):
@@ -829,7 +870,14 @@ class Step8cFilterSave(ttk.Frame):
             'generate_metrics': self.generate_metrics_var.get(),
             'export_name': self.export_name_var.get(),
             'spatial_source': spatial_source,
-            'temporal_source': temporal_source
+            'temporal_source': temporal_source,
+            'mesh_enable': self.mesh_enable_var.get(),
+            'similarity_ratio': self.similarity_ratio_var.get(),
+            'drop_min_px': self.drop_min_px_var.get(),
+            'overlap_thr': self.overlap_thr_var.get(),
+            'corr_thr': self.corr_thr_var.get(),
+            'max_size': self.max_size_var.get(),
+            'dilate_px': self.dilate_px_var.get()
         }
         
         # Update status
@@ -846,6 +894,11 @@ class Step8cFilterSave(ttk.Frame):
         self.log(f"    Minimum component size: {params['min_size']} pixels")
         self.log(f"    Minimum SNR: {params['min_snr']}")
         self.log(f"    Minimum correlation: {params['min_corr']}")
+        self.log(f"  Final merge & cleanup: {'enabled' if params['mesh_enable'] else 'disabled'}")
+        if params['mesh_enable']:
+            self.log(f"    similarity_ratio={params['similarity_ratio']}, drop_min_px={params['drop_min_px']}, "
+                     f"overlap_thr={params['overlap_thr']}, corr_thr={params['corr_thr']}, "
+                     f"max_size={params['max_size']}, dilate_px={params['dilate_px']}")
         self.log(f"  Export formats: " + 
                  (", ".join(fmt for fmt, val in [('zarr', params['export_zarr']), 
                                                ('npy', params['export_npy']), 
@@ -860,7 +913,86 @@ class Step8cFilterSave(ttk.Frame):
         )
         thread.daemon = True
         thread.start()
-    
+
+    def _apply_mesh_cleanup(self, A_filtered, C_filtered, S_filtered, params):
+        """Run the trim -> clean -> merge -> cut pipeline (utils.mesh_cleanup) on
+        the filtered components and return new xarray DataArrays. The component
+        count changes when blobs split or merge, so unit_ids are renumbered; S is
+        reduced with the same merge groups as C so the three stay aligned."""
+        import xarray as xr
+        from utils.mesh_cleanup import apply_ops
+
+        unit_dim = 'unit_id'
+        spatial_dims = [d for d in A_filtered.dims if d != unit_dim]
+        if len(spatial_dims) != 2:
+            self.log(f"Merge & cleanup skipped: expected 2 spatial dims, got {A_filtered.dims}")
+            return A_filtered, C_filtered, S_filtered
+        h_dim, w_dim = spatial_dims
+
+        # Spatial components -> numpy (unit, H, W)
+        A_da = A_filtered.transpose(unit_dim, h_dim, w_dim)
+        A_np = np.nan_to_num(np.asarray(A_da.compute().values, dtype=np.float64), nan=0.0)
+
+        # Temporal components -> numpy (unit, frame)
+        frame_dims = [d for d in C_filtered.dims if d != unit_dim]
+        frame_dim = frame_dims[0] if frame_dims else None
+        if frame_dim is not None:
+            C_da = C_filtered.transpose(unit_dim, frame_dim)
+            C_np = np.nan_to_num(np.asarray(C_da.compute().values, dtype=np.float64), nan=0.0)
+        else:
+            C_da, C_np = None, None
+
+        # Spikes -> numpy (unit, frame); reduced with the same grouping as C
+        S_np, S_da = None, None
+        if S_filtered is not None and frame_dim is not None and frame_dim in S_filtered.dims:
+            S_da = S_filtered.transpose(unit_dim, frame_dim)
+            S_np = np.nan_to_num(np.asarray(S_da.compute().values, dtype=np.float64), nan=0.0)
+
+        cfg = {
+            'split_mode': 'rebalance',
+            'similarity_ratio': float(params['similarity_ratio']),
+            'drop_min_px': int(params['drop_min_px']),
+            'overlap_thr': float(params['overlap_thr']),
+            'corr_thr': float(params['corr_thr']),
+            'max_size': int(params['max_size']),
+            'dilate_px': int(params['dilate_px']),
+        }
+        A2, C2, S2 = apply_ops(A_np, C_np, S_np, cfg)
+        n_new = int(A2.shape[0])
+        new_ids = np.arange(n_new)
+
+        def _coords(da, dim_names, sizes):
+            c = {unit_dim: new_ids}
+            for d, sz in zip(dim_names, sizes):
+                if da is not None and d in da.coords:
+                    c[d] = da.coords[d].values
+                else:
+                    c[d] = np.arange(sz)
+            return c
+
+        A_out = xr.DataArray(
+            A2, dims=(unit_dim, h_dim, w_dim),
+            coords=_coords(A_da, (h_dim, w_dim), A2.shape[1:]),
+            name=A_filtered.name)
+
+        if C2 is not None and frame_dim is not None:
+            C_out = xr.DataArray(
+                C2, dims=(unit_dim, frame_dim),
+                coords=_coords(C_da, (frame_dim,), (C2.shape[1],)),
+                name=C_filtered.name)
+        else:
+            C_out = C_filtered
+
+        if S2 is not None and frame_dim is not None:
+            S_out = xr.DataArray(
+                S2, dims=(unit_dim, frame_dim),
+                coords=_coords(S_da, (frame_dim,), (S2.shape[1],)),
+                name=getattr(S_filtered, 'name', 'S'))
+        else:
+            S_out = None
+
+        return A_out, C_out, S_out
+
     def _filtering_export_thread(self, export_path, params):
             """Thread function for filtering and export process"""
             try:
@@ -1100,7 +1232,21 @@ class Step8cFilterSave(ttk.Frame):
                         S_filtered = S.isel(unit_id=valid_mask)
                     else:
                         S_filtered = None
-                    
+
+                    # Final merge & cleanup (trim -> clean -> merge -> cut)
+                    if params.get('mesh_enable', True):
+                        try:
+                            A_filtered, C_filtered, S_filtered = self._apply_mesh_cleanup(
+                                A_filtered, C_filtered, S_filtered, params)
+                            final_count = int(A_filtered.sizes['unit_id'])
+                            self.log(f"After merge & cleanup: {final_count} components")
+                        except Exception as e:
+                            self.log(f"Error during merge & cleanup: {str(e)}")
+                            self.log(traceback.format_exc())
+                            self.log("Continuing with pre-cleanup components")
+                    else:
+                        self.log("Final merge & cleanup disabled; skipping")
+
                     # Store filtering results
                     filtering_stats = {
                         'original_count': int(original_count),
@@ -1117,7 +1263,16 @@ class Step8cFilterSave(ttk.Frame):
                     self.controller.state['results']['step8c'] = {
                         'step8c_A_final': A_filtered,
                         'step8c_C_final': C_filtered,
-                        'step8c_filtering_stats': filtering_stats
+                        'step8c_filtering_stats': filtering_stats,
+                        'mesh_params': {
+                            'mesh_enable': bool(params.get('mesh_enable', True)),
+                            'similarity_ratio': float(params['similarity_ratio']),
+                            'drop_min_px': int(params['drop_min_px']),
+                            'overlap_thr': float(params['overlap_thr']),
+                            'corr_thr': float(params['corr_thr']),
+                            'max_size': int(params['max_size']),
+                            'dilate_px': int(params['dilate_px'])
+                        }
                     }
                     
                     # Save S if available
