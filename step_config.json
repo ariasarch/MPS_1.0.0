@@ -17,6 +17,7 @@
     "step4e_ac_initialization",
     "step4f_dropping_nans",
     "step4g_temporal_merging",
+    "step4h_artifact_rejection",
     "step5a_noise_estimation",
     "step5b_validation_setup",
     "step6a_yra_computation",
@@ -52,6 +53,7 @@
     "Step4eACInitialization",
     "Step4fDroppingNans",
     "Step4gTemporalMerging",
+    "Step4hArtifactRejection",
     "Step5aNoiseEstimation",
     "Step5bValidationSetup",
     "Step6aYRAComputation",
@@ -87,6 +89,7 @@
     "Step4eACInitialization": "run_button",
     "Step4fDroppingNans": "run_button",
     "Step4gTemporalMerging": "run_button",
+    "Step4hArtifactRejection": "run_button",
     "Step5aNoiseEstimation": "run_button",
     "Step5bValidationSetup": "run_button",
     "Step6aYRAComputation": "run_button",
@@ -120,6 +123,7 @@
     "Step4eACInitialization": ["spatial_norm", "min_size", "max_components", "skip_bg", "check_nan"],
     "Step4fDroppingNans": [],
     "Step4gTemporalMerging": ["temporal_corr_threshold", "spatial_overlap_threshold", "input_type", "max_components"],
+    "Step4hArtifactRejection": ["max_cell_size", "min_skew", "min_snr", "max_drift_ratio", "min_solidity", "require_large", "min_flags", "combine_quarantine"],
     "Step5aNoiseEstimation": ["noise_scale", "smoothing_sigma", "bg_threshold", "custom_threshold"],
     "Step5bValidationSetup": ["input_type", "check_nan", "compute_stats", "min_size", "max_size", "apply_filtering"],
     "Step6aYRAComputation": ["component_source", "subtract_bg", "use_float32", "fix_nans"],
@@ -155,6 +159,7 @@
     "Step4eACInitialization": "step4e_ac_initialization",
     "Step4fDroppingNans": "step4f_dropping_nans",
     "Step4gTemporalMerging": "step4g_temporal_merging",
+    "Step4hArtifactRejection": "step4h_artifact_rejection",
     "Step5aNoiseEstimation": "step5a_noise_estimation",
     "Step5bValidationSetup": "step5b_validation_setup",
     "Step6aYRAComputation": "step6a_yra_computation",
@@ -336,6 +341,21 @@
         "max_size":                 {"source": "subkey", "default": 5000},
         "input_type":               {"source": "subkey", "default": "clean"},
         "max_components":           {"source": "subkey", "default": 0}
+      }
+    },
+    "step4h_artifact_rejection": {
+      "results_key": "step4h",
+      "presence_check": "results_key",
+      "params_subkey": "rejection_params",
+      "fields": {
+        "max_cell_size":      {"source": "subkey", "default": 1000},
+        "min_skew":           {"source": "subkey", "default": 0.3},
+        "min_snr":            {"source": "subkey", "default": 2.0},
+        "max_drift_ratio":    {"source": "subkey", "default": 0.6},
+        "min_solidity":       {"source": "subkey", "default": 0.4},
+        "require_large":      {"source": "subkey", "default": true},
+        "min_flags":          {"source": "subkey", "default": 2},
+        "combine_quarantine": {"source": "subkey", "default": true}
       }
     },
     "step5a_noise_estimation": {

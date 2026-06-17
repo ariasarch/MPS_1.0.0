@@ -344,18 +344,53 @@ class Step5bValidationSetup(ttk.Frame):
                 if input_type == 'merged':
                     # Try loading NumPy files first
                     cache_path = self.controller.state.get('cache_path', '')
-                    # Prefer step 4h (artifact-rejected "clean" set) when present,
-                    # otherwise fall back to step 4g (merged) for backward compatibility.
+
+                    # Determine the current crop's spatial size from Y so we can
+                    # reject stale component caches left over from a previous crop.
+                    try:
+                        crop_h = int(Y_hw_cropped_xarray.sizes['height'])
+                        crop_w = int(Y_hw_cropped_xarray.sizes['width'])
+                    except Exception:
+                        # positional fallback: (frame, height, width)
+                        crop_h = int(Y_hw_cropped_xarray.shape[1])
+                        crop_w = int(Y_hw_cropped_xarray.shape[2])
+
+                    # Prefer step 4h (artifact-rejected "clean" set) when present AND
+                    # its footprint matches the current crop; otherwise fall back to
+                    # step 4g (merged). The shape guard stops a stale step4h cache from
+                    # an earlier crop being passed to step 6a (which would crash on
+                    # Y . A^T with mismatched height*width).
                     h_A = os.path.join(cache_path, 'step4h_A_clean.npy')
                     h_C = os.path.join(cache_path, 'step4h_C_clean.npy')
                     h_coords = os.path.join(cache_path, 'step_4h_clean_coords.json')
-                    if os.path.exists(h_A) and os.path.exists(h_C) and os.path.exists(h_coords):
+                    g_A = os.path.join(cache_path, 'step4g_A_merged.npy')
+                    g_C = os.path.join(cache_path, 'step4g_C_merged.npy')
+                    g_coords = os.path.join(cache_path, 'step_4g_merged_coords.json')
+
+                    use_4h = (os.path.exists(h_A) and os.path.exists(h_C)
+                              and os.path.exists(h_coords))
+                    if use_4h:
+                        try:
+                            # mmap_mode reads only the .npy shape header, not the data
+                            h_shape = np.load(h_A, mmap_mode='r').shape  # (n, height, width)
+                            if tuple(h_shape[1:]) != (crop_h, crop_w):
+                                self.log(
+                                    f"Step 5b: step4h clean footprint {tuple(h_shape[1:])} "
+                                    f"!= current crop {(crop_h, crop_w)} -- ignoring stale "
+                                    f"step4h cache, using step4g merged instead"
+                                )
+                                use_4h = False
+                        except Exception as e:
+                            self.log(f"Step 5b: could not verify step4h shape ({e}); "
+                                     f"using step4g merged instead")
+                            use_4h = False
+
+                    if use_4h:
                         A_numpy_path, C_numpy_path, coords_path = h_A, h_C, h_coords
                         self.log("Step 5b: using step4h clean (artifact-rejected) components")
                     else:
-                        A_numpy_path = os.path.join(cache_path, 'step4g_A_merged.npy')
-                        C_numpy_path = os.path.join(cache_path, 'step4g_C_merged.npy')
-                        coords_path = os.path.join(cache_path, 'step_4g_merged_coords.json')
+                        A_numpy_path, C_numpy_path, coords_path = g_A, g_C, g_coords
+                        self.log("Step 5b: using step4g merged components")
                     
                     # Check if NumPy files exist
                     if os.path.exists(A_numpy_path) and os.path.exists(C_numpy_path) and os.path.exists(coords_path):
