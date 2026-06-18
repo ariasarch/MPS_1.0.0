@@ -17,6 +17,10 @@ also written into that folder and refreshed after every session:
   failures.log                 every failed step: session, step, error message
   component_counts_table.txt   all sessions x steps, component count in each cell
 
+A small always-on-top window also pops up showing  X/Y sessions done, the
+average time per session, and an estimated time remaining. Pass --no-progress
+to suppress it.
+
 ===========================================================================
 QUICK START
 ===========================================================================
@@ -45,6 +49,7 @@ import os
 import re
 import sys
 import glob
+import json
 import time
 import shlex
 import signal
@@ -66,6 +71,84 @@ def _say(msg):
         sys.stdout.flush()
     except Exception:
         pass
+
+
+BATCH_PROGRESS = os.path.join(_HERE, "batch_progress.py")
+
+
+class BatchProgress:
+    """Best-effort live progress popup.
+
+    Writes a small JSON status file into the batch log folder after each session
+    and (unless disabled) opens batch_progress.py -- a tiny always-on-top window
+    showing  X/Y done,  average per session,  and estimated time remaining.
+    Every operation is wrapped so a problem here can never break a batch.
+    """
+
+    def __init__(self, run_dir, total, enabled=True):
+        self.path = os.path.join(run_dir, "_progress.json")
+        self.total = total
+        self.start_time = time.time()
+        self.durations = []
+        self.done = 0
+        self.proc = None
+        self._write(current=None, current_start=None, finished=False)
+        if enabled:
+            self._launch()
+
+    def _write(self, current, current_start, finished, last_status=None):
+        try:
+            data = {
+                "total": self.total,
+                "done": self.done,
+                "durations": self.durations,
+                "start_time": self.start_time,
+                "current": current,
+                "current_start": current_start,
+                "finished": finished,
+                "last_status": last_status,
+            }
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            os.replace(tmp, self.path)
+        except Exception:
+            pass
+
+    def _launch(self):
+        if not os.path.isfile(BATCH_PROGRESS):
+            _say("[run_multiple] batch_progress.py not found next to run_multiple.py; "
+                 "skipping the progress window.")
+            return
+        kwargs = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if os.name == "nt":
+            # Show the Tk window but don't spawn an extra console for it.
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        else:
+            kwargs["start_new_session"] = True
+        try:
+            self.proc = subprocess.Popen(
+                [sys.executable, BATCH_PROGRESS, "--status", self.path], **kwargs)
+            _say("[run_multiple] progress window opened (close it anytime; "
+                 "--no-progress to disable).")
+        except Exception as exc:
+            _say("[run_multiple] could not open progress window (%s); continuing." % exc)
+            self.proc = None
+
+    def start_session(self, label):
+        self._write(current=label, current_start=time.time(), finished=False)
+
+    def finish_session(self, dt, status):
+        self.done += 1
+        if dt and dt > 0:
+            self.durations.append(dt)   # wall-time of sessions that actually ran
+        self._write(current=None, current_start=None, finished=False, last_status=status)
+
+    def close(self):
+        self.done = self.total
+        self._write(current=None, current_start=None, finished=True)
+        # Leave the window up so the final numbers stay visible; it has its own
+        # Close button. We deliberately do not kill self.proc.
 
 
 # ---------------------------------------------------------------------------
@@ -351,6 +434,8 @@ def build_parser():
                    help="Skip sessions until this label (e.g. 3340_5) to resume a batch.")
     p.add_argument("--list", action="store_true",
                    help="List the sessions that would run, then exit.")
+    p.add_argument("--no-progress", action="store_true",
+                   help="Do not open the little always-on-top progress window.")
     return p
 
 
@@ -394,11 +479,14 @@ def main(argv=None):
     _say("logs: %s" % run_dir)
     _say("=" * 70)
 
+    prog = BatchProgress(run_dir, len(sessions), enabled=not args.no_progress)
+
     summary = []
     count_rows = []   # (label, {step: n_components})  for the component table
     fail_rows = []    # (label, step, error)           for failures.log
     for i, sd in enumerate(sessions, 1):
         label = session_label(sd)
+        prog.start_session(label)
         _say("\n" + "#" * 70)
         _say("# [%d/%d] %s" % (i, len(sessions), label))
         _say("#" * 70)
@@ -410,9 +498,11 @@ def main(argv=None):
             count_rows.append((label, {}))
             write_failures_log(run_dir, fail_rows)
             write_component_table(run_dir, count_rows)
+            prog.finish_session(0.0, "MISSING")
             continue
         status, rc, dt = run_session(sd, run_args, log_path, timeout_sec)
         summary.append((label, status, rc, dt, log_path))
+        prog.finish_session(dt, status)
 
         # ----- refresh the two cross-session reports after every session -----
         s_fails, s_counts = scan_session_log(log_path)
@@ -459,6 +549,8 @@ def main(argv=None):
     # final refresh of the reports (in case the last session was MISSING etc.)
     write_failures_log(run_dir, fail_rows)
     write_component_table(run_dir, count_rows)
+
+    prog.close()
 
     # echo the component-counts table to the console too, so a partial-range
     # batch (e.g. --run-args "--from 4h --to 4h ...") still prints the table

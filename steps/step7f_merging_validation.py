@@ -652,14 +652,22 @@ class Step7fMergingValidation(ttk.Frame):
                     self.log(f"\nFiltering components by size (minimum {min_size} pixels, maximum {max_size} pixels)...")
     
                     try:
-                        # Filter raw components
-                        raw_filtered, raw_stats = self.filter_components_by_size(merged_raw, min_size, max_size)
+                        # Decide survivors from the RAW footprint support so that the
+                        # Gaussian smoothing (applied to pixel VALUES only) can never
+                        # change which components survive. A sigma=1.5 blur fattens each
+                        # footprint's >0 support ~3x, which previously pushed most cells
+                        # past max_size and deleted them -- collapsing e.g. 188 -> ~17.
+                        keep_mask, raw_stats = self.compute_size_mask(merged_raw, min_size, max_size)
+                        raw_filtered = merged_raw.isel(unit_id=keep_mask)
                         self.log(f"Raw components filtering: {raw_stats}")
     
-                        # Filter smoothed components if available
+                        # Filter smoothed components with the SAME (raw-support)
+                        # survivor set, so smoothing changes values but not the count.
                         if merged_smooth is not None:
-                            smooth_filtered, smooth_stats = self.filter_components_by_size(merged_smooth, min_size, max_size)
-                            self.log(f"Smoothed components filtering: {smooth_stats}")
+                            smooth_filtered = merged_smooth.isel(unit_id=keep_mask)
+                            smooth_stats = dict(raw_stats)
+                            self.log(f"Smoothed components kept by raw-support mask: "
+                                     f"{int(np.sum(keep_mask))} of {len(keep_mask)}")
                         else:
                             smooth_filtered = None
                             smooth_stats = {}
@@ -985,23 +993,28 @@ class Step7fMergingValidation(ttk.Frame):
             self.log(traceback.format_exc())
             raise e
     
-    def filter_components_by_size(self, components, min_size, max_size=float('inf')):
+    def compute_size_mask(self, components, min_size, max_size=float('inf')):
         """
-        Filter components by minimum and maximum size
-        
+        Build a boolean keep-mask selecting components whose ACTIVE (>0) pixel
+        count lies within [min_size, max_size], plus filtering statistics.
+
+        Size is measured on whatever array is passed in. Callers pass the RAW
+        (un-smoothed) footprints so that the optional Gaussian smoothing -- which
+        only spreads/rescales pixel VALUES -- cannot change which components
+        survive. A sigma=1.5 blur inflates each footprint's >0 support roughly 3x
+        (e.g. raw median ~2500 px -> smoothed median ~8000 px), which would push
+        most cells past max_size and silently delete them.
+
         Parameters:
         -----------
-        components : xr.DataArray
-            Component array to filter
+        components : xr.DataArray  (unit_id, height, width)
         min_size : int
-            Minimum component size in pixels
         max_size : int or float
-            Maximum component size in pixels
-            
+
         Returns:
         --------
-        xr.DataArray, dict
-            Filtered components and filtering statistics
+        np.ndarray[bool], dict
+            keep-mask over the unit_id axis, and filtering statistics
         """
         # Initialize statistics
         stats = {
@@ -1013,19 +1026,19 @@ class Step7fMergingValidation(ttk.Frame):
             'total_pixels_before': 0,
             'total_pixels_after': 0
         }
-        
+
         # Create mask array
         valid_mask = np.ones(len(components.unit_id), dtype=bool)
-        
+
         # Check each component
         for i, unit_id in enumerate(components.unit_id.values):
             # Extract component
             comp = components.sel(unit_id=unit_id).compute().values
-            
+
             # Count active pixels
             active_pixels = np.sum(comp > 0)
             stats['total_pixels_before'] += active_pixels
-            
+
             # Check size
             if active_pixels < min_size:
                 valid_mask[i] = False
@@ -1038,13 +1051,27 @@ class Step7fMergingValidation(ttk.Frame):
             else:
                 stats['retained_components'] += 1
                 stats['total_pixels_after'] += active_pixels
-        
-        # Apply filter
-        filtered = components.isel(unit_id=valid_mask)
-        
+
         # Add percentage stats
         stats['percent_filtered'] = (stats['filtered_components'] / stats['total_components']) * 100 if stats['total_components'] > 0 else 0
         stats['percent_pixels_retained'] = (stats['total_pixels_after'] / stats['total_pixels_before']) * 100 if stats['total_pixels_before'] > 0 else 0
+
+        return valid_mask, stats
+
+    def filter_components_by_size(self, components, min_size, max_size=float('inf')):
+        """
+        Filter components by minimum and maximum size, measuring size on the
+        passed-in array's own support. Thin wrapper around compute_size_mask.
+
+        Returns:
+        --------
+        xr.DataArray, dict
+            Filtered components and filtering statistics
+        """
+        valid_mask, stats = self.compute_size_mask(components, min_size, max_size)
+
+        # Apply filter
+        filtered = components.isel(unit_id=valid_mask)
         
         self.log(f"Filtering results:")
         self.log(f"  Total components: {stats['total_components']}")
