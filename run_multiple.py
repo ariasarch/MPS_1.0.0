@@ -460,6 +460,16 @@ def main(argv=None):
     write_failures_log(run_dir, fail_rows)
     write_component_table(run_dir, count_rows)
 
+    # echo the component-counts table to the console too, so a partial-range
+    # batch (e.g. --run-args "--from 4h --to 4h ...") still prints the table
+    # when it finishes -- not just saves it to the log folder.
+    try:
+        with open(os.path.join(run_dir, "component_counts_table.txt"),
+                  encoding="utf-8") as f:
+            _say("\n" + f.read())
+    except Exception as exc:
+        _say("[run_multiple] could not print component table: %s" % exc)
+
     return 0 if n_ok == len(summary) else 1
 
 
