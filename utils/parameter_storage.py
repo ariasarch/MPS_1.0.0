@@ -195,10 +195,20 @@ class ParameterStorage:
 
             # ---- resolve the subdict (if any) --------------------------
             subkey_dict = {}
-            if params_subkey and isinstance(step_results, dict):
-                raw = step_results.get(params_subkey)
+            if params_subkey:
+                raw = step_results.get(params_subkey) if isinstance(step_results, dict) else None
                 if isinstance(raw, dict):
                     subkey_dict = raw
+                else:
+                    # The step's results are present (e.g. its arrays were preloaded
+                    # from cache) but its parameter sub-dict is missing -- i.e. the
+                    # step was NOT actually run in this session, so we have no real
+                    # parameters for it. Skip it, so save_parameters() preserves the
+                    # value already on file instead of overwriting it with schema
+                    # defaults (which would silently revert a prior --set / GUI edit).
+                    print(f"[params] {output_key}: '{params_subkey}' absent (preloaded, "
+                          f"not run) -> preserving existing file value")
+                    continue
 
             # ---- build field values ------------------------------------
             built = {}

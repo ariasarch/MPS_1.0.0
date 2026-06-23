@@ -12,17 +12,6 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.gridspec import GridSpec
 
-
-# ---------------------------------------------------------------------------
-# Scoring helpers (autofluorescence vs. neuron)
-#
-# Autofluorescence / lipofuscin / vessels differ from GCaMP neurons mainly in
-# the TRACE (static or slowly drifting, not sparse fast-rise/slow-decay) and in
-# the FOOTPRINT (large, diffuse, irregular or elongated). None of these alone is
-# decisive, so we combine several and only quarantine components that are large
-# AND look non-neural -- small real cells are never touched.
-# ---------------------------------------------------------------------------
-
 def _safe_skew(x):
     """Fisher skewness; GCaMP traces are strongly right-skewed (sparse spikes),
     flat autofluorescence is near zero."""

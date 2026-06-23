@@ -5,11 +5,11 @@ run_multiple.py -- batch-run run_step.py over many sessions, one at a time.
 For each session it launches run_step.py as its OWN subprocess, so every
 session gets a fresh Dask cluster + Tk root that are fully torn down when that
 session finishes (or crashes) before the next one starts. A session that fails
--- even a hard native crash -- is just a non-zero exit code here: it's logged
-and the batch moves on to the next session.
+is just a non-zero exit code here: it's logged and the batch moves on to the 
+next session.
 
-Each session reads its own  cache_data/processing_parameters.json  (run_step
-does that automatically), so you don't pass parameters here.
+Each session reads its own cache_data/processing_parameters.json  (run_step
+does that automatically), so don't pass parameters here.
 
 The combined terminal output of every session is streamed live AND saved to a
 per-session log file under the batch log folder. Two cross-session reports are
@@ -148,7 +148,7 @@ class BatchProgress:
         self.done = self.total
         self._write(current=None, current_start=None, finished=True)
         # Leave the window up so the final numbers stay visible; it has its own
-        # Close button. We deliberately do not kill self.proc.
+        # Close button. 
 
 
 # ---------------------------------------------------------------------------

@@ -354,9 +354,7 @@ def make_spatial_figure(footprints, ids, colors, title, out_path):
     fig, ax = plt.subplots(figsize=(9, 8.4), facecolor="white")
     ax.set_facecolor("black")
     ax.imshow(np.clip(rgb, 0, 1), aspect="equal", origin="upper")
-    # Per-neuron id labels become unreadable -- and slow and fragile to render
-    # under bbox_inches="tight" -- once there are many footprints, so only draw
-    # them for modest counts. (1105 labels is what was silently breaking 4c.)
+    # Per-neuron id labels become unreadable once there are many footprints
     if n <= LABEL_MAX:
         for i in range(n):
             cy, cx = cen[i]
