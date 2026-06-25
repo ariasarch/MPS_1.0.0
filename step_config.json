@@ -114,7 +114,7 @@
     "Step2cMotionEstimation": ["dim"],
     "Step2dErroneousFrames": ["threshold_factor", "drop_frames", "use_abs_limits", "height_min", "height_max", "width_min", "width_max"],
     "Step2eTransformation": ["fill_value"],
-    "Step3aCropping": ["center_radius_factor", "y_offset", "x_offset"],
+    "Step3aCropping": ["center_radius_factor", "y_offset", "x_offset", "mask_shape", "circle_radius_factor", "bg_method", "bg_rank", "bg_subsample", "bg_smooth_sigma", "bg_ring_radius", "bg_ring_width", "bg_clip"],
     "Step3bNNDSVD": ["n_components", "n_power_iter", "sparsity_threshold"],
     "Step4aWatershedSearch": ["min_distance", "threshold_rel", "sigma"],
     "Step4bWatershedSegmentation": ["min_distance", "threshold_rel", "sigma", "min_size"],
@@ -254,7 +254,16 @@
       "fields": {
         "center_radius_factor": {"source": "subkey", "default": 0.75},
         "y_offset":             {"source": "subkey", "default": 0},
-        "x_offset":             {"source": "subkey", "default": 0}
+        "x_offset":             {"source": "subkey", "default": 0},
+        "mask_shape":           {"source": "subkey", "default": "circle"},
+        "circle_radius_factor": {"source": "subkey", "default": 1.0},
+        "bg_method":            {"source": "subkey", "default": "ring"},
+        "bg_rank":              {"source": "subkey", "default": 1},
+        "bg_subsample":         {"source": "subkey", "default": 2000},
+        "bg_smooth_sigma":      {"source": "subkey", "default": 4.0},
+        "bg_ring_radius":       {"source": "subkey", "default": 12},
+        "bg_ring_width":        {"source": "subkey", "default": 4},
+        "bg_clip":              {"source": "subkey", "default": true}
       }
     },
     "step3b_svd": {
