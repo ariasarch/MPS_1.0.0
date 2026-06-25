@@ -20,6 +20,9 @@
             "downsample": { "frame": 1, "height": 1, "width": 1 },
             "downsample_strategy": "subset",
             "video_percent": 100,
+            "trim_video": false,
+            "trim_start_frame": 0,
+            "trim_end_frame": 12000,
             "line_splitting": {
                 "mode": "basic",
                 "trend_sigma": 20.0,
@@ -32,14 +35,20 @@
             "denoise_method": "median",
             "ksize": 7,
             "bg_method": "tophat",
-            "wnd": 15
+            "wnd": 15,
+            "processing_order": "bg_first"
         },
         "step2c_motion_estimation": {
             "dim": "frame"
         },
         "step2d_erroneous_frames": {
             "threshold_factor": 5.0,
-            "drop_frames": true
+            "drop_frames": true,
+            "use_abs_limits": false,
+            "height_min": null,
+            "height_max": null,
+            "width_min": null,
+            "width_max": null
         },
         "step2e_transformation": {
             "fill_value": 0.0
@@ -49,7 +58,14 @@
             "y_offset": 25,
             "x_offset": 75,
             "mask_shape": "square",
-            "circle_radius_factor": 1.0
+            "circle_radius_factor": 1.0,
+            "bg_method": "ring",
+            "bg_rank": 1,
+            "bg_subsample": 2000,
+            "bg_smooth_sigma": 4.0,
+            "bg_ring_radius": 12,
+            "bg_ring_width": 4,
+            "bg_clip": true
         },
         "step3b_svd": {
             "n_components": 100,
@@ -65,13 +81,13 @@
             "min_distance": 10,
             "threshold_rel": 0.1,
             "sigma": 1.0,
-            "max_size": 5000,
             "min_size": 10
         },
         "step4c_merging_units": {
             "distance_threshold": 25.0,
             "size_ratio_threshold": 5.0,
             "min_size": 9,
+            "max_size": 5000,
             "cross_merge": true
         },
         "step4d_temporal_signals": {
@@ -100,6 +116,16 @@
             "input_type": "clean",
             "max_components": 0
         },
+        "step4h_artifact_rejection": {
+            "max_cell_size": 1000,
+            "min_skew": 0.3,
+            "min_snr": 2.0,
+            "max_drift_ratio": 0.6,
+            "min_solidity": 0.4,
+            "require_large": true,
+            "min_flags": 2,
+            "combine_quarantine": true
+        },
         "step5a_noise_estimation": {
             "noise_scale": 1.5,
             "smoothing_sigma": 1.0,
@@ -126,7 +152,13 @@
             "n_frames": 5000,
             "component_source": "merged",
             "optimize_memory": true,
-            "selection_method": "random"
+            "selection_method": "random",
+            "ar_order_p": 1,
+            "max_iterations": 350,
+            "sparse_penalty_balanced": 5e-04,
+            "zero_threshold_balanced": 1e-07,
+            "snr_median": 0.0,
+            "temporal_complexity": 0.5
         },
         "step6d_temporal_update": {
             "p": 2,
@@ -211,6 +243,8 @@
             "handle_overlaps": true,
             "min_size": 10,
             "max_size": 5000,
+            "overlap_thr": 0.3,
+            "corr_thr": 0.8,
             "raw_components_retained": 0,
             "smooth_components_retained": 0,
             "raw_percent_filtered": 0.0,
@@ -253,7 +287,14 @@
             "export_formats": [],
             "include_metadata": true,
             "compression_level": 4,
-            "export_time": ""
+            "export_time": "",
+            "mesh_enable": true,
+            "similarity_ratio": 0.30,
+            "drop_min_px": 25,
+            "overlap_thr": 0.30,
+            "corr_thr": 0.70,
+            "max_size": 5000,
+            "dilate_px": 2
         }
     }
 }

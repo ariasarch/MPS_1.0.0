@@ -122,8 +122,13 @@ class Step3aCropping(ttk.Frame):
         self.y_offset_scale.grid(row=0, column=1, padx=10, pady=10, sticky="w")
         self.y_offset_label = ttk.Label(offset_frame, text="  80 px", width=8)
         self.y_offset_label.grid(row=0, column=2, padx=10, pady=10, sticky="w")
-        ttk.Label(offset_frame, text="(-) Up / (+) Down").grid(row=0, column=3, padx=10, pady=10, sticky="w")
+        # Type-in box: bound to the same IntVar as the slider, so the two stay in sync
+        # (drag the slider or type a value -- either updates the other).
+        self.y_offset_entry = ttk.Entry(offset_frame, textvariable=self.y_offset_var, width=6)
+        self.y_offset_entry.grid(row=0, column=3, padx=6, pady=10, sticky="w")
+        ttk.Label(offset_frame, text="(-) Up / (+) Down").grid(row=0, column=4, padx=10, pady=10, sticky="w")
         self.y_offset_scale.configure(command=self.update_y_offset_label)
+        self.y_offset_var.trace_add("write", lambda *a: self.update_y_offset_label())
         
         # X-offset (horizontal)
         ttk.Label(offset_frame, text="Horizontal (X):").grid(row=1, column=0, padx=10, pady=10, sticky="w")
@@ -138,15 +143,20 @@ class Step3aCropping(ttk.Frame):
         self.x_offset_scale.grid(row=1, column=1, padx=10, pady=10, sticky="w")
         self.x_offset_label = ttk.Label(offset_frame, text="  20 px", width=8)
         self.x_offset_label.grid(row=1, column=2, padx=10, pady=10, sticky="w")
-        ttk.Label(offset_frame, text="(-) Left / (+) Right").grid(row=1, column=3, padx=10, pady=10, sticky="w")
+        # Type-in box: bound to the same IntVar as the slider, so the two stay in sync
+        # (drag the slider or type a value -- either updates the other).
+        self.x_offset_entry = ttk.Entry(offset_frame, textvariable=self.x_offset_var, width=6)
+        self.x_offset_entry.grid(row=1, column=3, padx=6, pady=10, sticky="w")
+        ttk.Label(offset_frame, text="(-) Left / (+) Right").grid(row=1, column=4, padx=10, pady=10, sticky="w")
         self.x_offset_scale.configure(command=self.update_x_offset_label)
+        self.x_offset_var.trace_add("write", lambda *a: self.update_x_offset_label())
 
         # Mask shape controls: keep the square crop, or apply a circular mask
         # within that crop (everything outside the circle fades to black).
         mask_frame = ttk.LabelFrame(self.control_frame, text="Mask Shape")
         mask_frame.grid(row=2, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
 
-        self.mask_shape_var = tk.StringVar(value="square")
+        self.mask_shape_var = tk.StringVar(value="circle")
         ttk.Radiobutton(
             mask_frame, text="Square (crop only)",
             variable=self.mask_shape_var, value="square",
@@ -176,8 +186,9 @@ class Step3aCropping(ttk.Frame):
         ttk.Label(mask_frame, text="(circle stays inside the square)").grid(
             row=1, column=3, padx=10, pady=10, sticky="w")
 
-        # Circle controls start disabled because "square" is the default.
-        self.circle_radius_scale.configure(state="disabled")
+        # Circle is the default mask shape now, so set the circle controls' enabled
+        # state to match (on_mask_shape_change enables them when "circle" is selected).
+        self.on_mask_shape_change()
 
         # Background removal (optional, CNMF-E style). Suppresses large, diffuse
         # autofluorescence/neuropil BEFORE the non-negative SVD (3b) and trace
@@ -186,7 +197,7 @@ class Step3aCropping(ttk.Frame):
         self.bg_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky="ew")
 
         ttk.Label(self.bg_frame, text="Method:").grid(row=0, column=0, padx=8, pady=6, sticky="w")
-        self.bg_method_var = tk.StringVar(value="none")
+        self.bg_method_var = tk.StringVar(value="ring")
         self.bg_method_combo = ttk.Combobox(self.bg_frame, textvariable=self.bg_method_var,
                                              width=10, state="readonly")
         self.bg_method_combo['values'] = ('none', 'lowrank', 'ring')
@@ -356,12 +367,18 @@ class Step3aCropping(ttk.Frame):
         
     def update_y_offset_label(self, value=None):
         """Update the y-offset label with fixed width"""
-        value = int(self.y_offset_var.get())
+        try:
+            value = int(self.y_offset_var.get())
+        except (tk.TclError, ValueError):
+            return  # mid-typing in the entry (e.g. "" or "-"); ignore until valid
         self.y_offset_label.config(text=f"{value:4d} px")  # Fixed width formatting
         
     def update_x_offset_label(self, value=None):
         """Update the x-offset label with fixed width"""
-        value = int(self.x_offset_var.get())
+        try:
+            value = int(self.x_offset_var.get())
+        except (tk.TclError, ValueError):
+            return  # mid-typing in the entry (e.g. "" or "-"); ignore until valid
         self.x_offset_label.config(text=f"{value:4d} px")  # Fixed width formatting
 
     def update_circle_radius_label(self, value=None):

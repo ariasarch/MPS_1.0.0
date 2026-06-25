@@ -149,15 +149,44 @@ class Step2aVideoLoading(ttk.Frame):
         # Start with advanced panel hidden
         self.ls_advanced_frame.grid_remove()
 
+        # ── Trim section ──────────────────────────────────────────────────────
+        self.trim_frame = ttk.LabelFrame(self.control_frame, text="Trim Video (frame range)")
+        self.trim_frame.grid(row=6, column=0, columnspan=3, padx=10, pady=5, sticky="ew")
+
+        self.trim_video_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            self.trim_frame,
+            text="Trim video to a frame range (default: off)",
+            variable=self.trim_video_var,
+            command=self._toggle_trim_controls,
+        ).grid(row=0, column=0, columnspan=4, padx=5, pady=4, sticky="w")
+
+        ttk.Label(self.trim_frame, text="Start frame:").grid(row=1, column=0, padx=5, pady=4, sticky="w")
+        self.trim_start_frame_var = tk.IntVar(value=0)
+        self.trim_start_entry = ttk.Entry(self.trim_frame, textvariable=self.trim_start_frame_var, width=10)
+        self.trim_start_entry.grid(row=1, column=1, padx=5, pady=4, sticky="w")
+
+        ttk.Label(self.trim_frame, text="End frame:").grid(row=1, column=2, padx=5, pady=4, sticky="w")
+        self.trim_end_frame_var = tk.IntVar(value=12000)
+        self.trim_end_entry = ttk.Entry(self.trim_frame, textvariable=self.trim_end_frame_var, width=10)
+        self.trim_end_entry.grid(row=1, column=3, padx=5, pady=4, sticky="w")
+
+        ttk.Label(
+            self.trim_frame,
+            text="Default 0–12000 = first 20 min @ 10 fps. Values that run over/under the "
+                 "available range snap to the earliest/latest known frame.",
+            foreground="gray", wraplength=420
+        ).grid(row=2, column=0, columnspan=4, padx=5, pady=(0, 4), sticky="w")
+
         # Run button
         self.run_button = ttk.Button(self.control_frame, text="Load Videos", command=self.run_loading)
-        self.run_button.grid(row=6, column=0, columnspan=2, pady=20, padx=10)
+        self.run_button.grid(row=7, column=0, columnspan=2, pady=20, padx=10)
 
         # Status + progress
         self.status_var = tk.StringVar(value="Ready to load videos")
-        ttk.Label(self.control_frame, textvariable=self.status_var).grid(row=7, column=0, columnspan=2, pady=10)
+        ttk.Label(self.control_frame, textvariable=self.status_var).grid(row=8, column=0, columnspan=2, pady=10)
         self.progress = ttk.Progressbar(self.control_frame, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=8, column=0, columnspan=2, pady=10, padx=10, sticky="ew")
+        self.progress.grid(row=9, column=0, columnspan=2, pady=10, padx=10, sticky="ew")
 
         # ── Right panel: log ──────────────────────────────────────────────────
         self.log_frame = ttk.LabelFrame(self.scrollable_frame, text="Processing Log")
@@ -181,6 +210,7 @@ class Step2aVideoLoading(ttk.Frame):
         self.scrollable_frame.grid_rowconfigure(3, weight=2)
 
         self.controller.register_step_button('Step2aVideoLoading', self.run_button)
+        self._toggle_trim_controls()
 
     # ── UI toggle helpers ─────────────────────────────────────────────────────
 
@@ -199,6 +229,12 @@ class Step2aVideoLoading(ttk.Frame):
             self.ls_advanced_frame.grid()
         else:
             self.ls_advanced_frame.grid_remove()
+
+    def _toggle_trim_controls(self):
+        """Enable the start/end entries only when 'Trim video' is checked."""
+        state = "normal" if self.trim_video_var.get() else "disabled"
+        self.trim_start_entry.config(state=state)
+        self.trim_end_entry.config(state=state)
 
     # ── UI helpers ────────────────────────────────────────────────────────────
 
@@ -230,12 +266,25 @@ class Step2aVideoLoading(ttk.Frame):
                 self.log(f"Error: {label} downsample factor must be positive")
                 return
 
+        # Trim parameters (validated here; clamped against the real frame count later)
+        trim_video = bool(self.trim_video_var.get())
+        try:
+            trim_start_frame = int(self.trim_start_frame_var.get())
+            trim_end_frame = int(self.trim_end_frame_var.get())
+        except Exception:
+            self.status_var.set("Error: trim start/end must be whole numbers")
+            self.log("Error: trim start/end frames must be whole numbers")
+            return
+
         param_load_videos = {
             "pattern": self.pattern_var.get(),
             "dtype": np.uint8,
             "downsample": {"frame": ds_frame, "height": ds_h, "width": ds_w},
             "downsample_strategy": self.ds_strategy_var.get(),
             "cache_path": self.controller.state.get('cache_path', ''),
+            "trim_video": trim_video,
+            "trim_start_frame": trim_start_frame,
+            "trim_end_frame": trim_end_frame,
         }
 
         # Parse advanced LS params
@@ -275,6 +324,20 @@ class Step2aVideoLoading(ttk.Frame):
                 self.width_ds_var.set(params['downsample'].get('width', 1))
             if 'downsample_strategy' in params:
                 self.ds_strategy_var.set(params['downsample_strategy'])
+            # Trim params from file
+            if 'trim_video' in params:
+                self.trim_video_var.set(bool(params['trim_video']))
+            if 'trim_start_frame' in params:
+                try:
+                    self.trim_start_frame_var.set(int(params['trim_start_frame']))
+                except Exception:
+                    pass
+            if 'trim_end_frame' in params:
+                try:
+                    self.trim_end_frame_var.set(int(params['trim_end_frame']))
+                except Exception:
+                    pass
+            self._toggle_trim_controls()
             # Advanced LS params from file
             ls = params.get('line_splitting', {})
             if isinstance(ls, dict):
@@ -615,6 +678,7 @@ class Step2aVideoLoading(ttk.Frame):
 
             if not valid_files:
                 self.log("No valid videos to load!")
+                self._save_corrupted_files_report(corrupted_files, cache_path)
                 self.status_var.set("Error: No valid videos")
                 return
 
@@ -691,10 +755,42 @@ class Step2aVideoLoading(ttk.Frame):
             global_written = 0
             t_start = time.time()
 
+            # ── Trim setup (frame range over the combined, temporally-downsampled stream) ──
+            trim_video = bool(param_load_videos.get("trim_video", False))
+            trim_start = int(param_load_videos.get("trim_start_frame", 0))
+            trim_end = int(param_load_videos.get("trim_end_frame", 12000))
+            if trim_video:
+                if trim_start < 0:
+                    self.log(f"  TRIM ERROR: start_frame {trim_start} < 0 — resorting to "
+                             f"earliest known value (0)")
+                    trim_start = 0
+                if trim_start > total_expected:
+                    self.log(f"  TRIM ERROR: start_frame {trim_start} > total {total_expected:,} — "
+                             f"resorting to latest known value ({total_expected:,})")
+                    trim_start = total_expected
+                if trim_end > total_expected:
+                    self.log(f"  TRIM ERROR: end_frame {trim_end} > total {total_expected:,} — "
+                             f"resorting to latest known value ({total_expected:,})")
+                    trim_end = total_expected
+                if trim_end <= trim_start:
+                    self.log(f"  TRIM ERROR: end_frame ({trim_end:,}) <= start_frame ({trim_start:,}) — "
+                             f"trim disabled, loading the full stream")
+                    trim_video = False
+                else:
+                    kept = trim_end - trim_start
+                    self.log(f"  TRIM: keeping combined frames [{trim_start:,}, {trim_end:,}) of "
+                             f"{total_expected:,}  (~{kept / max(out_fps, 1) / 60:.1f} min @ "
+                             f"{out_fps:.1f} fps)")
+            effective_total = (trim_end - trim_start) if trim_video else total_expected
+            combined_kept = 0       # pre-trim index of temporally-kept frames across all files
+            stop_loading = False    # set once we pass trim_end (lets us stop reading early)
+
             # ── Load each file with cv2 ───────────────────────────────────────
             for file_idx, (fname, info, out_h, out_w) in enumerate(valid_files):
                 file_label = os.path.basename(fname)
                 file_expected = info["frames"] // max(ds_frame, 1)
+                file_stream_start = global_written       # offset of this file in the combined stream
+                out_fps = (info.get("fps", 0.0) or 0.0) / max(ds_frame, 1)
                 orig_h = info["height"]
                 orig_w = info["width"]
 
@@ -712,6 +808,12 @@ class Step2aVideoLoading(ttk.Frame):
                         "filename": file_label,
                         "full_path": fname,
                         "error": "cv2.VideoCapture could not open file",
+                        "file_index": file_idx + 1,
+                        "frames_expected": int(file_expected),
+                        "frames_loaded": 0,
+                        "stream_start": int(file_stream_start),
+                        "stream_end": int(file_stream_start),
+                        "fps": round(out_fps, 4),
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     })
                     continue
@@ -720,18 +822,21 @@ class Step2aVideoLoading(ttk.Frame):
                 file_written = 0
                 corrupt_count = 0
                 raw_frame_counter = 0  # counts every frame read from the file
+                file_kept_raw = 0      # temporally-kept frames read from this file (pre-trim)
                 t_file = time.time()
 
                 try:
                     while True:
+                        if stop_loading:        # passed trim_end on a previous frame
+                            break
                         ret, frame_raw = cap.read()
 
                         # End of file (or unrecoverable read error)
                         if not ret:
-                            if file_written + len(chunk_buf) < file_expected * 0.95:
+                            if not stop_loading and file_kept_raw < file_expected * 0.95:
                                 # Ended significantly early — log a warning
                                 self.log(
-                                    f"  WARNING: cv2 read ended at {file_written + len(chunk_buf):,} frames "
+                                    f"  WARNING: cv2 read ended at {file_kept_raw:,} frames "
                                     f"(expected ~{file_expected:,}). "
                                     f"File may be truncated or have a large corrupt tail."
                                 )
@@ -742,6 +847,18 @@ class Step2aVideoLoading(ttk.Frame):
                         # Temporal downsampling: keep frame 1, ds_frame+1, 2*ds_frame+1, ...
                         if ds_frame > 1 and (raw_frame_counter % ds_frame) != 1:
                             continue
+
+                        # Frame survived temporal downsampling — its index in the pre-trim
+                        # combined stream decides whether the trim window keeps it.
+                        pre_idx = combined_kept
+                        combined_kept += 1
+                        file_kept_raw += 1
+                        if trim_video:
+                            if pre_idx >= trim_end:
+                                stop_loading = True
+                                break
+                            if pre_idx < trim_start:
+                                continue
 
                         # Convert to grayscale if needed
                         if frame_raw is None or frame_raw.size == 0:
@@ -773,12 +890,12 @@ class Step2aVideoLoading(ttk.Frame):
 
                             elapsed = time.time() - t_start
                             fps_actual = global_written / max(elapsed, 1)
-                            remaining = (total_expected - global_written) / max(fps_actual, 1)
+                            remaining = (effective_total - global_written) / max(fps_actual, 1)
                             file_pct = file_written / max(file_expected, 1) * 100
-                            total_pct = global_written / max(total_expected, 1) * 100
+                            total_pct = global_written / max(effective_total, 1) * 100
                             ram_used = psutil.virtual_memory().percent
                             self.log(
-                                f"  File {file_pct:.0f}%  |  Overall {global_written:,}/{total_expected:,} "
+                                f"  File {file_pct:.0f}%  |  Overall {global_written:,}/{effective_total:,} "
                                 f"({total_pct:.0f}%)  |  {fps_actual:.0f} fps  |  "
                                 f"ETA {remaining/60:.0f} min  |  RAM {ram_used:.0f}%"
                                 + (f"  | corrupt frames so far: {corrupt_count}" if corrupt_count else "")
@@ -805,29 +922,56 @@ class Step2aVideoLoading(ttk.Frame):
                     + (f"  | {corrupt_count} corrupt/blank frame(s) substituted" if corrupt_count else "")
                 )
 
+                # ── Post-load health check ────────────────────────────────────
+                # Flag files that opened but look corrupt/truncated (e.g. a bad
+                # AVI whose probe reported 0 frames yet cv2 salvaged only a few).
+                # These join the hard open/probe failures so they appear in the
+                # corrupted-files report next to all_removed_frames.txt.
+                # Health checks use file_kept_raw (frames cv2 actually READ, before the
+                # trim window) so an intentional trim is never mistaken for corruption.
+                issues = []
+                if file_kept_raw == 0:
+                    issues.append("loaded 0 frames (unreadable/empty)")
+                elif info["frames"] == 0:
+                    issues.append(
+                        f"probe reported 0 frames — invalid/corrupt metadata "
+                        f"(only {file_kept_raw:,} frame(s) salvaged)"
+                    )
+                elif (not stop_loading) and file_kept_raw < file_expected * 0.95:
+                    issues.append(
+                        f"truncated read — read {file_kept_raw:,} of "
+                        f"~{file_expected:,} expected frame(s)"
+                    )
+                if corrupt_count > 0:
+                    issues.append(f"{corrupt_count:,} corrupt/blank frame(s) substituted")
+
+                if issues:
+                    corrupted_files.append({
+                        "filename": file_label,
+                        "full_path": fname,
+                        "error": "; ".join(issues),
+                        "file_index": file_idx + 1,
+                        "frames_expected": int(file_expected),
+                        "frames_loaded": int(file_written),
+                        "stream_start": int(file_stream_start),
+                        "stream_end": int(file_stream_start + file_written),
+                        "fps": round(out_fps, 4),
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+                    self.log(f"  WARNING: flagged as corrupt/problematic — {'; '.join(issues)}")
+
+                # Early stop: we passed trim_end inside this file, so skip the rest.
+                if stop_loading:
+                    self.log(f"  TRIM: reached end_frame ({trim_end:,}) — stopping; "
+                             f"remaining file(s) skipped")
+                    break
+
             self.update_progress(75)
 
-            # ── Corrupted files log ───────────────────────────────────────────
-            if corrupted_files:
-                import json
-                self.log(f"\n{len(corrupted_files)} file(s) could not be opened")
-                try:
-                    with open(os.path.join(cache_path, "corrupted_files.json"), "w") as f:
-                        json.dump(corrupted_files, f, indent=4)
-                except Exception as e:
-                    self.log(f"Could not save corrupted_files.json: {e}")
-                output_dir = self.controller.state.get("dataset_output_path", "")
-                if output_dir:
-                    try:
-                        with open(os.path.join(output_dir, "corrupted_files.txt"), "w") as f:
-                            f.write(f"Total corrupted files: {len(corrupted_files)}\n{'='*60}\n\n")
-                            for cf in corrupted_files:
-                                f.write(
-                                    f"File: {cf['filename']}\nPath: {cf['full_path']}\n"
-                                    f"Error: {cf['error']}\nTimestamp: {cf['timestamp']}\n\n"
-                                )
-                    except Exception as e:
-                        self.log(f"Could not save corrupted_files.txt: {e}")
+            # ── Corrupted files report ────────────────────────────────────────
+            # Saved next to all_removed_frames.txt (dataset output dir). Writes
+            # nothing — and clears any stale report — when no files were corrupt.
+            self._save_corrupted_files_report(corrupted_files, cache_path)
 
             if global_written == 0:
                 self.log("No frames written — aborting.")
@@ -981,6 +1125,9 @@ class Step2aVideoLoading(ttk.Frame):
                 "ls_trend_sigma": ls_params.get("trend_sigma", 20.0),
                 "ls_signal_zone_pct": ls_params.get("signal_zone_pct", 0.05),
                 "ls_column_crop": list(ls_params.get("column_crop", (0.20, 0.80))),
+                "trim_video": bool(param_load_videos.get("trim_video", False)),
+                "trim_start_frame": int(param_load_videos.get("trim_start_frame", 0)),
+                "trim_end_frame": int(param_load_videos.get("trim_end_frame", 12000)),
             }
 
             self.after_idle(lambda: self.status_var.set("Video loading complete"))
@@ -999,6 +1146,72 @@ class Step2aVideoLoading(ttk.Frame):
             if self.controller.state.get("autorun_stop_on_error", True):
                 self.controller.autorun_enabled = False
                 self.controller.autorun_indicator.config(text="")
+
+    # ── Corrupted files report ──────────────────────────────────────────────────
+
+    def _save_corrupted_files_report(self, corrupted_files, cache_path):
+        """
+        Persist the list of corrupted / problematic video files.
+
+        Writes a JSON copy to the cache dir and a human-readable .txt to the
+        dataset output dir (the same folder as all_removed_frames.txt). When
+        there are no corrupted files it writes nothing and also clears any stale
+        report from a previous run, so a clean run never leaves a misleading
+        corrupted_files file behind.
+        """
+        import json
+
+        output_dir = self.controller.state.get("dataset_output_path", "")
+        json_path = os.path.join(cache_path, "corrupted_files.json") if cache_path else None
+        txt_path = os.path.join(output_dir, "corrupted_files.txt") if output_dir else None
+
+        # Nothing corrupt -> remove any leftover report and bail out.
+        if not corrupted_files:
+            for stale in (json_path, txt_path):
+                if stale and os.path.exists(stale):
+                    try:
+                        os.remove(stale)
+                        self.log(f"  Removed stale {os.path.basename(stale)} (no corrupted files this run)")
+                    except Exception as e:
+                        self.log(f"  Could not remove stale {os.path.basename(stale)}: {e}")
+            return
+
+        self.log(f"\n{len(corrupted_files)} corrupted/problematic file(s) recorded")
+
+        if json_path:
+            try:
+                with open(json_path, "w") as f:
+                    json.dump(corrupted_files, f, indent=4)
+            except Exception as e:
+                self.log(f"Could not save corrupted_files.json: {e}")
+
+        if txt_path:
+            try:
+                with open(txt_path, "w") as f:
+                    f.write("Corrupted / problematic video files detected during Step 2a loading\n")
+                    f.write(f"Total: {len(corrupted_files)}\n")
+                    f.write("=" * 60 + "\n\n")
+                    for cf in corrupted_files:
+                        f.write(f"File: {cf.get('filename', '?')}\n")
+                        f.write(f"Path: {cf.get('full_path', '?')}\n")
+                        f.write(f"Issue: {cf.get('error', '?')}\n")
+                        if "frames_expected" in cf or "frames_loaded" in cf:
+                            f.write(f"Frames expected: {cf.get('frames_expected', '?')}\n")
+                            f.write(f"Frames loaded:   {cf.get('frames_loaded', '?')}\n")
+                        ss, se = cf.get("stream_start"), cf.get("stream_end")
+                        if isinstance(ss, int) and isinstance(se, int):
+                            span = se - ss
+                            fps = cf.get("fps") or 0
+                            secs = (f"  (~{span / fps:.1f} s)" if (span and fps) else "")
+                            if span > 0:
+                                f.write(f"In combined stream: frames [{ss}-{se - 1}]  "
+                                        f"({span} frame(s){secs})\n")
+                            else:
+                                f.write(f"In combined stream: nothing loaded (offset {ss})\n")
+                        f.write(f"Timestamp: {cf.get('timestamp', '?')}\n\n")
+                self.log(f"Saved corrupted files report -> {txt_path}")
+            except Exception as e:
+                self.log(f"Could not save corrupted_files.txt: {e}")
 
     # ── Preview ───────────────────────────────────────────────────────────────
 

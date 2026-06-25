@@ -38,6 +38,10 @@ QUICK START
   python run_multiple.py --root D:\\BE_Processed_first_20 ^
                          --log-dir D:\\BE_Processed_first_20\\batch_logs --timeout-min 360
 
+  # Run NOTHING -- just (re)build component_counts_table.txt from each session's
+  # already-saved counts (the most recent run of every step) and print it:
+  python run_multiple.py --root D:\\BE_Processed_first_20 --report-only
+
 By default each session is run as:
     run_step.py --all --no-dask --keep-going --qc --results-dir <session>
 Change that with --run-args (do NOT put --results-dir there; it's added per
@@ -434,6 +438,11 @@ def build_parser():
                    help="Skip sessions until this label (e.g. 3340_5) to resume a batch.")
     p.add_argument("--list", action="store_true",
                    help="List the sessions that would run, then exit.")
+    p.add_argument("--report-only", action="store_true",
+                   help="Run nothing; just (re)build component_counts_table.txt "
+                        "from each session's cumulative cache_data/qc_plots/"
+                        "component_counts.txt (the most recent run of every step) "
+                        "and print it. No env, Dask, or scientific packages needed.")
     p.add_argument("--no-progress", action="store_true",
                    help="Do not open the little always-on-top progress window.")
     return p
@@ -463,6 +472,26 @@ def main(argv=None):
         for i, s in enumerate(sessions, 1):
             _say("  %2d. %-12s %s" % (i, session_label(s), s))
         _say("\nPer-session command: run_step.py %s --results-dir <session>" % args.run_args)
+        return 0
+
+    if args.report_only:
+        # Build the cross-session table straight from each session's saved
+        # cumulative counts -- no sessions are launched, nothing is reprocessed.
+        log_root = os.path.abspath(os.path.expanduser(args.log_dir)) if args.log_dir \
+            else os.path.join(os.getcwd(), "batch_logs")
+        run_dir = os.path.join(log_root, "report_" + time.strftime("%Y%m%d_%H%M%S"))
+        os.makedirs(run_dir, exist_ok=True)
+        count_rows = [(session_label(sd), read_cumulative_counts(sd)) for sd in sessions]
+        write_component_table(run_dir, count_rows)
+        table_path = os.path.join(run_dir, "component_counts_table.txt")
+        _say("[run_multiple] report-only: built table from %d session(s)' "
+             "cache_data/qc_plots/component_counts.txt (nothing was run)" % len(sessions))
+        try:
+            with open(table_path, encoding="utf-8") as f:
+                _say("\n" + f.read())
+        except Exception as exc:
+            _say("[run_multiple] could not print component table: %s" % exc)
+        _say("saved: %s" % table_path)
         return 0
 
     run_args = shlex.split(args.run_args, posix=(os.name != "nt"))
