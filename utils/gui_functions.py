@@ -478,6 +478,7 @@ def _navigate_after_load(app, completion_step):
 def process_data_loading_thread(app, cache_path, data_vars, completion_step, animal, session,
                                 output_dir, init_dask, n_workers, memory_limit):
     """Thread target: loads all data, optionally starts Dask, updates app state."""
+    previous_results = None
     try:
         print(f"\n--- DEBUG: Starting data loading process ---")
         print(f"Cache path: {cache_path}")
@@ -498,8 +499,18 @@ def process_data_loading_thread(app, cache_path, data_vars, completion_step, ani
             'initialized':          True,
         })
 
-        if 'results' not in app.state:
-            app.state['results'] = {}
+        # Loading a dataset REPLACES whatever is already in memory: start from
+        # an empty results dict so arrays and completion flags from the previous
+        # dataset can't leak into this one. This only runs once the user has
+        # confirmed "Load Selected Data" in the dialog and loading has actually
+        # started -- just opening the Load Previous Data menu/dialog never
+        # touches existing results. If loading fails partway, the previous
+        # results are restored in the except block below.
+        previous_results = app.state.get('results') or {}
+        if previous_results:
+            print(f"Clearing previously loaded results before loading new data: "
+                  f"{list(previous_results.keys())}")
+        app.state['results'] = {}
 
         if init_dask:
             try:
@@ -524,6 +535,10 @@ def process_data_loading_thread(app, cache_path, data_vars, completion_step, ani
     except Exception as e:
         print(f"ERROR during data loading: {str(e)}")
         print(traceback.format_exc())
+        # Put the old results back so a failed load doesn't wipe working data
+        if previous_results:
+            app.state['results'] = previous_results
+            print("Restored previously loaded results after failed load")
         app.after_idle(lambda msg=f"Error during data loading: {str(e)}": app.status_var.set(msg))
 
 

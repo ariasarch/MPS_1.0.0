@@ -317,7 +317,16 @@ class Step2cMotionEstimation(ttk.Frame):
             self.log(f"Estimating motion with dimension: {step2c_dim}")
             step2c_motion = estimate_motion(step2c_varr_ref_subset, dim=step2c_dim)
 
-            # NaN check 
+            # Materialize the estimate ONCE. estimate_motion returns a lazy Dask
+            # array, so without this the NaN check (.compute()) runs the whole
+            # motion estimation, and then save_files' to_zarr runs it AGAIN --
+            # doubling this step's runtime. The result is tiny ((n_frames, 2)
+            # floats), so computing it into memory here is cheap, and both the
+            # NaN check and the save then reuse it with no recomputation.
+            self.log("Materializing motion estimate (compute once, reuse for check + save)...")
+            step2c_motion = step2c_motion.compute()
+
+            # NaN check
             try:
                 nan_count = step2c_motion.isnull().sum().compute().item()
                 if nan_count > 0:

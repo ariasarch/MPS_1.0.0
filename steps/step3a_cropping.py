@@ -1133,28 +1133,28 @@ class Step3aCropping(ttk.Frame):
                     
                 except Exception as e:
                     self.log(f"save_files failed for Y_fm_cropped: {str(e)}")
-                    
-                    # Check if it's the codec/buffer size error
-                    if "Codec does not support buffers" in str(e) or "2147483647" in str(e):
-                        self.log("Error appears to be due to chunk size exceeding 2GB limit")
-                        self.log("Falling back to save_hw_chunks_direct...")
-                        try:
-                            step3a_Y_fm_cropped = save_hw_chunks_direct(
-                                array=step3a_Y_fm_cropped,
-                                output_path=cache_data_path,
-                                name="step3a_Y_fm_cropped",
-                                height_chunk=spatial_chunks,
-                                width_chunk=spatial_chunks,
-                                overwrite=True,
-                                batch_size=5000  # Smaller batches to be safe
-                            )
-                            self.log("step3a_Y_fm_cropped saved successfully using save_hw_chunks_direct.")
-                        except Exception as e2:
-                            self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
-                            # Re-raise the error to stop processing
-                            raise
-                    else:
-                        # Re-raise if it's not the 2GB error
+
+                    # Fall back to the batched direct writer for ANY save_files
+                    # failure. This covers the 2GB codec limit AND the rechunker
+                    # int32 overflow on large sessions ("Chunks do not add up to
+                    # shape" with a negative chunk, e.g. (95381,445,450) overflows
+                    # numpy's 32-bit long on Windows). save_hw_chunks_direct writes
+                    # frame-batched and never calls rechunker, so it sidesteps both.
+                    self.log("Falling back to save_hw_chunks_direct...")
+                    try:
+                        step3a_Y_fm_cropped = save_hw_chunks_direct(
+                            array=step3a_Y_fm_cropped,
+                            output_path=cache_data_path,
+                            name="step3a_Y_fm_cropped",
+                            height_chunk=spatial_chunks,
+                            width_chunk=spatial_chunks,
+                            overwrite=True,
+                            batch_size=5000  # Smaller batches to be safe
+                        )
+                        self.log("step3a_Y_fm_cropped saved successfully using save_hw_chunks_direct.")
+                    except Exception as e2:
+                        self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
+                        # Re-raise the error to stop processing
                         raise
                 
                 self.log("Saving step3a_Y_hw_cropped with optimized chunks...")
@@ -1176,27 +1176,28 @@ class Step3aCropping(ttk.Frame):
                     
                 except Exception as e:
                     self.log(f"save_files failed for Y_hw_cropped: {str(e)}")
-                    
-                    # Check if it's the codec/buffer size error
-                    if "Codec does not support buffers" in str(e) or "2147483647" in str(e):
-                        self.log("Error appears to be due to chunk size exceeding 2GB limit")
-                    
-                        self.log("Falling back to save_hw_chunks_direct...")
-                        try:
-                            step3a_Y_hw_cropped = save_hw_chunks_direct(
-                                array=step3a_Y_hw_cropped,
-                                output_path=cache_data_path,
-                                name="step3a_Y_hw_cropped",
-                                height_chunk=spatial_chunks,
-                                width_chunk=spatial_chunks,
-                                overwrite=True,
-                                batch_size=5000  # Smaller batches to be safe
-                            )
-                            self.log("step3a_Y_hw_cropped saved successfully using save_hw_chunks_direct.")
-                        except Exception as e2:
-                            self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
-                            # Re-raise the error to stop processing
-                            raise
+
+                    # Fall back to the batched direct writer for ANY save_files
+                    # failure (2GB codec limit OR the rechunker int32 overflow on
+                    # large sessions). Without this, a big session's Y_hw_cropped
+                    # is never written and step 5b later fails with
+                    # "Could not find step3a_Y_hw_cropped".
+                    self.log("Falling back to save_hw_chunks_direct...")
+                    try:
+                        step3a_Y_hw_cropped = save_hw_chunks_direct(
+                            array=step3a_Y_hw_cropped,
+                            output_path=cache_data_path,
+                            name="step3a_Y_hw_cropped",
+                            height_chunk=spatial_chunks,
+                            width_chunk=spatial_chunks,
+                            overwrite=True,
+                            batch_size=5000  # Smaller batches to be safe
+                        )
+                        self.log("step3a_Y_hw_cropped saved successfully using save_hw_chunks_direct.")
+                    except Exception as e2:
+                        self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
+                        # Re-raise the error to stop processing
+                        raise
                 
                 self.log(f"Successfully saved both cropped zarr arrays using save_files with optimal chunks")
             except Exception as e:

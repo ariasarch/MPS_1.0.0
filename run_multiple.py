@@ -354,8 +354,16 @@ def run_session(session_dir, run_args, log_path, timeout_sec):
     """Run one session as a subprocess. Returns (status, returncode, seconds)."""
     cmd = build_launcher() + [RUN_STEP] + list(run_args) + ["--results-dir", session_dir]
 
+    # Decode child output as UTF-8 no matter the console codepage -- tqdm
+    # progress bars emit multi-byte block characters that crash cp1252 and
+    # would kill the tee thread (leaving the pipe undrained, hanging the child).
     popen_kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                        bufsize=1, universal_newlines=True)
+                        bufsize=1, universal_newlines=True,
+                        encoding="utf-8", errors="replace")
+    child_env = dict(os.environ)
+    child_env["PYTHONIOENCODING"] = "utf-8"   # child writes UTF-8 to the pipe
+    child_env["PYTHONUTF8"] = "1"
+    popen_kwargs["env"] = child_env
     if os.name == "nt":
         popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
