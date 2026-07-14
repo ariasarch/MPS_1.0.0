@@ -1075,7 +1075,12 @@ class Step3aCropping(ttk.Frame):
             if str(module_base_path) not in sys.path:
                 sys.path.append(str(module_base_path))
             
-            # Try to save the files 
+            # Try to save the files. Each array's save is fully independent:
+            # a failure on Y_fm_cropped must never skip the Y_hw_cropped save
+            # (that is the array steps 5b/7e reload from disk), and a save
+            # failure is recorded + reported loudly instead of being lost in
+            # the log while the step reports success.
+            save_failures = []
             try:
                 from saving_utilities import save_files, get_optimal_chk
                 cache_data_path = self.controller.state.get('cache_path', '')
@@ -1154,10 +1159,11 @@ class Step3aCropping(ttk.Frame):
                         self.log("step3a_Y_fm_cropped saved successfully using save_hw_chunks_direct.")
                     except Exception as e2:
                         self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
-                        # Re-raise the error to stop processing
-                        raise
-                
-                self.log("Saving step3a_Y_hw_cropped with optimized chunks...")
+                        import traceback
+                        self.log(traceback.format_exc())
+                        # Record and continue: the hw save below must still run.
+                        save_failures.append("step3a_Y_fm_cropped")
+
                 self.log("Saving step3a_Y_hw_cropped with optimized chunks...")
                 try:
                     self.log("Attempting save_files for Y_hw_cropped...")
@@ -1196,11 +1202,25 @@ class Step3aCropping(ttk.Frame):
                         self.log("step3a_Y_hw_cropped saved successfully using save_hw_chunks_direct.")
                     except Exception as e2:
                         self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
-                        # Re-raise the error to stop processing
-                        raise
-                
-                self.log(f"Successfully saved both cropped zarr arrays using save_files with optimal chunks")
+                        import traceback
+                        self.log(traceback.format_exc())
+                        save_failures.append("step3a_Y_hw_cropped")
+
+                if save_failures:
+                    self.log("=" * 60)
+                    self.log(f"WARNING: {len(save_failures)} cropped array(s) were NOT "
+                             f"saved to disk: {', '.join(save_failures)}")
+                    self.log("WARNING: the in-memory copies are still valid, so this "
+                             "run can continue, but any LATER run that has to reload "
+                             "these from cache_data (e.g. resuming at 5b or 7e) will "
+                             "fail. Re-run step 3a in the same command as the steps "
+                             "that need it.")
+                    self.log("=" * 60)
+                else:
+                    self.log(f"Successfully saved both cropped zarr arrays using save_files with optimal chunks")
             except Exception as e:
+                # Only setup errors (imports, chunk calculation) land here now;
+                # per-array save failures are handled + recorded above.
                 self.log(f"Error during save: {str(e)}")
                 import traceback
                 self.log(traceback.format_exc())

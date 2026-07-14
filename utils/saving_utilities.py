@@ -11,6 +11,30 @@ import xarray as xr
 import zarr
 
 
+def _rmtree_retry(path, attempts=6, delay=2.0):
+    """Remove a directory tree, retrying on Windows file locks.
+
+    After a failed Dask save, worker processes can briefly hold open handles
+    on partially written chunk files, so an immediate rmtree dies with
+    WinError 32. The handles are released within seconds of the failed
+    compute; a short retry loop rides that out. Returns True on success."""
+    last_exc = None
+    for i in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError as exc:
+            last_exc = exc
+            print(f"rmtree of {path} failed (attempt {i + 1}/{attempts}: {exc}); "
+                  f"retrying in {delay:.0f}s...")
+            gc.collect()
+            time.sleep(delay)
+    print(f"Could not remove {path} after {attempts} attempts: {last_exc}")
+    return False
+
+
 def save_hw_chunks_direct(
     array: xr.DataArray,
     output_path: str,
@@ -56,7 +80,13 @@ def save_hw_chunks_direct(
 
     if overwrite and os.path.exists(zarr_path):
         print(f"Removing existing store: {zarr_path}")
-        shutil.rmtree(zarr_path)
+        if not _rmtree_retry(zarr_path):
+            # Still locked after retries: move the store aside so the write
+            # can proceed into a clean path; the stale copy can be deleted
+            # manually later.
+            stale_path = zarr_path + ".stale_%d" % int(time.time())
+            print(f"Store still locked; moving it aside to {stale_path}")
+            os.rename(zarr_path, stale_path)
 
     # Drop stale encoding so xarray doesn't fight us on chunk layout
     array.encoding.pop("chunks", None)

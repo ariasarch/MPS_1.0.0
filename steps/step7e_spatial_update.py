@@ -1170,25 +1170,37 @@ class Step7eSpatialUpdate(ttk.Frame):
     def load_video_data(self):
         """Load Y_cropped video data from cache and convert NaNs to zeros"""
 
-        # First check if step3a data is in state
+        # First check if step3a data is in state and USE it if found. This is
+        # the only working source when step 3a's zarr save failed on disk
+        # (e.g. blosc's 2 GiB buffer limit on very long sessions), and it is
+        # lazy/dask-backed so returning it costs no extra memory.
+        Y_cropped = None
         if 'step3a' in self.controller.state.get('results', {}):
             step3a_results = self.controller.state['results']['step3a']
             if 'step3a_Y_hw_cropped' in step3a_results:
                 print("Found step3a_Y_hw_cropped in step3a results")
                 Y_cropped = step3a_results['step3a_Y_hw_cropped']
-        
+
         # Also check top-level results for step3a arrays
         if 'step3a_Y_hw_cropped' in self.controller.state.get('results', {}):
             print("Found step3a_Y_hw_cropped at top level of results")
             Y_cropped = self.controller.state['results']['step3a_Y_hw_cropped']
-        
+
+        if Y_cropped is not None and 'frame' in getattr(Y_cropped, 'dims', ()):
+            print(f"Using in-memory step3a_Y_hw_cropped (shape {Y_cropped.shape}), "
+                  "skipping disk load")
+            return Y_cropped
+        elif Y_cropped is not None:
+            print("In-memory step3a_Y_hw_cropped has no 'frame' dim; "
+                  "falling back to disk load")
+
         # Get cache path from controller state
         cache_path = self.controller.state.get('cache_path', '')
         if not cache_path:
             raise ValueError("Cache path not set in controller state")
-            
+
         print(f"Attempting to load video data from {cache_path}")
-        
+
         # Try different potential sources
         Y_zarr_path = os.path.join(cache_path, 'step3a_Y_hw_cropped.zarr')
         Y_cropped = None
