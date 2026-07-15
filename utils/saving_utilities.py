@@ -100,6 +100,115 @@ def save_hw_chunks_direct(
     frame_chunk = min(batch_size, total_frames)
     # ─────────────────────────────────────────────────────────────────────
 
+    # ── Orientation-aware write ──────────────────────────────────────────
+    # If the frame axis is a single big dask chunk, the array is SPATIALLY
+    # oriented (e.g. step3a_Y_hw_cropped: one chunk of all frames per small
+    # h x w tile). Frame-batching such an array is pathological -- each frame
+    # batch must read EVERY spatial tile in full (all frames) just to keep a
+    # slice, so the whole source is re-read once per batch (100x+ redundant I/O
+    # and huge memory). Write it along HEIGHT instead, matching its native
+    # layout: each stripe reads its rows once, stays small, and the zarr keeps
+    # the frame-major chunking the spatial steps expect.
+    _frame_chunks0 = None
+    try:
+        import dask.array as _da_check
+        if isinstance(getattr(array, "data", None), _da_check.Array):
+            _frame_chunks0 = array.chunks[0]
+    except Exception:
+        _frame_chunks0 = None
+    spatially_oriented = (_frame_chunks0 is not None
+                          and len(_frame_chunks0) == 1
+                          and _frame_chunks0[0] >= total_frames)
+
+    if spatially_oriented:
+        itemsize = max(1, np.dtype(array.dtype).itemsize)
+        target_bytes = 4 * 1024 ** 3
+        per_row = total_frames * W * itemsize
+        h_batch = max(height_chunk,
+                      (int(target_bytes // max(1, per_row)) // height_chunk) * height_chunk)
+        n_stripes = (H + h_batch - 1) // h_batch
+        print(f"Spatially-oriented array (frame axis is one chunk of {_frame_chunks0[0]} "
+              f"frames). Writing along HEIGHT in {n_stripes} stripe(s) of {h_batch} rows "
+              f"(native layout; source read once, ~{per_row * h_batch / 1e9:.1f} GB/stripe).")
+        print(f"Array shape : {array.shape}")
+        print(f"Storage chunks : ({total_frames}, {height_chunk}, {width_chunk})")
+
+        # metadata skeleton, then our own frame-major chunked zarr array
+        ds = array.to_dataset(name=name)
+        ds.to_zarr(zarr_path, mode="w", compute=False)
+        store = zarr.DirectoryStore(zarr_path)
+        root = zarr.open_group(store, mode="r+")
+        saved_attrs = dict(root[name].attrs)
+        del root[name]
+        zarr_array = root.create_dataset(
+            name,
+            shape=(total_frames, H, W),
+            chunks=(total_frames, height_chunk, width_chunk),
+            dtype=array.dtype,
+            compressor=numcodecs.Zlib(level=1),
+        )
+        for k, v in saved_attrs.items():
+            zarr_array.attrs[k] = v
+        zarr_array.attrs.setdefault("_ARRAY_DIMENSIONS", list(array_dims))
+
+        start_time = time.time()
+        stripe_times: list[float] = []
+        for si, h0 in enumerate(range(0, H, h_batch)):
+            t0 = time.time()
+            h1 = min(h0 + h_batch, H)
+            if stripe_times:
+                avg = sum(stripe_times) / len(stripe_times)
+                eta = str(timedelta(seconds=int(avg * (n_stripes - si))))
+                elapsed = str(timedelta(seconds=int(time.time() - start_time)))
+                print(f"\n── Height stripe {si + 1}/{n_stripes}  (rows {h0}-{h1 - 1})   "
+                      f"Elapsed {elapsed}  ETA {eta}")
+            else:
+                print(f"\n── Height stripe {si + 1}/{n_stripes}  (rows {h0}-{h1 - 1})")
+            # Frame-major read of these rows (efficient, source read once);
+            # threads scheduler keeps it in the main process, bounded.
+            stripe = array.isel({array_dims[1]: slice(h0, h1)}).compute(scheduler="threads")
+            nan_count = int(np.isnan(stripe.values).sum())
+            if nan_count:
+                print(f"   ⚠  {nan_count} NaN values in stripe")
+            zarr_array[:, h0:h1, :] = stripe.values
+            del stripe
+            gc.collect()
+            dt = time.time() - t0
+            stripe_times.append(dt)
+            print(f"   Done in {dt:.1f}s")
+
+        total_s = time.time() - start_time
+        print(f"\nFinished (spatial write). Total: {timedelta(seconds=int(total_s))}")
+
+        result = xr.open_zarr(zarr_path)[name]
+        result.data = darr.from_zarr(zarr_path, component=name)
+        # Cheap sample check: one spatial tile (bounded), not a frame slice
+        try:
+            samp = result.isel(
+                {array_dims[1]: slice(0, height_chunk),
+                 array_dims[2]: slice(0, width_chunk)}).compute(scheduler="threads")
+            bad = int(np.isnan(samp.values).sum())
+            print("Sample check OK (one tile, no NaNs)" if not bad
+                  else f"⚠  Sample check: {bad} NaNs in first tile")
+        except Exception as _exc:
+            print(f"(sample check skipped: {_exc})")
+        return result
+
+    # Rechunk the frame axis to the batch size BEFORE the write loop. Without
+    # this, an array whose frame axis is a single dask chunk (e.g.
+    # step3a_Y_hw_cropped, which 3a builds with frame=-1 for spatial layout)
+    # makes each per-batch `.compute()` pull the ENTIRE video (all frames) to
+    # slice out one batch -- ~86 GB for a 180-min session -- which instantly
+    # blows past a memory-capped Dask worker. Rechunking makes each batch map to
+    # one bounded chunk, so only `frame_chunk` frames are ever materialised.
+    try:
+        import dask.array as _da
+        if isinstance(getattr(array, "data", None), _da.Array):
+            array = array.chunk({array_dims[0]: frame_chunk})
+            print(f"Rechunked frame axis to {frame_chunk} for bounded batch writes")
+    except Exception as _exc:
+        print(f"(frame rechunk to {frame_chunk} skipped: {_exc})")
+
     print(f"Array shape : {array.shape}")
     print(f"Storage chunks : ({frame_chunk}, {height_chunk}, {width_chunk})")
     print(f"Batch size  : {batch_size} frames  (= frame chunk — aligned writes)")
@@ -148,8 +257,11 @@ def save_hw_chunks_direct(
             elapsed = str(timedelta(seconds=int(time.time() - start_time)))
             print(f"   Elapsed: {elapsed}   ETA: {eta}   Avg: {avg:.1f}s/batch")
 
-        # Materialise just this batch
-        batch = array.isel(frame=slice(start, end)).compute()
+        # Materialise just this batch in the MAIN process (threads scheduler),
+        # not on the memory-capped distributed workers. Combined with the frame
+        # rechunk above, each batch is a bounded, in-process compute -- immune to
+        # the 95%-worker-memory nanny kills that a running LocalCluster imposes.
+        batch = array.isel(frame=slice(start, end)).compute(scheduler="threads")
 
         nan_count = int(np.isnan(batch.values).sum())
         if nan_count:

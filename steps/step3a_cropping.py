@@ -13,6 +13,21 @@ from pathlib import Path
 import traceback
 from saving_utilities import save_hw_chunks_direct
 
+# --- step 3a save tuning -----------------------------------------------------
+# save_files() rechunks the cropped video through rechunker on the Dask cluster.
+# Under a tight per-worker memory budget (e.g. an 8 GB/worker cap) that rechunk
+# builds large *unmanaged* buffers the workers cannot spill, so they hit the 95%
+# nanny limit and get killed -- save_files then fails and we fall back to the
+# batched direct writer anyway, after minutes of wasted thrash. For any video
+# with more than STEP3A_DIRECT_SAVE_FRAME_THRESHOLD frames we therefore skip
+# save_files entirely and write frame-batched from the start (no rechunker, no
+# worker deaths). STEP3A_SAVE_BATCH_SIZE frames are materialised per write; make
+# it smaller to lower the peak of each batch's compute under a memory cap.
+STEP3A_SAVE_BATCH_SIZE = 1000               # frames materialised per write batch
+STEP3A_DIRECT_SAVE_FRAME_THRESHOLD = 20000  # above this, skip save_files -> direct
+STEP3A_FORCE_DIRECT_SAVE = False            # True = always use the batched writer
+
+
 class Step3aCropping(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -1119,92 +1134,63 @@ class Step3aCropping(ttk.Frame):
                 self.log(f"Optimal compute chunks for Y_hw_cropped: {compute_chunks_hw}")
                 self.log(f"Optimal store chunks for Y_hw_cropped: {store_chunks_hw}")
                 
-                # Now save with the appropriate store_chunks
-                self.log("Saving step3a_Y_fm_cropped with optimized chunks...")
-                try:
-                    self.log(f"  Array shape: {step3a_Y_fm_cropped.shape}")
-                    self.log(f"  Array chunks: {step3a_Y_fm_cropped.chunks}")
-                    self.log(f"  Target store chunks: {store_chunks_fm}")
-                    self.log(f"  Array dtype: {step3a_Y_fm_cropped.dtype}")
+                # Save each cropped array. For big videos we skip save_files
+                # (its rechunker pass kills workers under a memory cap) and go
+                # straight to the frame-batched writer; smaller ones still try
+                # save_files first. Each array is independent so one failure
+                # cannot skip the other.
+                def _save_cropped(array, name, store_chunks):
+                    n_frames = int(array.shape[0])
+                    go_direct = (STEP3A_FORCE_DIRECT_SAVE
+                                 or n_frames > STEP3A_DIRECT_SAVE_FRAME_THRESHOLD)
+                    self.log(f"Saving {name} ...")
+                    self.log(f"  Array shape: {array.shape}  dtype: {array.dtype}")
+                    self.log(f"  Target store chunks: {store_chunks}")
                     self.log(f"  Cache path: {cache_data_path}")
-                    
-                    step3a_Y_fm_cropped = save_files(
-                        var=step3a_Y_fm_cropped.rename("step3a_Y_fm_cropped"),
-                        dpath=cache_data_path,
-                        chunks=store_chunks_fm,
-                        overwrite=True
-                    )
-                    self.log("step3a_Y_fm_cropped saved successfully using save_files.")
-                    
-                except Exception as e:
-                    self.log(f"save_files failed for Y_fm_cropped: {str(e)}")
 
-                    # Fall back to the batched direct writer for ANY save_files
-                    # failure. This covers the 2GB codec limit AND the rechunker
-                    # int32 overflow on large sessions ("Chunks do not add up to
-                    # shape" with a negative chunk, e.g. (95381,445,450) overflows
-                    # numpy's 32-bit long on Windows). save_hw_chunks_direct writes
-                    # frame-batched and never calls rechunker, so it sidesteps both.
-                    self.log("Falling back to save_hw_chunks_direct...")
+                    if not go_direct:
+                        try:
+                            saved = save_files(
+                                var=array.rename(name),
+                                dpath=cache_data_path,
+                                chunks=store_chunks,
+                                overwrite=True,
+                            )
+                            self.log(f"{name} saved successfully using save_files.")
+                            return saved
+                        except Exception as e:
+                            self.log(f"save_files failed for {name}: {str(e)}")
+                            self.log("Falling back to save_hw_chunks_direct...")
+                    else:
+                        self.log(f"  {n_frames} frames > {STEP3A_DIRECT_SAVE_FRAME_THRESHOLD}: "
+                                 f"using batched writer directly (batch_size="
+                                 f"{STEP3A_SAVE_BATCH_SIZE}, no rechunker).")
+
+                    # Frame-batched writer: no rechunker, chunk-aligned writes,
+                    # STEP3A_SAVE_BATCH_SIZE frames materialised at a time.
                     try:
-                        step3a_Y_fm_cropped = save_hw_chunks_direct(
-                            array=step3a_Y_fm_cropped,
+                        saved = save_hw_chunks_direct(
+                            array=array,
                             output_path=cache_data_path,
-                            name="step3a_Y_fm_cropped",
+                            name=name,
                             height_chunk=spatial_chunks,
                             width_chunk=spatial_chunks,
                             overwrite=True,
-                            batch_size=5000  # Smaller batches to be safe
+                            batch_size=STEP3A_SAVE_BATCH_SIZE,
                         )
-                        self.log("step3a_Y_fm_cropped saved successfully using save_hw_chunks_direct.")
+                        self.log(f"{name} saved successfully using save_hw_chunks_direct.")
+                        return saved
                     except Exception as e2:
-                        self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
+                        self.log(f"save_hw_chunks_direct also failed for {name}: {str(e2)}")
                         import traceback
                         self.log(traceback.format_exc())
-                        # Record and continue: the hw save below must still run.
-                        save_failures.append("step3a_Y_fm_cropped")
+                        save_failures.append(name)
+                        return array
 
-                self.log("Saving step3a_Y_hw_cropped with optimized chunks...")
-                try:
-                    self.log("Attempting save_files for Y_hw_cropped...")
-                    self.log(f"  Array shape: {step3a_Y_hw_cropped.shape}")
-                    self.log(f"  Array chunks: {step3a_Y_hw_cropped.chunks}")
-                    self.log(f"  Target store chunks: {store_chunks_hw}")
-                    self.log(f"  Array dtype: {step3a_Y_hw_cropped.dtype}")
-                    
-                    step3a_Y_hw_cropped = save_files(
-                        var=step3a_Y_hw_cropped.rename("step3a_Y_hw_cropped"),
-                        dpath=cache_data_path,
-                        chunks=store_chunks_hw,
-                        overwrite=True
-                    )
-                    self.log("step3a_Y_hw_cropped saved successfully using save_files.")
-                    
-                except Exception as e:
-                    self.log(f"save_files failed for Y_hw_cropped: {str(e)}")
-
-                    # Fall back to the batched direct writer for ANY save_files
-                    # failure (2GB codec limit OR the rechunker int32 overflow on
-                    # large sessions). Without this, a big session's Y_hw_cropped
-                    # is never written and step 5b later fails with
-                    # "Could not find step3a_Y_hw_cropped".
-                    self.log("Falling back to save_hw_chunks_direct...")
-                    try:
-                        step3a_Y_hw_cropped = save_hw_chunks_direct(
-                            array=step3a_Y_hw_cropped,
-                            output_path=cache_data_path,
-                            name="step3a_Y_hw_cropped",
-                            height_chunk=spatial_chunks,
-                            width_chunk=spatial_chunks,
-                            overwrite=True,
-                            batch_size=5000  # Smaller batches to be safe
-                        )
-                        self.log("step3a_Y_hw_cropped saved successfully using save_hw_chunks_direct.")
-                    except Exception as e2:
-                        self.log(f"save_hw_chunks_direct also failed: {str(e2)}")
-                        import traceback
-                        self.log(traceback.format_exc())
-                        save_failures.append("step3a_Y_hw_cropped")
+                step3a_Y_fm_cropped = _save_cropped(
+                    step3a_Y_fm_cropped, "step3a_Y_fm_cropped", store_chunks_fm)
+                step3a_Y_hw_cropped = _save_cropped(
+                    step3a_Y_hw_cropped, "step3a_Y_hw_cropped", store_chunks_hw)
 
                 if save_failures:
                     self.log("=" * 60)

@@ -2,6 +2,13 @@ import tkinter as tk
 from tkinter import ttk
 import os
 import numpy as np
+
+# YrA = Y @ A.T is computed by streaming the video in frame-chunks of this many
+# frames, so the full (frames x pixels) array is never materialised in RAM. Peak
+# per chunk ~= frame_chunk_size * pixels * 4 bytes. Settable per run via
+# --set 8a:frame_chunk_size=<n> (headless) or the field in the GUI.
+STEP8A_FRAME_CHUNK_SIZE = 4000
+
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import threading
@@ -108,7 +115,11 @@ class Step8aYRAComputation(ttk.Frame):
             variable=self.use_float32_var
         )
         self.use_float32_check.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="w")
-        
+
+        # Frame-chunk size for the streamed YrA matmul (memory knob; also
+        # settable headless via --set 8a:frame_chunk_size=<n>).
+        self.frame_chunk_size_var = tk.IntVar(value=STEP8A_FRAME_CHUNK_SIZE)
+
         # Fix NaN values
         self.fix_nans_var = tk.BooleanVar(value=True)
         self.fix_nans_check = ttk.Checkbutton(
@@ -229,11 +240,17 @@ class Step8aYRAComputation(ttk.Frame):
         subtract_bg = self.subtract_bg_var.get()
         use_float32 = self.use_float32_var.get()
         fix_nans = self.fix_nans_var.get()
-        
+        try:
+            frame_chunk_size = int(self.frame_chunk_size_var.get())
+        except Exception:
+            frame_chunk_size = STEP8A_FRAME_CHUNK_SIZE
+        if frame_chunk_size < 1:
+            frame_chunk_size = STEP8A_FRAME_CHUNK_SIZE
+
         # Fixed, optimal chunking sizes - not exposed to user
         height_chunk = 50
         width_chunk = 50
-        
+
         # Log parameters
         self.log(f"Updated YrA computation parameters:")
         self.log(f"  Spatial component source: {spatial_source}")
@@ -241,17 +258,18 @@ class Step8aYRAComputation(ttk.Frame):
         self.log(f"  Subtract background: {subtract_bg}")
         self.log(f"  Use float32: {use_float32}")
         self.log(f"  Fix NaN values: {fix_nans}")
+        self.log(f"  Frame-chunk size (streamed matmul): {frame_chunk_size}")
         self.log(f"  Using fixed optimal chunking: height={height_chunk}, width={width_chunk}")
-        
+
         # Start computation in a separate thread
         thread = threading.Thread(
             target=self._computation_thread,
-            args=(spatial_source, temporal_source, subtract_bg, height_chunk, width_chunk, use_float32, fix_nans)
+            args=(spatial_source, temporal_source, subtract_bg, height_chunk, width_chunk, use_float32, fix_nans, frame_chunk_size)
         )
         thread.daemon = True
         thread.start()
     
-    def _computation_thread(self, spatial_source, temporal_source, subtract_bg, height_chunk, width_chunk, use_float32, fix_nans):
+    def _computation_thread(self, spatial_source, temporal_source, subtract_bg, height_chunk, width_chunk, use_float32, fix_nans, frame_chunk_size=STEP8A_FRAME_CHUNK_SIZE):
         """Thread function for updated YrA computation"""
         try:
             # Import required modules
@@ -394,35 +412,51 @@ class Step8aYRAComputation(ttk.Frame):
             width = step3a_Y_hw_cropped.shape[2]
             n_components = A_matrix.shape[0]
             
-            # Reshape arrays using numpy directly (more reliable than stack/unstack)
-            Y_reshaped = step3a_Y_hw_cropped.values.reshape(frame_count, -1)
+            # ---- Streamed YrA = Y @ A.T ----------------------------------------
+            # The full (frames x pixels) video is never materialised. A is small
+            # (n_components x pixels) so it is loaded once; Y is streamed in
+            # frame-chunks. Background is folded in analytically instead of
+            # building the full (frames x pixels) outer product:
+            #     (Y - f (x) b) @ A.T  =  Y@A.T  -  f (x) (A @ b)
+            # so only the length-n_components vector A@b and the length-frames
+            # vector f are ever needed for the background term.
             A_reshaped = A_matrix.values.reshape(n_components, -1)
-            
-            self.log(f"Reshaped arrays - Y: {Y_reshaped.shape}, A: {A_reshaped.shape}")
-            
-            # Subtract background if requested
+            self.log(f"A reshaped: {A_reshaped.shape}. Streaming Y in frame-chunks "
+                     f"of {frame_chunk_size} (never loading the whole video).")
+
+            out_dtype = np.dtype(A_reshaped.dtype)
+            if out_dtype.kind != 'f':
+                out_dtype = np.float32 if use_float32 else np.float64
+            YrA_values = np.empty((frame_count, n_components), dtype=out_dtype)
+
+            f_values = None
+            bg_vec = None
             if subtract_bg:
-                self.log("Subtracting background contribution...")
-                self.update_progress(30)
-                
-                # Reshape background components
+                self.log("Folding background in analytically (rank-1, no full matrix)...")
                 b_reshaped = step3b_b.squeeze('component').values.reshape(-1)
-                f_values = step3b_f.values
-                
-                # Create background matrix
-                background = np.outer(f_values, b_reshaped)
-                
-                # Subtract from Y
-                Y_reshaped = Y_reshaped - background
-                self.log("Background subtraction completed")
-            
-            # Compute updated YrA
-            self.log("Computing updated YrA (residual activity)...")
-            self.update_progress(40)
-            
+                f_values = np.asarray(step3b_f.values).reshape(-1)
+                bg_vec = np.asarray(A_reshaped @ b_reshaped).reshape(-1)  # (n_components,)
+                if f_values.shape[0] != frame_count:
+                    self.log(f"  WARNING: f length {f_values.shape[0]} != frames "
+                             f"{frame_count}; skipping background subtraction.")
+                    subtract_bg = False
+
+            self.update_progress(30)
             try:
-                self.log("Computing YrA = A^T (Y - B)")
-                YrA_values = np.dot(Y_reshaped, A_reshaped.T)   # (frames, units)
+                self.log("Computing YrA = A^T (Y - B), streamed over frame-chunks")
+                n_chunks = (frame_count + frame_chunk_size - 1) // frame_chunk_size
+                for ci, start in enumerate(range(0, frame_count, frame_chunk_size)):
+                    end = min(start + frame_chunk_size, frame_count)
+                    Y_chunk = step3a_Y_hw_cropped.isel(
+                        frame=slice(start, end)).values.reshape(end - start, -1)
+                    YrA_values[start:end] = np.dot(Y_chunk, A_reshaped.T)
+                    del Y_chunk
+                    self.log(f"  YrA chunk {ci + 1}/{n_chunks} (frames {start}-{end - 1}) done")
+                    self.update_progress(30 + int(25 * (ci + 1) / n_chunks))
+
+                if subtract_bg:
+                    YrA_values -= np.outer(f_values, bg_vec)
+                    self.log("Background subtraction completed")
                 self.log(f"Updated YrA shape: {YrA_values.shape}")
 
                 frame_coords = step3a_Y_hw_cropped.coords['frame'].values
